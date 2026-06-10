@@ -1,0 +1,54 @@
+# Tennis Match Prediction Model - Dependencies
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+lightgbm>=4.0.0
+
+# Deep Learning (optional, for neural network models)
+torch>=2.0.0
+
+# Data visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# Jupyter notebooks
+jupyter>=1.0.0
+notebook>=7.0.0
+
+# Web scraping & API
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+selenium>=4.15.0
+
+# Odds API
+# the-odds-api (via requests)
+
+# Environment
+python-dotenv>=1.0.0
+
+# Utilities
+pyyaml>=6.0
+tqdm>=4.65.0
+python-dateutil>=2.8.0
+joblib>=1.3.0
+
+# Backtesting & statistics
+scipy>=1.11.0
+statsmodels>=0.14.0
+
+# Scheduling (for live pipeline)
+schedule>=1.2.0
+
+# Mission Control dashboard
+fastapi
+uvicorn[standard]
+pywinpty
+pywin32

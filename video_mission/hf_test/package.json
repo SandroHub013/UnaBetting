@@ -1,0 +1,11 @@
+{
+  "name": "hf_test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.6.81 preview",
+    "check": "npx --yes hyperframes@0.6.81 lint && npx --yes hyperframes@0.6.81 validate && npx --yes hyperframes@0.6.81 inspect",
+    "render": "npx --yes hyperframes@0.6.81 render",
+    "publish": "npx --yes hyperframes@0.6.81 publish"
+  }
+}

@@ -1,0 +1,210 @@
+"""In-app chat agent: local Ollama (qwen3.5:9b) + whitelisted tools.
+
+/ws/chat protocol — client sends {"text": "..."}; server emits:
+  {"type":"tool","name":...,"status":"start"|"done"}   tool activity
+  {"type":"reply","text":...}                          final answer
+  {"type":"refresh"}                                   data changed, re-render panels
+  {"type":"error","detail":...}
+The model never executes anything directly: it can only pick from the tool
+functions below (same trust model as the pipeline whitelist).
+"""
+import asyncio
+import json
+import urllib.request
+from datetime import datetime
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+from . import config
+
+router = APIRouter()
+
+SYSTEM_PROMPT = """Sei l'assistente di Mission Control, l'app del progetto di analisi/scommesse tennis dell'utente.
+Rispondi SEMPRE in italiano, conciso e concreto. Usa i tool per ottenere dati reali: NON inventare mai numeri, quote o match.
+Contesto onesto del progetto: il modello ML ha accuracy ~66% contro il ~67.7% del favorito di mercato — NON c'è edge predittivo dimostrato; non promettere vincite e ricordalo se l'utente trae conclusioni azzardate.
+scan_match_live consuma crediti API a pagamento: usalo SOLO se l'utente chiede esplicitamente di aggiornare/scansionare; per "i match di oggi" basta get_today_matches.
+Quote: consideriamo solo pinnacle (riferimento sharp) + williamhill, sport888, marathonbet, betfair (venue legali in Italia)."""
+
+MAX_TOOL_ROUNDS = 4
+
+
+# ---------------- tools ----------------
+
+def t_get_today_matches():
+    """Matches in the latest odds snapshot, with best legal prices."""
+    import pandas as pd
+    if not config.ODDS_HISTORY.exists():
+        return {"matches": [], "note": "nessuno snapshot quote su disco"}
+    df = pd.read_csv(config.ODDS_HISTORY)
+    if df.empty:
+        return {"matches": [], "note": "snapshot vuoto"}
+    last_ts = df["snapshot_ts"].max()
+    snap = df[(df["snapshot_ts"] == last_ts) & (df["market"] == "h2h") &
+              df["bookmaker"].isin(config.ALLOWED_BOOKMAKERS)]
+    out = []
+    for (p1, p2), g in snap.groupby(["p1", "p2"]):
+        out.append({"match": f"{p1} vs {p2}",
+                    "best_quota_p1": round(float(g["price_1"].max()), 2),
+                    "best_quota_p2": round(float(g["price_2"].max()), 2),
+                    "books": int(g["bookmaker"].nunique()),
+                    "inizio": str(g["commence_time"].iloc[0])})
+    age_h = (datetime.now() - datetime.fromisoformat(last_ts)).total_seconds() / 3600
+    return {"snapshot": last_ts, "ore_fa": round(age_h, 1), "matches": out}
+
+
+def t_get_signals(limit: int = 10):
+    """Latest model decisions/signals from the DB."""
+    from .data_api import decisions
+    rows = decisions(limit=limit)
+    if not isinstance(rows, list):
+        return {"error": "DB non leggibile"}
+    return [{"quando": r["timestamp"], "match": r["match_str"], "edge": r["edge"],
+             "side": r["value_side"], "kelly": r["kelly_fraction"],
+             "low_confidence": bool(r["low_confidence"])} for r in rows]
+
+
+def t_get_model_metrics():
+    """Current honest model metrics."""
+    from .data_api import model
+    return model()
+
+
+def t_get_bankroll():
+    """Bankroll / bets / ROI overview."""
+    from .data_api import overview
+    return overview()
+
+
+async def t_scan_match_live(ws=None):
+    """Run the full live scan (fresh odds + inference). SLOW (minutes), paid credits."""
+    proc = await asyncio.create_subprocess_exec(
+        *config.COMMAND_WHITELIST["scan"], cwd=str(config.PROJECT_ROOT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=900)
+    except asyncio.TimeoutError:
+        proc.kill()
+        return {"error": "scan oltre i 15 minuti, interrotto"}
+    tail = out.decode("utf-8", errors="replace").strip().splitlines()[-12:]
+    if ws is not None:
+        try:
+            await ws.send_text(json.dumps({"type": "refresh"}))
+        except Exception:
+            pass
+    return {"exit": proc.returncode, "output": tail}
+
+
+TOOLS = {
+    "get_today_matches": {
+        "fn": t_get_today_matches, "is_async": False,
+        "desc": "Elenca i match di tennis nello snapshot quote più recente, con le migliori quote legali per lato. Veloce, non consuma crediti.",
+    },
+    "get_signals": {
+        "fn": t_get_signals, "is_async": False,
+        "desc": "Ultime decisioni/segnali del modello ML dal database (edge, side, kelly).",
+        "params": {"limit": {"type": "integer", "description": "quante decisioni (default 10)"}},
+    },
+    "get_model_metrics": {
+        "fn": t_get_model_metrics, "is_async": False,
+        "desc": "Metriche oneste correnti del modello ML (accuracy, log loss, ROC) e storico training.",
+    },
+    "get_bankroll": {
+        "fn": t_get_bankroll, "is_async": False,
+        "desc": "Stato bankroll, bet aperte/chiuse, ROI, win rate.",
+    },
+    "scan_match_live": {
+        "fn": t_scan_match_live, "is_async": True, "pass_ws": True,
+        "desc": "Scarica quote FRESCHE e fa girare modello+news (minuti, consuma crediti API a pagamento). Solo su richiesta esplicita di aggiornamento.",
+    },
+}
+
+
+def _tool_defs():
+    out = []
+    for name, t in TOOLS.items():
+        props = t.get("params", {})
+        out.append({"type": "function", "function": {
+            "name": name, "description": t["desc"],
+            "parameters": {"type": "object", "properties": props, "required": []}}})
+    return out
+
+
+def _ollama_call(messages):
+    payload = {"model": config.CHAT_MODEL, "messages": messages,
+               "tools": _tool_defs(), "stream": False,
+               "keep_alive": config.CHAT_KEEP_ALIVE,
+               "options": {"temperature": 0.2}}
+    req = urllib.request.Request(f"{config.OLLAMA_URL}/api/chat",
+                                 data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        return json.loads(r.read())
+
+
+@router.websocket("/ws/chat")
+async def ws_chat(ws: WebSocket):
+    token = config.auth_token()
+    if token and ws.query_params.get("token") != token:
+        await ws.close(code=4401)
+        return
+    await ws.accept()
+    loop = asyncio.get_running_loop()
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                text = json.loads(raw).get("text", "").strip()
+            except json.JSONDecodeError:
+                text = raw.strip()
+            if not text:
+                continue
+            messages.append({"role": "user", "content": text})
+
+            tool_data = {}   # raw results per tool -> frontend templates
+            try:
+                for _ in range(MAX_TOOL_ROUNDS):
+                    resp = await loop.run_in_executor(None, _ollama_call, messages)
+                    msg = resp.get("message", {})
+                    calls = msg.get("tool_calls") or []
+                    if not calls:
+                        reply = (msg.get("content") or "").strip()
+                        messages.append({"role": "assistant", "content": reply})
+                        await ws.send_text(json.dumps(
+                            {"type": "reply", "text": reply, "data": tool_data},
+                            ensure_ascii=False, default=str))
+                        break
+                    messages.append(msg)
+                    for call in calls:
+                        name = call.get("function", {}).get("name", "")
+                        args = call.get("function", {}).get("arguments") or {}
+                        if isinstance(args, str):
+                            try:
+                                args = json.loads(args)
+                            except json.JSONDecodeError:
+                                args = {}
+                        tool = TOOLS.get(name)
+                        await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "start"}))
+                        if tool is None:
+                            result = {"error": f"tool sconosciuto: {name}"}
+                        else:
+                            try:
+                                if tool.get("is_async"):
+                                    kwargs = {"ws": ws} if tool.get("pass_ws") else {}
+                                    result = await tool["fn"](**kwargs)
+                                else:
+                                    result = await loop.run_in_executor(
+                                        None, lambda: tool["fn"](**args))
+                            except Exception as e:
+                                result = {"error": str(e)}
+                        await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "done"}))
+                        tool_data[name] = result
+                        messages.append({"role": "tool", "tool_name": name,
+                                         "content": json.dumps(result, ensure_ascii=False, default=str)})
+                else:
+                    await ws.send_text(json.dumps(
+                        {"type": "reply", "text": "(troppi giri di tool — riformula la domanda)"}))
+            except Exception as e:
+                await ws.send_text(json.dumps({"type": "error", "detail": str(e)}))
+    except WebSocketDisconnect:
+        pass

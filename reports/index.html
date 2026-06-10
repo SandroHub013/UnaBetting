@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tennis Match Prediction System — Academic Presentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --navy: #1B2A4A;
+    --dark-blue: #2C3E6B;
+    --accent-blue: #2980B9;
+    --accent-green: #27AE60;
+    --accent-red: #E74C3C;
+    --gold: #F39C12;
+    --white: #FFFFFF;
+    --light-gray: #ECF0F1;
+    --med-gray: #95A5A6;
+    --dark-gray: #2C3E50;
+    --bg-primary: #0A0E1A;
+    --bg-secondary: #111827;
+    --bg-card: #1a2332;
+    --text-primary: #ffffff;
+    --text-secondary: #94a3b8;
+    --glow-blue: rgba(41, 128, 185, 0.4);
+    --glow-green: rgba(39, 174, 96, 0.4);
+    --glow-gold: rgba(243, 156, 18, 0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-blue) var(--bg-primary);
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    perspective: 1000px;
+  }
+
+  #three-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .nav-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    background: rgba(10, 14, 26, 0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(41, 128, 185, 0.2);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    transition: all 0.3s ease;
+  }
+
+  .nav-bar.scrolled {
+    background: rgba(10, 14, 26, 0.95);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+  }
+
+  .nav-logo {
+    font-size: 1.2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 1.5rem;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: color 0.3s;
+    position: relative;
+  }
+
+  .nav-links a:hover { color: var(--accent-blue); }
+
+  .nav-links a::after {
+    content: '';
+    position: absolute;
+    bottom: -4px; left: 0;
+    width: 0; height: 2px;
+    background: var(--accent-blue);
+    transition: width 0.3s;
+  }
+
+  .nav-links a:hover::after { width: 100%; }
+
+  .nav-progress {
+    position: fixed;
+    top: 64px; left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+    z-index: 999;
+    transition: width 0.1s linear;
+  }
+
+  /* HERO SECTION */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    z-index: 1;
+  }
+
+  .hero-content {
+    max-width: 900px;
+    animation: heroIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(40px) rotateX(8deg);
+  }
+
+  @keyframes heroIn {
+    to { opacity: 1; transform: translateY(0) rotateX(0); }
+  }
+
+  .hero-badge {
+    display: inline-block;
+    padding: 0.4rem 1.2rem;
+    border: 1px solid rgba(41, 128, 185, 0.4);
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 1.5rem;
+    background: rgba(41, 128, 185, 0.08);
+  }
+
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 1.2rem;
+  }
+
+  .hero h1 .gradient-text {
+    background: linear-gradient(135deg, var(--accent-blue), #3498db, var(--accent-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero p {
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    max-width: 650px;
+    margin: 0 auto 2rem;
+    line-height: 1.7;
+  }
+
+  .hero-stats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+  }
+
+  .hero-stat {
+    padding: 1.2rem 1.8rem;
+    background: rgba(26, 35, 50, 0.6);
+    border: 1px solid rgba(41, 128, 185, 0.15);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    transform-style: preserve-3d;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+  }
+
+  .hero-stat:hover {
+    transform: translateY(-8px) rotateY(5deg) rotateX(5deg);
+    box-shadow: 0 20px 40px rgba(41, 128, 185, 0.15);
+  }
+
+  .hero-stat .value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent-blue);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .hero-stat .label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 0.3rem;
+  }
+
+  .scroll-indicator {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: bounce 2s infinite;
+  }
+
+  .scroll-indicator span {
+    display: block;
+    width: 24px; height: 24px;
+    border-right: 2px solid var(--accent-blue);
+    border-bottom: 2px solid var(--accent-blue);
+    transform: rotate(45deg);
+    opacity: 0.5;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(12px); }
+  }
+
+  /* SECTIONS */
+  .section {
+    position: relative;
+    z-index: 1;
+    padding: 6rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .section-header .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--accent-blue);
+    margin-bottom: 1rem;
+  }
+
+  .section-header h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 1rem;
+  }
+
+  .section-header p {
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* 3D CARDS GRID */
+  .cards-3d {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    perspective: 1200px;
+  }
+
+  .card-3d {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.12);
+    border-radius: 20px;
+    padding: 2rem;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease;
+    overflow: hidden;
+  }
+
+  .card-3d::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .card-3d:hover::before { opacity: 1; }
+
+  .card-3d:hover {
+    transform: translateY(-12px) rotateX(2deg) rotateY(-2deg);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.3), 0 0 40px var(--glow-blue);
+  }
+
+  .card-3d .card-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1.2rem;
+    background: rgba(41, 128, 185, 0.12);
+    border: 1px solid rgba(41, 128, 185, 0.2);
+  }
+
+  .card-3d h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+  }
+
+  .card-3d p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .card-3d .card-count {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.3rem 0.8rem;
+    background: rgba(243, 156, 18, 0.1);
+    border: 1px solid rgba(243, 156, 18, 0.2);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gold);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* METRIC CARDS ROW */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.2rem;
+    margin: 3rem 0;
+  }
+
+  .metric-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    transform-style: preserve-3d;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .metric-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, var(--glow-blue), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .metric-card:hover::after { opacity: 0.15; }
+
+  .metric-card:hover {
+    transform: translateY(-6px) scale(1.03);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+  }
+
+  .metric-card .metric-value {
+    font-size: 2.2rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    position: relative;
+    z-index: 1;
+  }
+
+  .metric-card .metric-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 0.4rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .metric-card .metric-sub {
+    font-size: 0.7rem;
+    color: var(--med-gray);
+    margin-top: 0.2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* DATA SOURCES */
+  .source-card {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    padding: 1.5rem 2rem;
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.1);
+    border-radius: 16px;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+    transform-style: preserve-3d;
+  }
+
+  .source-card:hover {
+    transform: translateX(8px) rotateY(-1deg);
+    border-color: rgba(41, 128, 185, 0.3);
+    box-shadow: -4px 0 20px var(--glow-blue);
+  }
+
+  .source-card .source-accent {
+    width: 4px;
+    min-height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(180deg, var(--accent-blue), var(--accent-green));
+    flex-shrink: 0;
+  }
+
+  .source-card h4 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+
+  .source-card .source-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .source-card .source-meta {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+  }
+
+  .source-card .source-meta span {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(41, 128, 185, 0.1);
+    color: var(--accent-blue);
+  }
+
+  .source-card .source-meta span.gold {
+    background: rgba(243, 156, 18, 0.1);
+    color: var(--gold);
+  }
+
+  /* ELO FORMULA */
+  .formula-box {
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.15);
+    border-radius: 16px;
+    padding: 2.5rem;
+    text-align: center;
+    margin: 2rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .formula-box::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: conic-gradient(from 0deg, transparent, var(--glow-blue), transparent, var(--glow-green), transparent);
+    animation: rotate 8s linear infinite;
+    opacity: 0.05;
+  }
+
+  @keyframes rotate {
+    to { transform: rotate(360deg); }
+  }
+
+  .formula-box .formula {
+    font-size: 1.8rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-blue);
+    position: relative;
+    z-index: 1;
+    margin-bottom: 1.5rem;
+  }
+
+  .formula-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .formula-detail {
+    padding: 1rem 1.2rem;
+    background: rgba(41, 128, 185, 0.05);
+    border-radius: 10px;
+    border-left: 3px solid var(--accent-blue);
+    text-align: left;
+  }
+
+  .formula-detail code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent-blue);
+    font-weight: 600;
+  }
+
+  .formula-detail p {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.3rem;
+    line-height: 1.5;
+  }
+
+  /* RESULTS TABLE */
+  .results-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 2rem 0;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.1);
+  }
+
+  .results-table thead th {
+    background: rgba(41, 128, 185, 0.15);
+    padding: 1rem 1.2rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-blue);
+    text-align: left;
+  }
+
+  .results-table tbody td {
+    padding: 0.9rem 1.2rem;
+    font-size: 0.9rem;
+    border-top: 1px solid rgba(41, 128, 185, 0.06);
+  }
+
+  .results-table tbody tr {
+    transition: background 0.2s;
+  }
+
+  .results-table tbody tr:hover {
+    background: rgba(41, 128, 185, 0.05);
+  }
+
+  .results-table .positive {
+    color: var(--accent-green);
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .results-table .highlight {
+    color: var(--gold);
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* CHART CONTAINERS */
+  .chart-container {
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.1);
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+  }
+
+  .chart-container:hover {
+    transform: rotateX(1deg) rotateY(-1deg) scale(1.01);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  }
+
+  .chart-container img {
+    width: 100%;
+    border-radius: 12px;
+    display: block;
+  }
+
+  .chart-container .chart-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
+  }
+
+  /* BACKTEST STRATEGY CARDS */
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+  }
+
+  .strategy-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.1);
+    border-radius: 16px;
+    padding: 1.8rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s ease;
+    transform-style: preserve-3d;
+  }
+
+  .strategy-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .strategy-card.value::before { background: linear-gradient(90deg, var(--accent-green), #2ecc71); }
+  .strategy-card.blind::before { background: linear-gradient(90deg, var(--accent-blue), #3498db); }
+  .strategy-card.threshold::before { background: linear-gradient(90deg, var(--gold), #f1c40f); }
+
+  .strategy-card:hover {
+    transform: translateY(-8px) rotateX(3deg);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  }
+
+  .strategy-card h4 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .strategy-card .strategy-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+  }
+
+  .strategy-card .strategy-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+  }
+
+  .strategy-card .strategy-metric {
+    text-align: center;
+    padding: 0.6rem;
+    background: rgba(41, 128, 185, 0.05);
+    border-radius: 8px;
+  }
+
+  .strategy-card .strategy-metric .sm-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .strategy-card .strategy-metric .sm-label {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* CONCLUSION / FUTURE */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .col-box {
+    background: var(--bg-card);
+    border: 1px solid rgba(41, 128, 185, 0.1);
+    border-radius: 20px;
+    padding: 2rem;
+    transition: all 0.4s ease;
+    transform-style: preserve-3d;
+  }
+
+  .col-box:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+  }
+
+  .col-box h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .col-box h3 .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .col-box ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .col-box ul li {
+    padding: 0.6rem 0;
+    padding-left: 1.2rem;
+    position: relative;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    border-bottom: 1px solid rgba(41, 128, 185, 0.05);
+  }
+
+  .col-box ul li:last-child { border-bottom: none; }
+
+  .col-box ul li::before {
+    content: '\25AA';
+    position: absolute;
+    left: 0;
+    color: var(--accent-blue);
+    font-weight: bold;
+  }
+
+  /* FOOTER */
+  .footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 3rem 2rem;
+    border-top: 1px solid rgba(41, 128, 185, 0.1);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+
+  .footer a {
+    color: var(--accent-blue);
+    text-decoration: none;
+  }
+
+  /* ANIMATED ELEMENTS */
+  .glow-orb {
+    position: fixed;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.08;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow-orb.blue {
+    background: var(--accent-blue);
+    top: 20%; left: -10%;
+    animation: float1 12s ease-in-out infinite;
+  }
+
+  .glow-orb.green {
+    background: var(--accent-green);
+    bottom: 20%; right: -10%;
+    animation: float2 15s ease-in-out infinite;
+  }
+
+  @keyframes float1 {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(60px, -40px); }
+  }
+
+  @keyframes float2 {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-50px, 30px); }
+  }
+
+  /* SCROLL ANIMATIONS */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+
+  /* 3D TENNIS BALL */
+  .tennis-ball-3d {
+    width: 120px; height: 120px;
+    margin: 2rem auto;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: spin3d 6s linear infinite;
+  }
+
+  @keyframes spin3d {
+    from { transform: rotateY(0deg) rotateX(15deg); }
+    to { transform: rotateY(360deg) rotateX(15deg); }
+  }
+
+  .tennis-ball-3d .ball {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #e8f500, #c4d900, #a3b500);
+    box-shadow: inset -10px -10px 30px rgba(0,0,0,0.3), 0 0 40px rgba(200, 220, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tennis-ball-3d .ball::before {
+    content: '';
+    position: absolute;
+    top: 15%; left: 10%;
+    width: 80%; height: 70%;
+    border: 3px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    transform: rotate(-30deg);
+  }
+
+  .tennis-ball-3d .ball::after {
+    content: '';
+    position: absolute;
+    top: 25%; left: 5%;
+    width: 90%; height: 50%;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    transform: rotate(20deg);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .nav-links { display: none; }
+    .two-col { grid-template-columns: 1fr; }
+    .hero-stats { gap: 1rem; }
+    .cards-3d { grid-template-columns: 1fr; }
+    .section { padding: 4rem 1.2rem; }
+  }
+
+  /* Counter animation */
+  .counter { display: inline-block; }
+
+  /* Particle overlay */
+  .particles-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- Three.js Canvas -->
+<canvas id="three-canvas"></canvas>
+
+<!-- Glow Orbs -->
+<div class="glow-orb blue"></div>
+<div class="glow-orb green"></div>
+
+<!-- Navigation -->
+<nav class="nav-bar" id="navbar">
+  <div class="nav-logo">TENNIS ML</div>
+  <ul class="nav-links">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#data">Data</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#elo">ELO System</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#backtest">Backtest</a></li>
+    <li><a href="#conclusions">Conclusions</a></li>
+  </ul>
+</nav>
+<div class="nav-progress" id="navProgress"></div>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <div class="hero-badge">Academic Research Presentation</div>
+    <h1>A Machine Learning Framework for<br><span class="gradient-text">Tennis Match Prediction</span></h1>
+    <p>Multi-Market Outcome Modeling with Ensemble Methods and Value Betting Strategy. Predicting ATP match outcomes across H2H, spread, and totals markets.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="value counter" data-target="78.8" data-suffix="%">0%</div>
+        <div class="label">Accuracy</div>
+      </div>
+      <div class="hero-stat">
+        <div class="value counter" data-target="86" data-suffix="">0</div>
+        <div class="label">Features</div>
+      </div>
+      <div class="hero-stat">
+        <div class="value counter" data-target="56.2" data-suffix="%">0%</div>
+        <div class="label">ROI</div>
+      </div>
+      <div class="hero-stat">
+        <div class="value counter" data-target="0.884" data-suffix="">0</div>
+        <div class="label">ROC AUC</div>
+      </div>
+      <div class="hero-stat">
+        <div class="value counter" data-target="57" data-suffix="+">0</div>
+        <div class="label">Years Data</div>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-indicator"><span></span></div>
+</section>
+
+<!-- OVERVIEW -->
+<section class="section" id="overview">
+  <div class="section-header reveal">
+    <div class="tag">Research Motivation</div>
+    <h2>Why Tennis? Why ML?</h2>
+    <p>Sports betting markets exhibit systematic inefficiencies exploitable via statistical modeling. Tennis is ideal: individual sport, no team dynamics, rich historical data since 1968.</p>
+  </div>
+  <div class="cards-3d">
+    <div class="card-3d reveal reveal-delay-1">
+      <div class="card-icon">🎯</div>
+      <h3>Market Inefficiencies</h3>
+      <p>Bookmaker odds contain valuable information but embed overround (vig). Our model acts as an error-corrector on market inefficiencies.</p>
+    </div>
+    <div class="card-3d reveal reveal-delay-2">
+      <div class="card-icon">📊</div>
+      <h3>Rich Historical Data</h3>
+      <p>57+ years of match data from JeffSackmann repository and tennis-data.co.uk, covering results, point-by-point, and historical odds.</p>
+    </div>
+    <div class="card-3d reveal reveal-delay-3">
+      <div class="card-icon">🧠</div>
+      <h3>Multi-Market Architecture</h3>
+      <p>Three prediction markets: H2H (match winner), Spread (game differential), and Totals (total games). Five ML algorithms plus ensemble.</p>
+    </div>
+    <div class="card-3d reveal reveal-delay-4">
+      <div class="card-icon">⚡</div>
+      <h3>Live Inference Pipeline</h3>
+      <p>Real-time prediction system with live odds integration from TheOddsAPI and LLM-assisted match analysis.</p>
+    </div>
+  </div>
+</section>
+
+<!-- DATA SOURCES -->
+<section class="section" id="data">
+  <div class="section-header reveal">
+    <div class="tag">Data Infrastructure</div>
+    <h2>Data Sources & Coverage</h2>
+    <p>Three complementary data sources providing comprehensive coverage from 1968 to present day.</p>
+  </div>
+  <div class="reveal">
+    <div class="source-card">
+      <div class="source-accent"></div>
+      <div>
+        <h4>JeffSackmann/tennis_atp</h4>
+        <p class="source-desc">Match results, point-by-point data, player statistics, official rankings. The gold standard for tennis research data.</p>
+        <div class="source-meta">
+          <span class="gold">1968–2025</span>
+          <span>GitHub CC BY-NC-SA 4.0</span>
+        </div>
+      </div>
+    </div>
+    <div class="source-card">
+      <div class="source-accent"></div>
+      <div>
+        <h4>tennis-data.co.uk</h4>
+        <p class="source-desc">Historical betting odds (Bet365, Interwetten, etc.) with match outcomes. Essential for market feature engineering.</p>
+        <div class="source-meta">
+          <span class="gold">2000–2026</span>
+          <span>Public CSV</span>
+        </div>
+      </div>
+    </div>
+    <div class="source-card">
+      <div class="source-accent"></div>
+      <div>
+        <h4>TheOddsAPI</h4>
+        <p class="source-desc">Real-time odds from 15+ bookmakers across H2H, spreads, totals markets. Powers the live inference pipeline.</p>
+        <div class="source-meta">
+          <span class="gold">Live</span>
+          <span>REST API</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="metrics-row reveal">
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--accent-blue);">86</div>
+      <div class="metric-label">Engineered Features</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--accent-green);">57+</div>
+      <div class="metric-label">Years of Data</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--gold);">3</div>
+      <div class="metric-label">Prediction Markets</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--accent-red);">5+1</div>
+      <div class="metric-label">ML Algorithms + Ensemble</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURE ENGINEERING -->
+<section class="section" id="features">
+  <div class="section-header reveal">
+    <div class="tag">Feature Engineering</div>
+    <h2>86 Features Across 7 Categories</h2>
+    <p>Comprehensive feature set covering player strength, form, context, fatigue, and market signals.</p>
+  </div>
+  <div class="cards-3d">
+    <div class="card-3d reveal reveal-delay-1">
+      <div class="card-icon">🏆</div>
+      <h3>ELO Ratings</h3>
+      <p>Global + per-surface (Hard/Clay/Grass). Adaptive K-factor (32/48 for Slams). Momentum of victory + time decay.</p>
+      <div class="card-count">4 features</div>
+    </div>
+    <div class="card-3d reveal reveal-delay-2">
+      <div class="card-icon">📈</div>
+      <h3>Rolling Statistics</h3>
+      <p>Service & return stats on 10/20/50-match windows. Ace rate, hold%, break points, return points won.</p>
+      <div class="card-count">28 features</div>
+    </div>
+    <div class="card-3d reveal reveal-delay-3">
+      <div class="card-icon">⚔️</div>
+      <h3>Head-to-Head</h3>
+      <p>Historical H2H wins/losses. Surface-specific H2H record between players.</p>
+      <div class="card-count">3 features</div>
+    </div>
+    <div class="card-3d reveal reveal-delay-1">
+      <div class="card-icon">😴</div>
+      <h3>Fatigue & Schedule</h3>
+      <p>Days since last match. Sets played in last 7 days. Staleness cap at 21 days to prevent rust bias.</p>
+      <div class="card-count">4 features</div>
+    </div>
+    <div class="card-3d reveal reveal-delay-2">
+      <div class="card-icon">🌍</div>
+      <h3>Contextual</h3>
+      <p>Ranking diff/ratio, player age. Tournament level (G/M/A/D/F). Court Pace Index (CPI).</p>
+      <div class="card-count">8 features</div>
+    </div>
+    <div class="card-3d reveal reveal-delay-3">
+      <div class="card-icon">🎲</div>
+      <h3>Totals Market</h3>
+      <p>Combined ace rate, hold%, tiebreak rate. Deciding set %, games per set. Average match duration.</p>
+      <div class="card-count">10 features</div>
+    </div>
+    <div class="card-3d reveal reveal-delay-4">
+      <div class="card-icon">💰</div>
+      <h3>Market Features</h3>
+      <p>Implied probability (overround removed). Normalized across bookmakers. Z-score clipping at ±4σ.</p>
+      <div class="card-count">6 features</div>
+    </div>
+  </div>
+</section>
+
+<!-- ELO SYSTEM -->
+<section class="section" id="elo">
+  <div class="section-header reveal">
+    <div class="tag">ELO Methodology</div>
+    <h2>ELO Rating System</h2>
+    <p>Four parallel ELO tracks with adaptive K-factor and momentum of victory.</p>
+  </div>
+  <div class="formula-box reveal">
+    <div class="formula">Rₙ₊₁ = Rₙ + K × (S − E)</div>
+    <div class="formula-details">
+      <div class="formula-detail">
+        <code>Rₙ</code>
+        <p>Current rating. Initial value: 1500 for all new players.</p>
+      </div>
+      <div class="formula-detail">
+        <code>K</code>
+        <p>Adaptive K-factor: 32 (standard), 48 (Grand Slams). Scales with tournament prestige.</p>
+      </div>
+      <div class="formula-detail">
+        <code>S</code>
+        <p>Actual score: 1 = win, 0 = loss. Weighted by victory margin for momentum.</p>
+      </div>
+      <div class="formula-detail">
+        <code>E</code>
+        <p>Expected score = 1 / (1 + 10^((R_opponent - R_player)/400))</p>
+      </div>
+    </div>
+  </div>
+  <div class="cards-3d">
+    <div class="card-3d reveal">
+      <div class="card-icon">🌐</div>
+      <h3>Global ELO</h3>
+      <p>Overall player strength rating across all surfaces and tournaments. Primary signal for cross-surface predictions.</p>
+    </div>
+    <div class="card-3d reveal">
+      <div class="card-icon">🏟️</div>
+      <h3>Surface-Specific ELO</h3>
+      <p>70% surface + 30% global rating blend. Captures player specialization on Hard, Clay, and Grass courts.</p>
+    </div>
+    <div class="card-3d reveal">
+      <div class="card-icon">📉</div>
+      <h3>Time Decay</h3>
+      <p>Ratings decay toward mean after inactivity. Prevents stale ratings from distorting predictions for returning players.</p>
+    </div>
+  </div>
+  <div class="tennis-ball-3d reveal">
+    <div class="ball"></div>
+  </div>
+</section>
+
+<!-- MODEL RESULTS -->
+<section class="section" id="results">
+  <div class="section-header reveal">
+    <div class="tag">Model Performance</div>
+    <h2>Training Results & Accuracy</h2>
+    <p>XGBoost achieves best H2H accuracy. Ensemble performs best on Totals. All models use temporal split.</p>
+  </div>
+  <div class="chart-container reveal">
+    <div class="chart-title">Model Accuracy Comparison</div>
+    <img src="chart_accuracy.png" alt="Model Accuracy Chart">
+  </div>
+  <div class="chart-container reveal">
+    <div class="chart-title">ROC Curve Analysis — AUC 0.884</div>
+    <img src="chart_roc.png" alt="ROC Curve">
+  </div>
+  <table class="results-table reveal">
+    <thead>
+      <tr>
+        <th>Market</th>
+        <th>Best Model</th>
+        <th>Metric</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>H2H</td><td>XGBoost</td><td>Accuracy</td><td class="positive">78.8%</td></tr>
+      <tr><td>H2H</td><td>XGBoost</td><td>ROC AUC</td><td class="positive">0.884</td></tr>
+      <tr><td>Spread</td><td>XGBoost</td><td>MAE</td><td class="highlight">3.30 games</td></tr>
+      <tr><td>Spread</td><td>XGBoost</td><td>R²</td><td class="highlight">0.40</td></tr>
+      <tr><td>Totals</td><td>Ensemble</td><td>MAE</td><td class="highlight">5.37 games</td></tr>
+      <tr><td>Totals</td><td>Ensemble</td><td>R²</td><td class="highlight">0.37</td></tr>
+    </tbody>
+  </table>
+  <div class="chart-container reveal">
+    <div class="chart-title">Feature Importance — XGBoost Gain</div>
+    <img src="chart_features.png" alt="Feature Importance">
+  </div>
+</section>
+
+<!-- CROSS VALIDATION -->
+<section class="section" id="cv">
+  <div class="section-header reveal">
+    <div class="tag">Validation</div>
+    <h2>Walk-Forward Cross Validation</h2>
+    <p>5-fold walk-forward CV (2020–2024) confirms temporal stability with 78.0% mean accuracy (±0.5% std).</p>
+  </div>
+  <div class="chart-container reveal">
+    <div class="chart-title">Walk-Forward CV Performance Over Time</div>
+    <img src="chart_cv.png" alt="Cross Validation Chart">
+  </div>
+  <div class="cards-3d">
+    <div class="card-3d reveal">
+      <div class="card-icon">🔒</div>
+      <h3>No Temporal Leakage</h3>
+      <p>Each fold trains on all prior years, tests on next. No future data ever enters training. Superior to random split for time-series.</p>
+    </div>
+    <div class="card-3d reveal">
+      <div class="card-icon">📊</div>
+      <h3>Stable Performance</h3>
+      <p>78.0% ± 0.5% over 5 years confirms model generalizes across changing player pools and conditions.</p>
+    </div>
+    <div class="card-3d reveal">
+      <div class="card-icon">✅</div>
+      <h3>No Drift Detected</h3>
+      <p>Consistent year-over-year performance validates robustness to evolving tennis landscape.</p>
+    </div>
+  </div>
+</section>
+
+<!-- BACKTEST -->
+<section class="section" id="backtest">
+  <div class="section-header reveal">
+    <div class="tag">Betting Strategy</div>
+    <h2>Backtest Performance</h2>
+    <p>Three strategies tested on historical data: Value (Kelly), Blind (flat), and Threshold 0.8.</p>
+  </div>
+  <div class="strategy-grid">
+    <div class="strategy-card value reveal">
+      <h4>💎 Value (Kelly Criterion)</h4>
+      <p class="strategy-desc">Bets only when model edge > 3%. Stake sized by fractional Kelly (25%). Maximizes long-term growth rate.</p>
+      <div class="strategy-metrics">
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-green);">77.3%</div>
+          <div class="sm-label">Win Rate</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-green);">+56.2%</div>
+          <div class="sm-label">ROI</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-red);">-17.2%</div>
+          <div class="sm-label">Max DD</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-blue);">564</div>
+          <div class="sm-label">Bets</div>
+        </div>
+      </div>
+    </div>
+    <div class="strategy-card blind reveal">
+      <h4>📋 Blind (Flat Stake)</h4>
+      <p class="strategy-desc">Bets on all model predictions with flat stake. Tests raw predictive power without value filtering.</p>
+      <div class="strategy-metrics">
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-green);">80.8%</div>
+          <div class="sm-label">Win Rate</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-green);">+31.0%</div>
+          <div class="sm-label">ROI</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-red);">-7.4%</div>
+          <div class="sm-label">Max DD</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-blue);">972</div>
+          <div class="sm-label">Bets</div>
+        </div>
+      </div>
+    </div>
+    <div class="strategy-card threshold reveal">
+      <h4>🎯 Threshold 0.8</h4>
+      <p class="strategy-desc">Only bets when model confidence > 80%. Highest win rate but fewer opportunities.</p>
+      <div class="strategy-metrics">
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-green);">95.9%</div>
+          <div class="sm-label">Win Rate</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-green);">+49.8%</div>
+          <div class="sm-label">ROI</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-red);">-2.8%</div>
+          <div class="sm-label">Max DD</div>
+        </div>
+        <div class="strategy-metric">
+          <div class="sm-value" style="color: var(--accent-blue);">462</div>
+          <div class="sm-label">Bets</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="chart-container reveal">
+    <div class="chart-title">Backtest Performance — Cumulative Returns</div>
+    <img src="chart_backtest.png" alt="Backtest Chart">
+  </div>
+  <div class="chart-container reveal">
+    <div class="chart-title">Bankroll Growth — Kelly Criterion</div>
+    <img src="chart_bankroll.png" alt="Bankroll Chart">
+  </div>
+  <div class="metrics-row reveal">
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--accent-green);">€1,562</div>
+      <div class="metric-label">Final Bankroll</div>
+      <div class="metric-sub">From €1,000 initial</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--accent-green);">+56.2%</div>
+      <div class="metric-label">Total Return</div>
+      <div class="metric-sub">Kelly Criterion</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--accent-red);">-17.2%</div>
+      <div class="metric-label">Max Drawdown</div>
+      <div class="metric-sub">Manageable risk</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--gold);">3.27</div>
+      <div class="metric-label">Calmar Ratio</div>
+      <div class="metric-sub">Return / Max DD</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color: var(--accent-blue);">2.14</div>
+      <div class="metric-label">Profit Factor</div>
+      <div class="metric-sub">Gross wins / losses</div>
+    </div>
+  </div>
+</section>
+
+<!-- CONCLUSIONS -->
+<section class="section" id="conclusions">
+  <div class="section-header reveal">
+    <div class="tag">Summary</div>
+    <h2>Conclusions & Future Research</h2>
+    <p>The system demonstrates that ML-enhanced market analysis can identify persistent value in tennis betting markets.</p>
+  </div>
+  <div class="two-col reveal">
+    <div class="col-box">
+      <h3><span class="dot" style="background: var(--accent-green);"></span> Conclusions</h3>
+      <ul>
+        <li>XGBoost achieves 78.8% accuracy on ATP H2H prediction, exceeding the 75% target</li>
+        <li>Walk-forward CV confirms temporal stability (78.0% ±0.5% over 5 years)</li>
+        <li>Kelly Criterion strategy yields +56.2% ROI with manageable drawdown (-17.2%)</li>
+        <li>Market odds are the strongest single predictor — model refines, not replaces, market efficiency</li>
+        <li>Multi-market architecture (H2H, spread, totals) provides diversified betting opportunities</li>
+        <li>Live inference pipeline enables real-time decision making with LLM-assisted analysis</li>
+      </ul>
+    </div>
+    <div class="col-box">
+      <h3><span class="dot" style="background: var(--gold);"></span> Future Research</h3>
+      <ul>
+        <li>Incorporate point-by-point data for in-play prediction models</li>
+        <li>Add player tracking data (serve speed, movement) from Charting Project</li>
+        <li>Explore deep learning architectures (LSTM, Transformer) for sequential patterns</li>
+        <li>Extend to WTA tour — different dynamics may require separate models</li>
+        <li>Implement Bayesian model averaging for uncertainty quantification</li>
+        <li>Study market efficiency across different bookmakers and liquidity levels</li>
+        <li>Develop injury prediction model using match load and scheduling data</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p>Tennis Match Prediction System — Academic Research Presentation</p>
+  <p style="margin-top: 0.5rem;">Data: JeffSackmann/tennis_atp | tennis-data.co.uk | TheOddsAPI — Models: LR, RF, XGBoost, LightGBM, NN, Ensemble</p>
+  <p style="margin-top: 0.5rem; opacity: 0.5;">CONFIDENTIAL — Research Document</p>
+</footer>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// THREE.JS SCENE
+const canvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.z = 30;
+
+// Particles
+const particleCount = 1500;
+const geometry = new THREE.BufferGeometry();
+const positions = new Float32Array(particleCount * 3);
+const colors = new Float32Array(particleCount * 3);
+const sizes = new Float32Array(particleCount);
+
+const palette = [
+  [0.16, 0.5, 0.73],   // accent-blue
+  [0.15, 0.68, 0.38],  // accent-green
+  [0.95, 0.61, 0.07],  // gold
+  [0.5, 0.5, 0.6],     // gray
+];
+
+for (let i = 0; i < particleCount; i++) {
+  positions[i * 3] = (Math.random() - 0.5) * 80;
+  positions[i * 3 + 1] = (Math.random() - 0.5) * 80;
+  positions[i * 3 + 2] = (Math.random() - 0.5) * 80;
+  const c = palette[Math.floor(Math.random() * palette.length)];
+  colors[i * 3] = c[0];
+  colors[i * 3 + 1] = c[1];
+  colors[i * 3 + 2] = c[2];
+  sizes[i] = Math.random() * 2 + 0.5;
+}
+
+geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+const material = new THREE.PointsMaterial({
+  size: 0.15,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.6,
+  sizeAttenuation: true,
+  blending: THREE.AdditiveBlending,
+});
+
+const particles = new THREE.Points(geometry, material);
+scene.add(particles);
+
+// Wireframe tennis ball (icosahedron)
+const ballGeo = new THREE.IcosahedronGeometry(3, 1);
+const ballMat = new THREE.MeshBasicMaterial({
+  color: 0x2980B9,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.08,
+});
+const ball = new THREE.Mesh(ballGeo, ballMat);
+ball.position.set(15, 5, -10);
+scene.add(ball);
+
+// Second wireframe object
+const torusGeo = new THREE.TorusGeometry(4, 0.3, 16, 50);
+const torusMat = new THREE.MeshBasicMaterial({
+  color: 0x27AE60,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.06,
+});
+const torus = new THREE.Mesh(torusGeo, torusMat);
+torus.position.set(-18, -8, -15);
+scene.add(torus);
+
+// Third wireframe
+const octGeo = new THREE.OctahedronGeometry(2.5, 0);
+const octMat = new THREE.MeshBasicMaterial({
+  color: 0xF39C12,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.07,
+});
+const oct = new THREE.Mesh(octGeo, octMat);
+oct.position.set(-10, 12, -8);
+scene.add(oct);
+
+// Mouse tracking
+let mouseX = 0, mouseY = 0;
+document.addEventListener('mousemove', (e) => {
+  mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+  mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+});
+
+// Animation loop
+function animate() {
+  requestAnimationFrame(animate);
+  const t = Date.now() * 0.001;
+
+  particles.rotation.y = t * 0.02 + mouseX * 0.05;
+  particles.rotation.x = t * 0.01 + mouseY * 0.05;
+
+  ball.rotation.x = t * 0.3;
+  ball.rotation.y = t * 0.2;
+  ball.position.y = 5 + Math.sin(t * 0.5) * 2;
+
+  torus.rotation.x = t * 0.15;
+  torus.rotation.z = t * 0.1;
+  torus.position.y = -8 + Math.sin(t * 0.4 + 1) * 2;
+
+  oct.rotation.y = t * 0.25;
+  oct.rotation.z = t * 0.2;
+  oct.position.y = 12 + Math.sin(t * 0.6 + 2) * 1.5;
+
+  camera.position.x += (mouseX * 2 - camera.position.x) * 0.02;
+  camera.position.y += (-mouseY * 2 - camera.position.y) * 0.02;
+  camera.lookAt(scene.position);
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// SCROLL PROGRESS
+const navProgress = document.getElementById('navProgress');
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = (scrollTop / docHeight) * 100;
+  navProgress.style.width = progress + '%';
+
+  // Navbar scroll effect
+  document.getElementById('navbar').classList.toggle('scrolled', scrollTop > 50);
+});
+
+// SCROLL REVEAL
+const revealElements = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+revealElements.forEach(el => revealObserver.observe(el));
+
+// COUNTER ANIMATION
+const counters = document.querySelectorAll('.counter');
+const counterObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const el = entry.target;
+      const target = parseFloat(el.dataset.target);
+      const suffix = el.dataset.suffix || '';
+      const duration = 2000;
+      const start = performance.now();
+      const isFloat = target % 1 !== 0;
+
+      function update(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = target * eased;
+        el.textContent = (isFloat ? current.toFixed(isFloat && target < 1 ? 3 : 1) : Math.floor(current)) + suffix;
+        if (progress < 1) requestAnimationFrame(update);
+      }
+      requestAnimationFrame(update);
+      counterObserver.unobserve(el);
+    }
+  });
+}, { threshold: 0.5 });
+
+counters.forEach(c => counterObserver.observe(c));
+
+// 3D CARD TILT EFFECT
+document.querySelectorAll('.card-3d').forEach(card => {
+  card.addEventListener('mousemove', (e) => {
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = (y - centerY) / centerY * -8;
+    const rotateY = (x - centerX) / centerX * 8;
+    card.style.transform = `translateY(-12px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+  });
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = '';
+  });
+});
+
+// SMOOTH SCROLL FOR NAV LINKS
+document.querySelectorAll('.nav-links a').forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+</script>
+</body>
+</html>

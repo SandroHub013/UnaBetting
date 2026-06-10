@@ -1,0 +1,31 @@
+{
+  "runs": [
+    {
+      "date": "2026-06-07T21:01:57.991180+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 94
+    },
+    {
+      "date": "2026-06-08T13:38:39.991421+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 5,
+      "mode": "incremental-code-only-AST"
+    },
+    {
+      "date": "2026-06-09T20:35:10.644826+00:00",
+      "input_tokens": 143036,
+      "output_tokens": 0,
+      "files": 23
+    },
+    {
+      "date": "2026-06-10T13:08:06.012668+00:00",
+      "input_tokens": 91953,
+      "output_tokens": 0,
+      "files": 18
+    }
+  ],
+  "total_input_tokens": 234989,
+  "total_output_tokens": 0
+}
