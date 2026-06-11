@@ -13,8 +13,9 @@
   <!-- top bar -->
   <div id="topbar">
     <span class="logo">unabetting<span class="cursor">_</span></span>
-    <select id="theme-sel" class="theme-sel" title="tema"></select>
-    <span class="top-status" id="top-status">● 127.0.0.1:8765 · locale</span>
+    <select id="lang-sel" class="theme-sel" title="lingua / language"></select>
+    <select id="theme-sel" class="theme-sel" title="tema / theme"></select>
+    <span class="top-status" id="top-status">● 127.0.0.1:8765 · local</span>
   </div>
 
   <div id="shell">
@@ -47,11 +48,11 @@
       <div id="termpanel">
         <div id="term-resizer" title="trascina per ridimensionare"></div>
         <div id="termbar">
-          <span class="tp-label">TERMINALE</span>
+          <span class="tp-label" id="tp-label">TERMINALE</span>
           <button id="term-new-ps">+ PowerShell</button>
           <button id="term-new-wsl">+ WSL</button>
           <button id="term-new-vibe" class="vibe">⚡ VIBE CODING ▾</button>
-          <span class="tp-hint">agente a scelta, in tmux su WSL (la sessione sopravvive alla chiusura del tab)</span>
+          <span class="tp-hint" id="tp-hint">agente a scelta, in tmux su WSL (la sessione sopravvive alla chiusura del tab)</span>
           <div class="spacer"></div>
           <button id="term-toggle" title="mostra/nascondi">▾</button>
         </div>
