@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>document.documentElement.className+=' js';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="UnaBetting — open-source tennis ML that's honest about its edge. The market usually wins; we measure exactly how much. Leak-free pipeline, CLV, a desktop app with an agentic memory core.">
 <meta name="theme-color" content="#0B0B0E">
@@ -38,15 +39,21 @@ nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:cent
 @media(max-width:720px){.nav-links{display:none}}
 #hero{position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:0 5vw;z-index:2}
 #stars{position:absolute;inset:0;z-index:-1}
-.hero-kicker{font-family:var(--mono);font-size:13px;letter-spacing:3px;text-transform:uppercase;color:var(--clay);margin-bottom:24px;opacity:0;animation:fade .8s .1s forwards}
+.hero-kicker{font-family:var(--mono);font-size:13px;letter-spacing:3px;text-transform:uppercase;color:var(--clay);margin-bottom:24px}
 .hero-title{font-family:var(--grotesk);font-weight:300;font-size:clamp(56px,11vw,168px);line-height:.92;letter-spacing:-.03em}
 .hero-title .l{display:block;overflow:hidden}
-.hero-title .l span{display:block;transform:translateY(110%);animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards}
-.hero-title .l:nth-child(2) span{animation-delay:.12s}
+.hero-title .l span{display:block}
 .hero-title em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--gold)}
-.hero-sub{max-width:620px;margin-top:34px;font-size:clamp(17px,2.2vw,22px);color:var(--bone-dim);opacity:0;animation:fade .8s .5s forwards}
+.hero-sub{max-width:620px;margin-top:34px;font-size:clamp(17px,2.2vw,22px);color:var(--bone-dim)}
 .hero-sub b{color:var(--bone);font-weight:600}
-.hero-cta{display:flex;gap:16px;margin-top:44px;flex-wrap:wrap;opacity:0;animation:fade .8s .7s forwards}
+.hero-cta{display:flex;gap:16px;margin-top:44px;flex-wrap:wrap}
+/* entrance animations are enhancement only — gated behind .js so content is
+   always visible without JS or if anything fails */
+html.js .hero-kicker{opacity:0;animation:fade .8s .1s forwards}
+html.js .hero-title .l span{transform:translateY(110%);animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards}
+html.js .hero-title .l:nth-child(2) span{animation-delay:.12s}
+html.js .hero-sub{opacity:0;animation:fade .8s .5s forwards}
+html.js .hero-cta{opacity:0;animation:fade .8s .7s forwards}
 .btn{font-family:var(--mono);font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:15px 26px;border:1px solid var(--line2);border-radius:2px;transition:.25s;display:inline-flex;gap:10px;align-items:center}
 .btn:hover{transform:translateY(-2px)}
 .btn.fill{background:var(--gold);color:var(--ink);border-color:var(--gold)}
@@ -54,8 +61,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:cent
 .scroll-hint{position:absolute;bottom:30px;left:5vw;font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--bone-dim);opacity:0;animation:fade 1s 1.2s forwards}
 .scroll-hint:after{content:"";display:block;width:1px;height:34px;background:var(--line2);margin-top:12px;animation:scrolldot 1.8s infinite}
 section{position:relative;z-index:2;padding:11vh 5vw}
-.reveal{opacity:0;transform:translateY(40px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
-.reveal.in{opacity:1;transform:none}
+html.js .reveal{opacity:0;transform:translateY(40px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+html.js .reveal.in{opacity:1;transform:none}
 .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--clay);margin-bottom:18px}
 #truth{background:var(--clay);color:#1a0d05}
 #truth .eyebrow{color:#5c2c12}
@@ -195,8 +202,10 @@ footer .disc{max-width:560px;line-height:1.7}
 <script>
 const glow=document.getElementById('glow');
 addEventListener('pointermove',e=>{glow.style.left=e.clientX+'px';glow.style.top=e.clientY+'px';},{passive:true});
-const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:.15});
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:0,rootMargin:'0px 0px -8% 0px'});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+// failsafe: never leave a section invisible — reveal everything after 2.6s
+setTimeout(()=>document.querySelectorAll('.reveal:not(.in)').forEach(el=>el.classList.add('in')),2600);
 const cio=new IntersectionObserver(es=>es.forEach(e=>{
   if(!e.isIntersecting)return;const el=e.target;cio.unobserve(el);
   const to=parseFloat(el.dataset.count),suf=el.dataset.suffix||'',dec=(to%1!==0)?1:0;let t0=null;

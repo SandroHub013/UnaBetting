@@ -435,6 +435,19 @@ td.dim { color: var(--ink-faint); }
 }
 .vibe-tmux { margin-left: auto; font-size: 10px; color: var(--ink-faint); }
 
+/* update modal */
+.upd-overlay{position:fixed;inset:0;z-index:10001;background:rgba(11,11,14,.55);
+  display:flex;align-items:center;justify-content:center;animation:fadeUp .25s both}
+.upd-card{background:var(--surface);border:2px solid var(--ink);box-shadow:8px 8px 0 var(--ink);
+  max-width:440px;width:90%;padding:22px 24px;font-family:var(--font-body)}
+.upd-card h3{font-family:var(--font-headline);text-transform:uppercase;letter-spacing:1.5px;
+  font-size:16px;margin-bottom:8px;color:var(--accent-2)}
+.upd-card .upd-meta{font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);margin-bottom:6px}
+.upd-card .upd-notes{font-family:var(--font-mono);font-size:12.5px;background:var(--bg);
+  border:1px solid var(--line);padding:8px 10px;margin:10px 0;max-height:120px;overflow:auto;white-space:pre-wrap}
+.upd-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.upd-status{font-family:var(--font-mono);font-size:12px;color:var(--ink-dim);margin-top:10px}
+
 /* screenshot overlay */
 .shot-overlay {
   position: fixed; inset: 0; z-index: 9999; cursor: crosshair;
