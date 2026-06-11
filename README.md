@@ -1,28 +1,85 @@
 # 🎾 UnaBetting — Tennis Analytics & Honest ML
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Active-brightgreen)
+![License](https://img.shields.io/badge/code-MIT-green)
+![Data](https://img.shields.io/badge/data-CC%20BY--NC--SA-orange)
+![Status](https://img.shields.io/badge/status-active-brightgreen)
 
-Sistema open-source di analisi tennis (ATP/WTA): pipeline ML **leak-free**, tracking scommesse stile bet-tracker professionale, misurazione CLV contro le linee sharp, e **Mission Control** — un'app desktop con cockpit dati, terminali integrati e chat con LLM locale.
+Open-source tennis analytics (ATP/WTA): a **leak-free ML pipeline**, professional-grade
+bet tracking, CLV measurement against sharp lines, and **UnaBetting** — a desktop app
+with a data cockpit, integrated terminals, a 3D knowledge graph, an agentic web browser,
+and a local-LLM memory core.
 
-> ## ⚠️ Disclaimer onesto (leggilo davvero)
-> Il modello ML di questo progetto ha **accuracy ~66.3%** sul test out-of-sample 2025+.
-> Il favorito del mercato (Bet365) sta a **~67.7%**: **il modello NON batte il mercato** e i
-> backtest onesti perdono soldi. Questo è uno strumento di **ricerca, tracking e disciplina
-> metodologica** (CLV, leak-detection, bankroll management) — **non** una macchina da soldi.
-> Se scommetti: solo su operatori legali (in Italia: concessione ADM), solo soldi che puoi
-> perdere, 18+. Il gioco può causare dipendenza.
+![UnaBetting 3D knowledge graph](docs/assets/graph3d.png)
 
-## Cosa c'è dentro
+> ## ⚠️ Honest disclaimer (please actually read it)
+> This project's ML model reaches **~66.3% accuracy** on the out-of-sample 2025+ test set.
+> The market favourite (Bet365) sits at **~67.7%**: **the model does NOT beat the market**,
+> and honest backtests lose money. This is a tool for **research, tracking and
+> methodological discipline** (CLV, leak detection, bankroll management) — **not** a
+> money machine. If you bet: only with licensed operators (in Italy: an ADM concession),
+> only money you can afford to lose, 18+. Gambling can be addictive.
 
-| Componente | Descrizione |
+## What's inside
+
+| Component | Description |
 |---|---|
-| **Pipeline ML** | ELO (generale/superficie/stile), forma, fatica, clutch, H2H, quote de-viggate; training temporale rigoroso (train<2024, test 2025+), randomizzazione di prospettiva anti-leak, mediane train-only |
-| **Mission Control** | App desktop (pywebview): cockpit dati, file explorer + editor, pipeline runner whitelisted, terminali reali (PowerShell/WSL/tmux), chat con **LLM locale via Ollama** con tool calling, bet tracker con equity curve, 6 temi |
-| **Anti-leak** | La storia di questo progetto è una caccia ai leak (3 trovati e fixati, tutti documentati). Test di regressione in `tests/`, cronologia in `docs/obsidian/Backtest_e_Metriche_Oneste.md` |
-| **CLV infra** | Snapshot quote multi-book schedulati, consenso sharp no-vig (Pinnacle/Betfair), Closing Line Value per segnale — la metrica di verità |
-| **Loop autoevolutivi** | Task schedulati che lanciano un agente in headless: manutenzione notturna (dati→retrain→metriche) ed esperimento settimanale dal backlog `EXPERIMENTS.md` |
+| **ML pipeline** | ELO (overall / surface / style), form, fatigue, clutch, H2H, de-vigged odds; strict temporal training (train < 2024, test 2025+), anti-leak perspective randomization, train-only medians |
+| **UnaBetting app** | Native desktop window (pywebview): data cockpit, file explorer + editor, whitelisted pipeline runner, real terminals (PowerShell / WSL / tmux), agentic web browser, media preview, bet tracker with equity curve, **UnaBettingOS** local-LLM memory core, 3D knowledge graph, 6 themes, 5 UI languages |
+| **Anti-leak** | This project's history is a leak hunt (3 found and fixed, all documented). Regression tests in `tests/`, chronology in `docs/obsidian/`. |
+| **CLV infra** | Scheduled multi-book odds snapshots, sharp no-vig consensus (Pinnacle/Betfair), Closing Line Value per signal — the metric of truth |
+| **Self-evolving loops** | Scheduled headless agents: nightly maintenance, weekly experiments, daily results check (Sofascore), code review, and a PR-review loop that reviews & merges contributions |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Data
+    SK[Jeff Sackmann<br/>CC BY-NC-SA] --> CL[clean / unify]
+    TD[tennis-data.co.uk] --> CL
+    OA[the-odds-api<br/>live odds] --> SC[scraper]
+  end
+  CL --> FE[feature engineering<br/>ELO · form · clutch · H2H]
+  FE --> TR[train<br/>leak-free, temporal split]
+  TR --> MD[(models)]
+  MD --> INF[live inference]
+  SC --> INF
+  INF --> DB[(betanalytix.db)]
+  SC --> SIG[signals + CLV<br/>vs sharp consensus]
+  DB --> APP
+  SIG --> APP
+  MD --> APP[UnaBetting desktop app]
+```
+
+## Data flow inside the app
+
+```mermaid
+flowchart TD
+  UI[Browser UI · FastAPI server 127.0.0.1] -->|REST /api/*| API[data_api.py]
+  UI -->|WS /ws/run| RUN[whitelisted pipeline runner]
+  UI -->|WS /ws/term| TERM[real terminals · pywinpty]
+  UI -->|WS /ws/chat| OS[UnaBettingOS · local Ollama qwen3.5:9b]
+  API --> DB[(betanalytix.db, ro)]
+  API --> ODDS[odds_history.csv]
+  OS -->|tools| API
+  OS -->|search_knowledge| VAULT[Obsidian vault]
+  OS -->|query_graph| GRAPH[graphify graph.json]
+  OS -->|save_memory| MEM[persistent memory]
+```
+
+## Self-evolving loops
+
+```mermaid
+flowchart LR
+  DEV[Dev agents<br/>open issues / PRs] --> PR{PR-review loop<br/>every 30 min}
+  PR -->|tests green, no secrets,<br/>leak-free rules| MERGE[merge + label loop-accepted]
+  PR -->|issues| REQ[comment + loop-changes-requested]
+  NIGHT[nightly: data→retrain→metrics] --> REPO[(repo)]
+  WEEK[weekly: one experiment] --> REPO
+  RES[daily: Sofascore results check] --> REPO
+  CR[code review] --> REPO
+  MERGE --> REPO
+```
 
 ## Quick start
 
@@ -30,58 +87,61 @@ Sistema open-source di analisi tennis (ATP/WTA): pipeline ML **leak-free**, trac
 git clone https://github.com/SandroHub013/UnaBetting.git
 cd UnaBetting
 pip install -r requirements.txt
-cp .env.example .env        # inserisci le tue API key (the-odds-api; openrouter opzionale)
+cp .env.example .env        # add your API keys (the-odds-api; openrouter optional)
 
-python -m src.data.download           # dati Sackmann + quote storiche tennis-data.co.uk
-python -m src.data.clean              # dataset unificato
+python -m src.data.download           # Sackmann data + historical odds (tennis-data.co.uk)
+python -m src.data.clean              # unified dataset
 python -m src.features.build_features # feature engineering (~20 min)
-python -m src.models.train            # training multi-modello + calibrazione
-python -m src.models.backtest         # backtest ONESTO (quote reali, prospettiva neutra)
+python -m src.models.train            # multi-model training + calibration
+python -m src.models.backtest         # HONEST backtest (real odds, neutral perspective)
 
-python -m src.dashboard               # Mission Control (finestra nativa su Windows;
-                                      # altrove: python -m src.dashboard --browser)
+python -m src.dashboard               # UnaBetting (native window on Windows;
+                                      # elsewhere: python -m src.dashboard --browser)
 ```
 
-Per la chat in-app serve [Ollama](https://ollama.com) con un modello tool-calling (default: `qwen3.5:9b`, configurabile via env `CHAT_MODEL`).
+The in-app chat (UnaBettingOS) needs [Ollama](https://ollama.com) with a tool-calling model
+(default: `qwen3.5:9b`, configurable via the `CHAT_MODEL` env var).
 
-## Le feature del modello (estratto)
+## Model features (excerpt)
 
-- **ELO avanzato** — globale + per superficie + "style ELO" (vs big server / vs ribattitori), K-factor adattivo per giovani, time decay
-- **Rolling stats** — servizio/risposta/clutch su finestre 10/20/50 match, tie-break e deciding set
-- **Forma e fatica** — EWM form, minuti ultimi 14 giorni con decadimento
-- **Mercato** — implied probability de-viggata (B365→PS→Avg) + flag `has_odds`
-- **Contesto** — H2H recente, ranking, età, CPI, punti da difendere
+- **Advanced ELO** — overall + per surface + "style ELO" (vs big servers / returners), adaptive K, time decay
+- **Rolling stats** — serve/return/clutch over 10/20/50-match windows, tie-breaks, deciding sets
+- **Form & fatigue** — EWM form, decayed minutes over the last 14 days
+- **Market** — de-vigged implied probability (B365→PS→Avg) + `has_odds` flag
+- **Context** — recent H2H, ranking, age, CPI, points to defend
 
-Tre target: vincitore (H2H), spread (game diff), totals (over/under).
+Three targets: winner (H2H), spread (game diff), totals (over/under).
 
-## Architettura
+## Project layout
 
 ```
 src/
-├── data/        download, pulizia, scraper quote (the-odds-api, allowlist book)
+├── data/        download, cleaning, odds scraper (the-odds-api, book allowlist)
 ├── features/    ELO, player stats, clutch, build_features
-├── models/      train (anti-leak), backtest onesto, cross-validation
+├── models/      train (anti-leak), honest backtest, cross-validation
 ├── betting/     signals (value vs sharp + CLV), portfolio (bet tracker)
-├── live/        inference live, agente news, web research
-└── dashboard/   Mission Control (FastAPI + pywebview + xterm.js)
+├── live/        live inference, news agent, web research
+└── dashboard/   UnaBetting app (FastAPI + pywebview + xterm.js)
+scripts/         pipeline helpers + loops/ (scheduled agent prompts) + diagnostics/
+docs/            internal docs + obsidian/ vault
 ```
 
-## Contribuire
+## Contributing
 
-Leggi [CONTRIBUTING.md](CONTRIBUTING.md). Il backlog di esperimenti con priorità è in
-[EXPERIMENTS.md](EXPERIMENTS.md) — la regola del progetto: **ogni claim di accuracy va
-dimostrato leak-free** (test temporale, prospettiva randomizzata, mediane train-only),
-altrimenti è un bug, non un risultato.
+See [CONTRIBUTING.md](CONTRIBUTING.md). The priority backlog lives in
+[EXPERIMENTS.md](EXPERIMENTS.md). The project's golden rule: **every accuracy claim must
+be proven leak-free** (temporal test, randomized perspective, train-only medians) — otherwise
+it's a bug, not a result.
 
-## Dati: licenze e attribuzione
+## Data: licenses & attribution
 
-I dati NON sono nostri. In particolare i dataset di **Jeff Sackmann / Tennis Abstract**
-sono [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/):
-attribuzione obbligatoria e **solo uso non commerciale** — vincolo che si estende a
-qualunque uso di questo progetto basato su quei dati. Dettagli, fonti e obblighi in
-[DATA_SOURCES.md](DATA_SOURCES.md). Nessun dataset è ridistribuito in questa repo.
+The data is **not** ours. In particular, **Jeff Sackmann / Tennis Abstract** datasets are
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/): attribution required
+and **non-commercial use only** — a constraint that extends to any use of this project built
+on that data. Details and obligations in [DATA_SOURCES.md](DATA_SOURCES.md). No dataset is
+redistributed in this repo.
 
-## Licenza
+## License
 
-[MIT](LICENSE) per il **codice** — i dati seguono le licenze delle rispettive fonti
-(vedi sopra). Il disclaimer in cima viaggia col progetto.
+[MIT](LICENSE) for the **code** — data follows the licenses of its respective sources (above).
+The disclaimer at the top travels with the project.
