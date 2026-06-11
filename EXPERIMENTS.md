@@ -30,7 +30,7 @@ only if it beats the baseline, then commits.
 - [x] **E3 — XGB calibration regression.** XGB LL degraded 0.61→0.66 with val=[2024]
   only (isotonic on a single year overfits). Try sigmoid calibration or val=[2023,2024]
   for calibration while keeping train≤2023 for fitting.
-- [ ] **E4 — Odds-segment specialist.** Train a separate model on has_odds==1 rows
+- [x] **E4 — Odds-segment specialist.** Train a separate model on has_odds==1 rows
   (market features real) vs blind model for no-odds rows; route at inference.
 - [ ] **E5 — Surface-specific ELO K tuning.** Optuna over k_factor/decay per surface,
   objective = test-year-free walk-forward LL (use cross_validate.py, NOT the 2025 test).

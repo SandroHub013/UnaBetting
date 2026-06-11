@@ -389,7 +389,7 @@ class TennisDataset(Dataset):
         }
 
 
-def train_models(tour="atp", target_col="target"):
+def train_models(tour="atp", target_col="target", segment="all"):
     """
     Train all configured models for a specific target (target, game_diff, total_games).
     Uses train/validation/test split:
@@ -399,7 +399,7 @@ def train_models(tour="atp", target_col="target"):
     """
     config = load_config()
     print(f"\n{'=' * 60}")
-    print(f"  MODEL TRAINING - {tour.upper()}")
+    print(f"  MODEL TRAINING - {tour.upper()} [{segment.upper()}]")
     print(f"{'=' * 60}")
 
     # Load features
@@ -410,6 +410,10 @@ def train_models(tour="atp", target_col="target"):
         return
 
     df = pd.read_csv(features_path, low_memory=False)
+    if segment == "odds":
+        df = df[df["has_odds"] == 1].copy()
+    elif segment == "blind":
+        df = df[df["has_odds"] != 1].copy()
 
     # Prepare and Randomize data (now returns train + val + test)
     X_train, P_train, y_train_all, X_val, P_val, y_val_all, X_test, P_test, y_test_all, scaler, feature_names, medians, player_mapping = prepare_training_data(df, config)
@@ -641,31 +645,31 @@ def train_models(tour="atp", target_col="target"):
 
     for name, model in models.items():
         if "pytorch" in name:
-            model_path = models_dir / f"{tour}_{name}.pt"
+            model_path = models_dir / f"{tour}_{name}_{segment}.pt"
             # PyTorch models use torch.save. Save state dict and architecture parameters if needed
             # For simplicity, we save the whole model + metadata
             torch.save({"model": model, "feature_cols": list(feature_names), "player_mapping": player_mapping}, model_path)
         else:
-            model_path = models_dir / f"{tour}_{name}.pkl"
+            model_path = models_dir / f"{tour}_{name}_{segment}.pkl"
             # Bundle feature_cols with artifact so inference can enforce column order
             # (prevents silent desync when build_features output reorders across runs).
             joblib.dump({"model": model, "feature_cols": list(feature_names)}, model_path)
 
     # Save scaler
-    scaler_path = models_dir / f"{tour}_scaler.pkl"
+    scaler_path = models_dir / f"{tour}_scaler_{segment}.pkl"
     joblib.dump(scaler, scaler_path)
 
     # Save player mapping for PyTorch
-    mapping_path = models_dir / f"{tour}_player_mapping.pkl"
+    mapping_path = models_dir / f"{tour}_player_mapping_{segment}.pkl"
     joblib.dump(player_mapping, mapping_path)
 
     # Save feature names (legacy txt for human inspection — artifact bundle is authoritative)
-    features_meta = models_dir / f"{tour}_features.txt"
+    features_meta = models_dir / f"{tour}_features_{segment}.txt"
     with open(features_meta, "w") as f:
         f.write("\n".join(feature_names))
 
     # Save medians for inference alignment
-    medians_path = models_dir / f"{tour}_medians.pkl"
+    medians_path = models_dir / f"{tour}_medians_{segment}.pkl"
     joblib.dump(medians, medians_path)
 
     # Save metrics for TUI ticker and dashboard
@@ -685,7 +689,7 @@ def train_models(tour="atp", target_col="target"):
             },
             "trained_at": datetime.now().isoformat(),
         }
-        metrics_path = models_dir / f"{tour}_metrics.json"
+        metrics_path = models_dir / f"{tour}_metrics_{segment}.json"
         with open(metrics_path, "w") as mf:
             _json.dump(metrics_out, mf, indent=2)
         print(f"  [+] Metrics saved to {metrics_path}")
@@ -737,8 +741,9 @@ def _evaluate_model(model, X_test, y_test, name, is_regression=False):
 
 
 if __name__ == "__main__":
-    # Train all three models
-    for target in ["target", "game_diff", "total_games"]:
-        train_models(tour="atp", target_col=target)
+    # Train all three models for both segments
+    for segment in ["odds", "blind"]:
+        for target in ["target", "game_diff", "total_games"]:
+            train_models(tour="atp", target_col=target, segment=segment)
     
     print("\n  [OK] Multi-Market Training completato!")

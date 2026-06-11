@@ -10,15 +10,15 @@ from src.features.sota_features import map_cpi
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-def load_resources():
+def load_resources(segment="odds"):
     config_path = PROJECT_ROOT / "config" / "config.yaml"
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
         
-    model_path = PROJECT_ROOT / config["paths"]["models"] / "atp_ensemble.pkl"
-    scaler_path = PROJECT_ROOT / config["paths"]["models"] / "atp_scaler.pkl"
-    features_meta_path = PROJECT_ROOT / config["paths"]["models"] / "atp_features.txt"
-    medians_path = PROJECT_ROOT / config["paths"]["models"] / "atp_medians.pkl"
+    model_path = PROJECT_ROOT / config["paths"]["models"] / f"atp_ensemble_{segment}.pkl"
+    scaler_path = PROJECT_ROOT / config["paths"]["models"] / f"atp_scaler_{segment}.pkl"
+    features_meta_path = PROJECT_ROOT / config["paths"]["models"] / f"atp_features_{segment}.txt"
+    medians_path = PROJECT_ROOT / config["paths"]["models"] / f"atp_medians_{segment}.pkl"
     
     model = joblib.load(model_path)
     scaler = joblib.load(scaler_path)
@@ -39,8 +39,9 @@ def get_player_id(name, df):
         return match.iloc[0]['loser_id']
     return None
 
-def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p1, odds_p2):
-    config, model, scaler, feature_cols, medians = load_resources()
+def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p1=None, odds_p2=None):
+    segment = "odds" if odds_p1 and odds_p2 else "blind"
+    config, model, scaler, feature_cols, medians = load_resources(segment)
     
     # Load historical data to populate the engine
     unified_path = PROJECT_ROOT / "data" / "processed" / "atp_unified.csv"
@@ -101,10 +102,14 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
         input_data["elo_win_prob"] = 0.5 # Baseline
         
     # Implied Prob
-    margin = (1.0/odds_p1) + (1.0/odds_p2)
-    input_data["w_implied_prob"] = (1.0/odds_p1) / margin
-    input_data["l_implied_prob"] = (1.0/odds_p2) / margin
-    input_data["diff_implied_prob"] = input_data["w_implied_prob"] - input_data["l_implied_prob"]
+    if segment == "odds":
+        margin = (1.0/odds_p1) + (1.0/odds_p2)
+        input_data["w_implied_prob"] = (1.0/odds_p1) / margin
+        input_data["l_implied_prob"] = (1.0/odds_p2) / margin
+        input_data["diff_implied_prob"] = input_data["w_implied_prob"] - input_data["l_implied_prob"]
+        input_data["has_odds"] = 1.0
+    else:
+        input_data["has_odds"] = 0.0
     
     # CPI
     input_data["cpi"] = map_cpi(tourney_name, surface)
@@ -138,21 +143,21 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
     print(f"📊 Probabilità {p1_name}: {prob_p1:.2%}")
     print(f"📊 Probabilità {p2_name}: {prob_p2:.2%}")
     
-    # Value detection
-    fair_odds_p1 = 1.0 / prob_p1
-    fair_odds_p2 = 1.0 / prob_p2
-    
-    print(f"\n💰 Quote Bet365: {odds_p1} / {odds_p2}")
-    print(f"📉 Quote Fair:   {fair_odds_p1:.2f} / {fair_odds_p2:.2f}")
-    
-    if odds_p1 > fair_odds_p1:
-        edge = (odds_p1 / fair_odds_p1) - 1
-        print(f"✅ VALUE BET su {p1_name}! (Edge: {edge:.2%})")
-    elif odds_p2 > fair_odds_p2:
-        edge = (odds_p2 / fair_odds_p2) - 1
-        print(f"✅ VALUE BET su {p2_name}! (Edge: {edge:.2%})")
-    else:
-        print("❌ Nessun valore trovato.")
+    if odds_p1 and odds_p2:
+        fair_odds_p1 = 1.0 / prob_p1
+        fair_odds_p2 = 1.0 / prob_p2
+        
+        print(f"\n💰 Quote Bet365: {odds_p1} / {odds_p2}")
+        print(f"📉 Quote Fair:   {fair_odds_p1:.2f} / {fair_odds_p2:.2f}")
+        
+        if odds_p1 > fair_odds_p1:
+            edge = (odds_p1 / fair_odds_p1) - 1
+            print(f"✅ VALUE BET su {p1_name}! (Edge: {edge:.2%})")
+        elif odds_p2 > fair_odds_p2:
+            edge = (odds_p2 / fair_odds_p2) - 1
+            print(f"✅ VALUE BET su {p2_name}! (Edge: {edge:.2%})")
+        else:
+            print("❌ Nessun valore trovato.")
 
 if __name__ == "__main__":
     # Test con i dati estratti dall'utente
