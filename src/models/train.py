@@ -26,21 +26,26 @@ from src.models.pytorch_ensemble import TennisEmbeddingNet, TennisTransformerNet
 
 class PreFittedEnsemble:
     """Wrapper per evitare il re-training di tutti gli stimatori nell'Ensemble. 
-    Usa modelli già fittati (e calibrati) e calcola la media delle loro probabilità."""
-    def __init__(self, models, is_regression=False):
+    Usa modelli già fittati (e calibrati) e calcola la media pesata delle loro probabilità."""
+    def __init__(self, models, is_regression=False, weights=None):
         self.models = models
         self.is_regression = is_regression
+        if weights is not None:
+            self.weights = np.array(weights)
+            self.weights = self.weights / np.sum(self.weights)
+        else:
+            self.weights = np.ones(len(models)) / len(models)
         
     def predict(self, X):
         if self.is_regression:
             preds = np.column_stack([m.predict(X) for m in self.models])
-            return np.mean(preds, axis=1)
+            return np.average(preds, axis=1, weights=self.weights)
         else:
             return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
             
     def predict_proba(self, X):
-        probs = np.mean([m.predict_proba(X) for m in self.models], axis=0)
-        return probs
+        probs = np.array([m.predict_proba(X) for m in self.models])
+        return np.average(probs, axis=0, weights=self.weights)
 
 
 # When train.py runs as `python -m src.models.train` this class is defined in
@@ -496,10 +501,28 @@ def train_models(tour="atp", target_col="target"):
         ensemble = PreFittedEnsemble(estimators, is_regression=True)
     else:
         print(f"\n  [>] Ensemble (Soft Voting of Calibrated Models) for {target_col}...")
-        estimators = [models[f"{target_col}_lr"], models[f"{target_col}_rf"]]
-        if HAS_XGB: estimators.append(models[f"{target_col}_xgboost"])
-        if HAS_LGB: estimators.append(models[f"{target_col}_lightgbm"])
-        ensemble = PreFittedEnsemble(estimators, is_regression=False)
+        ens_names = [f"{target_col}_lr", f"{target_col}_rf"]
+        if HAS_XGB: ens_names.append(f"{target_col}_xgboost")
+        if HAS_LGB: ens_names.append(f"{target_col}_lightgbm")
+        
+        estimators = [models[n] for n in ens_names]
+        
+        # Walk-forward ensemble weighting based on validation log-loss (E2)
+        if has_val:
+            lls = []
+            for m in estimators:
+                val_prob = m.predict_proba(X_val)[:, 1]
+                val_ll = log_loss(y_val, val_prob)
+                lls.append(val_ll)
+                
+            neg_lls = -np.array(lls)
+            exp_neg_lls = np.exp(neg_lls - np.max(neg_lls)) # Stable softmax
+            weights = exp_neg_lls / exp_neg_lls.sum()
+            print(f"    [Ensemble Weights]: " + ", ".join([f"{n}: {w:.3f}" for n, w in zip(ens_names, weights)]))
+        else:
+            weights = None
+
+        ensemble = PreFittedEnsemble(estimators, is_regression=False, weights=weights)
 
     # I modelli sottostanti sono già calibrati e fittati, evitiamo fit doppi.
     models[f"{target_col}_ensemble"] = ensemble
