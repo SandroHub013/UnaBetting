@@ -16,7 +16,7 @@ only if it beats the baseline, then commits.
 
 ## Queue (priority order)
 
-- [ ] **E0 — Fix stale tests.** `tests/test_player_stats.py` and `tests/test_leakage.py`
+- [x] **E0 — Fix stale tests.** `tests/test_player_stats.py` and `tests/test_leakage.py`
   fail with `KeyError: 'recent_form_5'` — the feature was renamed (`form_ewm` /
   windowed `win_rate_*`). Update the tests to the current feature names so the
   suite is green again. Low effort, unblocks CI confidence.

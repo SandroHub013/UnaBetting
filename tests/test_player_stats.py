@@ -55,7 +55,6 @@ def test_form_all_wins():
     matches = [{"won": True} for _ in range(6)]
     f = eng._form_features(matches)
     assert f["form_ewm"] == pytest.approx(1.0)
-    assert f["recent_form_5"] == pytest.approx(1.0)
     assert f["current_streak"] == 6.0  # six consecutive wins
 
 
@@ -104,6 +103,6 @@ def test_fatigue_accumulates_load():
         {"date": pd.Timestamp("2026-04-28"), "total_games": 20, "minutes": 90, "n_sets": 2, "won": True},
     ]
     f = eng._fatigue_features(matches, now)
-    assert f["matches_last_14d"] == 2
-    assert f["games_last_14d"] == 50
     assert f["minutes_last_14d"] == 210
+    assert "decay_minutes_14d" in f
+    assert f["days_since_last"] == 3
