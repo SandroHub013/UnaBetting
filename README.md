@@ -10,7 +10,7 @@ bet tracking, CLV measurement against sharp lines, and **UnaBetting** — a desk
 with a data cockpit, integrated terminals, a 3D knowledge graph, an agentic web browser,
 and a local-LLM memory core.
 
-![UnaBetting 3D knowledge graph](docs/assets/graph3d.png)
+**[▶ Explore the live 3D knowledge graph](https://sandrohub013.github.io/UnaBetting/graph3d.html)** · **[📖 Docs — deep dive](https://sandrohub013.github.io/UnaBetting/docs.html)** · **[Website](https://sandrohub013.github.io/UnaBetting/)**
 
 > ## ⚠️ Honest disclaimer (please actually read it)
 > This project's ML model reaches **~66.3% accuracy** on the out-of-sample 2025+ test set.
