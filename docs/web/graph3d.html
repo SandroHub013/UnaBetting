@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UnaBetting — Knowledge Graph</title>
+<style>
+  html,body{margin:0;width:100%;height:100%;background:#0B0B0E;overflow:hidden}
+  #g{position:absolute;inset:0}
+  #hud{position:absolute;top:14px;left:16px;z-index:10;pointer-events:none;
+    font-family:'JetBrains Mono',monospace;font-size:12px;color:#9fb4ff;
+    text-shadow:0 0 8px rgba(120,150,255,.7)}
+  #hud b{color:#fff}
+</style>
+</head>
+<body>
+<div id="hud">UNABETTING · KNOWLEDGE GRAPH<br><span id="info">loading…</span></div>
+<div id="g"></div>
+<script src="graph-data.js"></script>
+<script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+<script>
+'use strict';
+const PAL=['#7DF9FF','#FF6EC7','#FFD700','#7CFF6E','#FF8C42','#B19CD9','#FF5C5C','#5CB8FF','#F9F871','#66FFC2','#FF9EE5','#9DFF70'];
+const hasT=typeof THREE!=='undefined';
+const elG=document.getElementById('g'), info=document.getElementById('info');
+const tex={};
+function texFor(grp){const c=PAL[grp%PAL.length];if(tex[c])return tex[c];
+  const cv=document.createElement('canvas');cv.width=cv.height=64;const x=cv.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'#fff');g.addColorStop(.25,c);
+  g.addColorStop(.6,c+'44');g.addColorStop(1,'transparent');x.fillStyle=g;x.fillRect(0,0,64,64);
+  return tex[c]=new THREE.CanvasTexture(cv);}
+if(typeof ForceGraph3D==='undefined'){info.textContent='graph lib failed to load';}
+else{
+  const G=ForceGraph3D()(elG).backgroundColor('#0B0B0E').showNavInfo(false)
+    .width(elG.clientWidth||960).height(elG.clientHeight||540)
+    .nodeAutoColorBy('group').nodeVal(n=>n.__d||1).nodeOpacity(.92)
+    .linkColor(()=>'rgba(140,160,255,.14)').linkWidth(.4)
+    .linkDirectionalParticles(1).linkDirectionalParticleWidth(1).linkDirectionalParticleSpeed(.004)
+    .linkDirectionalParticleColor(()=>'#7DF9FF')
+    .nodeLabel(n=>`<div style="font-family:monospace;font-size:12px;color:#fff;background:rgba(5,8,25,.92);padding:5px 9px;border:1px solid #39406e">${n.label||n.id}</div>`)
+    .onNodeClick(n=>{const r=1+90/Math.hypot(n.x,n.y,n.z);G.cameraPosition({x:n.x*r,y:n.y*r,z:n.z*r},n,1100);});
+  if(hasT){try{G.nodeThreeObject(n=>{const s=new THREE.Sprite(new THREE.SpriteMaterial({map:texFor(n.group),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
+    const sz=Math.min(26,7+Math.sqrt(n.__d||1)*4);s.scale.set(sz,sz,1);return s;});}catch(e){}}
+  function fit(){G.width(elG.clientWidth||960).height(elG.clientHeight||540);}
+  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(elG);
+  Promise.resolve(window.__GRAPH || fetch('./graph-data.js').then(()=>window.__GRAPH)).then(raw=>{
+    if(!raw||!raw.nodes){info.textContent='graph data missing';return;}
+    const nodes=raw.nodes.map(n=>({id:n.id,label:(n.label||n.id),group:n.group||0}));
+    const links=raw.links.map(l=>({source:l.source,target:l.target}));
+    const deg={};links.forEach(l=>{deg[l.source]=(deg[l.source]||0)+1;deg[l.target]=(deg[l.target]||0)+1;});
+    nodes.forEach(n=>n.__d=deg[n.id]||1);
+    G.graphData({nodes,links});
+    info.innerHTML=`<b>${nodes.length}</b> nodes · <b>${links.length}</b> edges · live from graphify`;
+    if(hasT){try{const geo=new THREE.BufferGeometry();const N=1200,p=new Float32Array(N*3);
+      for(let i=0;i<N*3;i++)p[i]=(Math.random()-.5)*4000;geo.setAttribute('position',new THREE.BufferAttribute(p,3));
+      G.scene().add(new THREE.Points(geo,new THREE.PointsMaterial({color:0x8890bb,size:1.1,transparent:true,opacity:.6})));}catch(e){}}
+    let moved=false,fitted=false;
+    ['mousedown','wheel','touchstart'].forEach(ev=>elG.addEventListener(ev,()=>moved=true));
+    G.onEngineStop(()=>{if(fitted)return;fitted=true;G.zoomToFit(900,40);setTimeout(orbit,1100);});
+    setTimeout(()=>{if(!fitted){fitted=true;G.zoomToFit(900,40);setTimeout(orbit,1100);}},4000);
+    function orbit(){const cam=G.camera();const d=Math.hypot(cam.position.x,cam.position.y,cam.position.z)||600;
+      let a=Math.atan2(cam.position.x,cam.position.z);const y=cam.position.y;
+      (function tk(){if(!moved){a+=.0008;G.cameraPosition({x:d*Math.sin(a),y:y,z:d*Math.cos(a)});}requestAnimationFrame(tk);})();}
+  }).catch(e=>info.textContent='graph load error: '+e.message);
+}
+</script>
+</body>
+</html>
