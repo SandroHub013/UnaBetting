@@ -5,7 +5,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('nightly_maintenance', 'weekly_evolution', 'results_check',
-                 'code_review', 'docs_repo_sync', 'pr_review')]
+                 'code_review', 'docs_repo_sync', 'pr_review', 'metrics_publish')]
     [string]$Loop,
     [string]$Model = ''   # override; senza, usa la mappa qui sotto
 )
@@ -18,6 +18,7 @@ $modelMap = @{
     'nightly_maintenance' = 'sonnet'   # routine operativa
     'docs_repo_sync'      = 'sonnet'   # docs, traduzioni, sync repo pubblica
     'results_check'       = 'haiku'    # esegui script + riassunto: semplice
+    'metrics_publish'     = 'sonnet'   # pubblica metriche su app/sito/README + push pubblico
 }
 if (-not $Model) { $Model = $modelMap[$Loop] }
 

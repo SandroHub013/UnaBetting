@@ -149,12 +149,12 @@ html.js .hero-label,html.js .hero-foot{opacity:0;animation:fade 1s .6s forwards}
   <div class="duel reveal">
     <div class="cell">
       <div class="who">Our model</div>
-      <div class="big" data-count="66.3" data-suffix="%">0%</div>
-      <div class="note">ensemble · out-of-sample 2025+ · log loss 0.608</div>
+      <div class="big" id="m-acc" data-count="66.3" data-suffix="%">0%</div>
+      <div class="note" id="m-acc-note">ensemble · out-of-sample 2025+ · log loss 0.608</div>
     </div>
     <div class="cell win">
       <div class="who">The market (B365)</div>
-      <div class="big" data-count="67.7" data-suffix="%">0%</div>
+      <div class="big" id="m-market" data-count="67.7" data-suffix="%">0%</div>
       <div class="note">the favourite baseline we still haven't beaten</div>
     </div>
   </div>
@@ -205,7 +205,17 @@ html.js .hero-label,html.js .hero-foot{opacity:0;animation:fade 1s .6s forwards}
   <div>Code: MIT · Data: CC BY-NC-SA<br>© 2026 UnaBetting</div>
 </footer>
 
+<script src="metrics.js"></script>
 <script>
+// Single source of truth: publish_metrics.py writes metrics.js (window.__METRICS).
+// Patch the headline numbers before the counter observers read data-count.
+(function(){const M=window.__METRICS;if(!M)return;
+  const acc=document.getElementById('m-acc'),mkt=document.getElementById('m-market'),
+        note=document.getElementById('m-acc-note');
+  if(acc&&M.acc&&M.acc!=='—')acc.dataset.count=M.acc;
+  if(mkt&&M.market&&M.market!=='—')mkt.dataset.count=M.market;
+  if(note&&M.ll&&M.ll!=='—')note.textContent='odds-ensemble '+M.odds_acc+'% on real-odds rows · out-of-sample 2025+ · log loss '+M.ll;
+})();
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:0,rootMargin:'0px 0px -8% 0px'});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 setTimeout(()=>document.querySelectorAll('.reveal:not(.in)').forEach(el=>el.classList.add('in')),2800);
