@@ -162,8 +162,12 @@ html.js .hero-label,html.js .hero-foot{opacity:0;animation:fade 1s .6s forwards}
 <section id="graph"><div class="wrap">
   <div class="sec-num reveal">02 — The knowledge graph</div>
   <div class="statement reveal">The whole codebase, as a field of <em>stars.</em></div>
-  <p class="lead reveal">1,440 nodes, coloured by community, rendered in 3D inside the app — and queryable by the agent.</p>
-  <div class="band reveal"><img src="../assets/graph3d.png" alt="UnaBetting 3D knowledge graph" loading="lazy"><div class="cap">graphify · three.js · live in the desktop app</div></div>
+  <p class="lead reveal">1,440 nodes, coloured by community, rendered in 3D — live below. Drag to orbit, scroll to zoom, click a node to focus. It regenerates whenever graphify re-maps the codebase.</p>
+  <div class="band reveal" style="background:#0B0B0E">
+    <iframe src="graph3d.html" title="UnaBetting live 3D knowledge graph" loading="lazy"
+      style="width:100%;height:62vh;min-height:460px;border:none;display:block"></iframe>
+    <div class="cap">graphify · three.js · auto-updates with the project</div>
+  </div>
 </div></section>
 
 <section id="work"><div class="wrap">

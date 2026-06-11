@@ -22,7 +22,9 @@ github.com/SandroHub013/UnaBetting. **English is the project's canonical languag
 2. **Repo graphics**: ensure README has badges, mermaid diagrams (architecture + data
    flow + loops) and current screenshots from `docs/assets/`.
 3. **Obsidian/site**: align `docs/obsidian/Index.md` and `docs/web/` with the current
-   project state (new features, metrics, loops).
+   project state (new features, metrics, loops). Run `python scripts/build_web_graph.py`
+   to refresh `docs/web/graph-data.js` from the latest graphify export, so the website's
+   live 3D knowledge graph stays in sync with the codebase.
 4. **Tests**: `python -m pytest tests/ -q` must be green before the push (excluding known
    failures tracked in EXPERIMENTS.md).
 5. **Additive push**: `git fetch unabetting main`; fast-forward `public-main` onto it;
