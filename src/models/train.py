@@ -358,12 +358,12 @@ def _randomize_perspective(X, y, seed=42):
     return X_flipped, y_flipped
 
 
-def _calibrate_classifier(model, X_val, y_val, name):
-    """Wrap a trained classifier with isotonic calibration using the validation set."""
+def _calibrate_classifier(model, X_val, y_val, name, method="isotonic"):
+    """Wrap a trained classifier with calibration using the validation set."""
     try:
-        calibrated = CalibratedClassifierCV(model, method="isotonic", cv="prefit")
+        calibrated = CalibratedClassifierCV(model, method=method, cv="prefit")
         calibrated.fit(X_val, y_val)
-        print(f"    [CAL] {name}: calibrazione isotonica applicata su {len(X_val)} match")
+        print(f"    [CAL] {name}: calibrazione {method} applicata su {len(X_val)} match")
         return calibrated
     except Exception as e:
         print(f"    [CAL] {name}: calibrazione fallita ({e}), uso modello originale")
@@ -472,7 +472,7 @@ def train_models(tour="atp", target_col="target"):
         xgb_model.fit(X_train, y_train)
         raw_models[f"{target_col}_xgboost"] = xgb_model
         if not is_regression and has_val:
-            xgb_model = _calibrate_classifier(xgb_model, X_val, y_val, "XGB")
+            xgb_model = _calibrate_classifier(xgb_model, X_val, y_val, "XGB", method="sigmoid")
         models[f"{target_col}_xgboost"] = xgb_model
         results[f"{target_col}_xgboost"] = _evaluate_model(xgb_model, X_test, y_test, f"XGB {target_col}", is_regression)
 
