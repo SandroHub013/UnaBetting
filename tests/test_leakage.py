@@ -49,6 +49,8 @@ def _synthetic_features():
     df["total_games"] = rng.randint(12, 39, n)
     # a second stable numeric feature so the frame has >1 column
     df["feat_y"] = rng.normal(size=n)
+    df["winner_id"] = ["A"] * n
+    df["loser_id"] = ["B"] * n
     return df
 
 
@@ -64,7 +66,8 @@ def test_imputation_median_is_train_only():
     df = _synthetic_features()
     cfg = _config()
 
-    *_, medians = prepare_training_data(df, cfg, skip_selection=True)
+    res = prepare_training_data(df, cfg, skip_selection=True)
+    medians = res[-2]
 
     # Train feat_x = [1,2,3,4] -> 2.5.  Global (incl. val 100s) would be 3.5.
     assert "feat_x" in medians
