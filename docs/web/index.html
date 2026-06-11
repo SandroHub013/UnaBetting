@@ -4,235 +4,213 @@
 <meta charset="UTF-8">
 <script>document.documentElement.className+=' js';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="UnaBetting — open-source tennis ML that's honest about its edge. The market usually wins; we measure exactly how much. Leak-free pipeline, CLV, a desktop app with an agentic memory core.">
-<meta name="theme-color" content="#0B0B0E">
+<meta name="description" content="UnaBetting — open-source tennis ML that's honest about its edge. The market usually wins; we measure exactly how much.">
+<meta name="theme-color" content="#F4F1EA">
 <meta property="og:title" content="UnaBetting — Honest Tennis ML">
-<meta property="og:description" content="The market usually wins. We measure exactly how much. Open-source, leak-free, brutally honest.">
+<meta property="og:description" content="The market usually wins. We measure exactly how much.">
 <title>UnaBetting — Honest Tennis ML</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230B0B0E'/%3E%3Ccircle cx='50' cy='50' r='28' fill='none' stroke='%23E69A10' stroke-width='6'/%3E%3Cpath d='M28 30 A40 40 0 0 1 28 70' fill='none' stroke='%23C75A2A' stroke-width='5'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Archivo:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23F4F1EA'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='%231A1916' stroke-width='4'/%3E%3Cpath d='M26 28 A42 42 0 0 1 26 72' fill='none' stroke='%23B5572C' stroke-width='4'/%3E%3C/svg%3E">
 <style>
 :root{
-  --bg:#0B0B0E; --bg2:#121116; --bone:#EFE7D2; --bone-dim:#A8A294;
-  --clay:#C75A2A; --grass:#5BD08B; --gold:#E69A10; --ink:#0B0B0E;
-  --line:rgba(239,231,210,.14); --line2:rgba(239,231,210,.28);
-  --serif:'Instrument Serif',Georgia,serif;
-  --grotesk:'Bricolage Grotesque',system-ui,sans-serif;
-  --mono:'JetBrains Mono',monospace;
+  --paper:#F4F1EA; --paper2:#ECE7DC; --ink:#1A1916; --ink-soft:#6B6960; --ink-faint:#9C998E;
+  --clay:#B5572C; --line:rgba(26,25,22,.13); --line2:rgba(26,25,22,.26);
+  --serif:'Fraunces',Georgia,serif; --sans:'Archivo',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--bone);font-family:var(--grotesk);line-height:1.5;overflow-x:hidden;-webkit-font-smoothing:antialiased}
-::selection{background:var(--clay);color:#fff}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-weight:400;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--ink);color:var(--paper)}
 a{color:inherit;text-decoration:none}
-canvas{display:block}
-.grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-#glow{position:fixed;width:520px;height:520px;border-radius:50%;pointer-events:none;z-index:0;background:radial-gradient(circle,rgba(199,90,42,.16),transparent 65%);transform:translate(-50%,-50%);transition:opacity .4s;mix-blend-mode:screen}
-nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:22px 5vw;mix-blend-mode:difference}
-.brand{font-family:var(--mono);font-weight:700;font-size:15px;letter-spacing:1px;color:#fff}
-.brand b{color:var(--gold)}
-.nav-links{display:flex;gap:28px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;letter-spacing:1.5px}
-.nav-links a{opacity:.7;transition:opacity .2s}
-.nav-links a:hover{opacity:1}
-@media(max-width:720px){.nav-links{display:none}}
-#hero{position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:0 5vw;z-index:2}
-#stars{position:absolute;inset:0;z-index:-1}
-.hero-kicker{font-family:var(--mono);font-size:13px;letter-spacing:3px;text-transform:uppercase;color:var(--clay);margin-bottom:24px}
-.hero-title{font-family:var(--grotesk);font-weight:300;font-size:clamp(56px,11vw,168px);line-height:.92;letter-spacing:-.03em}
-.hero-title .l{display:block;overflow:hidden}
-.hero-title .l span{display:block}
-.hero-title em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--gold)}
-.hero-sub{max-width:620px;margin-top:34px;font-size:clamp(17px,2.2vw,22px);color:var(--bone-dim)}
-.hero-sub b{color:var(--bone);font-weight:600}
-.hero-cta{display:flex;gap:16px;margin-top:44px;flex-wrap:wrap}
-/* entrance animations are enhancement only — gated behind .js so content is
-   always visible without JS or if anything fails */
-html.js .hero-kicker{opacity:0;animation:fade .8s .1s forwards}
-html.js .hero-title .l span{transform:translateY(110%);animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards}
-html.js .hero-title .l:nth-child(2) span{animation-delay:.12s}
-html.js .hero-sub{opacity:0;animation:fade .8s .5s forwards}
-html.js .hero-cta{opacity:0;animation:fade .8s .7s forwards}
-.btn{font-family:var(--mono);font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:15px 26px;border:1px solid var(--line2);border-radius:2px;transition:.25s;display:inline-flex;gap:10px;align-items:center}
-.btn:hover{transform:translateY(-2px)}
-.btn.fill{background:var(--gold);color:var(--ink);border-color:var(--gold)}
-.btn.fill:hover{background:var(--bone)}
-.scroll-hint{position:absolute;bottom:30px;left:5vw;font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--bone-dim);opacity:0;animation:fade 1s 1.2s forwards}
-.scroll-hint:after{content:"";display:block;width:1px;height:34px;background:var(--line2);margin-top:12px;animation:scrolldot 1.8s infinite}
-section{position:relative;z-index:2;padding:11vh 5vw}
-html.js .reveal{opacity:0;transform:translateY(40px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+img{display:block;max-width:100%}
+.wrap{max-width:1280px;margin:0 auto;padding:0 6vw}
+.label{font-family:var(--mono);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--clay)}
+.muted{color:var(--ink-soft)}
+
+/* nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:26px 6vw;mix-blend-mode:multiply}
+.brand{font-family:var(--serif);font-weight:400;font-size:22px;letter-spacing:.5px}
+.brand i{font-style:italic;color:var(--clay)}
+.nav-links{display:flex;gap:34px;font-family:var(--mono);font-size:12px;letter-spacing:1.5px;text-transform:uppercase}
+.nav-links a{color:var(--ink-soft);transition:color .25s}
+.nav-links a:hover{color:var(--ink)}
+@media(max-width:760px){.nav-links{display:none}}
+
+/* hero */
+#hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:0 6vw}
+.hero-label{margin-bottom:34px}
+.hero-h{font-family:var(--serif);font-weight:300;font-size:clamp(48px,9.5vw,150px);line-height:1.0;letter-spacing:-.02em}
+.hero-h em{font-style:italic;color:var(--clay)}
+.hero-h .ln{display:block;overflow:hidden}
+.hero-h .ln > span{display:block}
+.hero-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:64px;gap:40px;flex-wrap:wrap}
+.hero-sub{max-width:440px;font-size:18px;color:var(--ink-soft)}
+.hero-sub b{color:var(--ink);font-weight:500}
+.hero-scroll{font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-faint)}
+
+/* generic section */
+section{padding:14vh 0;position:relative}
+.sec-num{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--ink-faint);margin-bottom:26px}
+.statement{font-family:var(--serif);font-weight:300;font-size:clamp(30px,4.8vw,62px);line-height:1.12;letter-spacing:-.01em;max-width:18ch}
+.statement em{font-style:italic;color:var(--clay)}
+.lead{max-width:520px;color:var(--ink-soft);font-size:18px;margin-top:28px}
+
+/* honest numbers — editorial duel */
+.duel{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:70px;border-top:1px solid var(--line2)}
+@media(max-width:760px){.duel{grid-template-columns:1fr}}
+.duel .cell{padding:46px 0;border-bottom:1px solid var(--line)}
+.duel .cell:first-child{border-right:1px solid var(--line);padding-right:46px}
+.duel .cell:last-child{padding-left:46px}
+@media(max-width:760px){.duel .cell:first-child{border-right:none;padding-right:0}.duel .cell:last-child{padding-left:0}}
+.duel .who{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px}
+.duel .big{font-family:var(--serif);font-weight:300;font-size:clamp(64px,12vw,150px);line-height:.9;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.duel .cell.win .big{color:var(--clay)}
+.duel .note{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);margin-top:16px}
+
+/* image band */
+.band{margin-top:80px;border:1px solid var(--line);background:#0e0d10;overflow:hidden;border-radius:2px}
+.band img{width:100%;height:auto;display:block;opacity:.96}
+.band .cap{font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--ink-faint);padding:14px 18px;background:var(--paper);border-top:1px solid var(--line)}
+
+/* the work / features as editorial index */
+.index-row{display:grid;grid-template-columns:60px 1fr auto;gap:30px;align-items:baseline;
+  padding:30px 0;border-top:1px solid var(--line);transition:padding-left .35s,background .35s}
+.index-row:last-child{border-bottom:1px solid var(--line)}
+.index-row:hover{padding-left:14px}
+.index-row .ix{font-family:var(--mono);font-size:13px;color:var(--ink-faint)}
+.index-row h3{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3vw,38px);letter-spacing:-.01em}
+.index-row p{color:var(--ink-soft);font-size:15px;max-width:46ch;margin-top:8px}
+.index-row .meta{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--clay);white-space:nowrap}
+@media(max-width:760px){.index-row{grid-template-columns:40px 1fr;gap:18px}.index-row .meta{display:none}}
+
+/* leak timeline */
+.leak{display:grid;grid-template-columns:160px 1fr;gap:36px;padding:32px 0;border-top:1px solid var(--line)}
+.leak:last-child{border-bottom:1px solid var(--line)}
+.leak .when{font-family:var(--mono);font-size:13px;color:var(--clay);letter-spacing:1px}
+.leak h4{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:8px}
+.leak p{color:var(--ink-soft);font-size:15px;max-width:60ch}
+.leak .delta{font-family:var(--mono);font-size:12.5px;margin-top:10px;color:var(--ink-faint)}
+.leak .delta s{color:var(--clay)}.leak .delta b{color:var(--ink)}
+@media(max-width:760px){.leak{grid-template-columns:1fr;gap:8px}}
+
+/* cta */
+#cta{text-align:center;padding:20vh 6vw}
+#cta .statement{margin:0 auto;max-width:22ch}
+.btn{display:inline-flex;gap:10px;align-items:center;font-family:var(--mono);font-size:13px;letter-spacing:1px;
+  text-transform:uppercase;padding:16px 30px;border:1px solid var(--ink);border-radius:2px;margin-top:40px;transition:.25s}
+.btn:hover{background:var(--ink);color:var(--paper)}
+
+footer{border-top:1px solid var(--line);padding:48px 6vw;display:flex;justify-content:space-between;
+  gap:24px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--ink-faint);letter-spacing:.4px}
+footer b{color:var(--ink-soft)}
+footer .disc{max-width:540px;line-height:1.8}
+
+/* reveal — enhancement only */
+html.js .reveal{opacity:0;transform:translateY(34px);transition:opacity 1s cubic-bezier(.2,.7,.2,1),transform 1s cubic-bezier(.2,.7,.2,1)}
 html.js .reveal.in{opacity:1;transform:none}
-.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--clay);margin-bottom:18px}
-#truth{background:var(--clay);color:#1a0d05}
-#truth .eyebrow{color:#5c2c12}
-.truth-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:60px;align-items:center}
-@media(max-width:860px){.truth-grid{grid-template-columns:1fr;gap:36px}}
-.truth-statement{font-family:var(--serif);font-size:clamp(30px,4.6vw,58px);line-height:1.08;font-weight:400}
-.truth-statement em{font-style:italic}
-.versus{display:flex;flex-direction:column;gap:18px}
-.vs-row{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid rgba(26,13,5,.25);padding-bottom:14px}
-.vs-row .lab{font-family:var(--mono);font-size:13px;letter-spacing:1px;text-transform:uppercase}
-.vs-row .num{font-family:var(--grotesk);font-weight:700;font-size:clamp(40px,7vw,76px);line-height:1}
-.vs-note{font-family:var(--mono);font-size:13px;opacity:.7;margin-top:6px}
-#stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-@media(max-width:860px){#stats{grid-template-columns:repeat(2,1fr)}}
-.stat{padding:48px 30px;border-right:1px solid var(--line)}
-.stat:last-child{border-right:none}
-.stat .n{font-family:var(--grotesk);font-weight:700;font-size:clamp(34px,4.5vw,56px);letter-spacing:-.02em}
-.stat .n em{font-family:var(--serif);font-style:italic;color:var(--gold);font-weight:400}
-.stat .c{font-family:var(--mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--bone-dim);margin-top:10px}
-.sec-head{font-family:var(--grotesk);font-weight:300;font-size:clamp(34px,5.5vw,76px);line-height:1;letter-spacing:-.02em;margin-bottom:8px}
-.sec-head em{font-family:var(--serif);font-style:italic;color:var(--gold)}
-.sec-lead{max-width:560px;color:var(--bone-dim);margin-bottom:54px;font-size:18px}
-.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
-@media(max-width:860px){.cards{grid-template-columns:1fr}}
-.card{background:var(--bg);padding:38px 32px;transition:background .3s;min-height:230px;display:flex;flex-direction:column}
-.card:hover{background:var(--bg2)}
-.card .ic{font-size:24px;margin-bottom:22px;color:var(--gold)}
-.card h3{font-family:var(--grotesk);font-weight:600;font-size:22px;margin-bottom:12px}
-.card p{color:var(--bone-dim);font-size:15px}
-.card .tag{margin-top:auto;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--clay);padding-top:20px}
-#leak{background:var(--bg2)}
-.leak-row{display:grid;grid-template-columns:140px 1fr;gap:30px;padding:26px 0;border-bottom:1px solid var(--line)}
-.leak-row:last-child{border-bottom:none}
-.leak-row .when{font-family:var(--mono);font-size:13px;color:var(--clay);letter-spacing:1px}
-.leak-row h4{font-family:var(--grotesk);font-weight:600;font-size:19px;margin-bottom:6px}
-.leak-row p{color:var(--bone-dim);font-size:15px}
-.leak-row .was{font-family:var(--mono);font-size:12px;color:var(--bone-dim);margin-top:8px}
-.leak-row .was s{color:var(--clay)}.leak-row .was b{color:var(--grass)}
-.marquee{overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:22px 0;white-space:nowrap}
-.marquee .track{display:inline-block;animation:scrollx 26s linear infinite;font-family:var(--serif);font-style:italic;font-size:clamp(28px,4vw,52px);color:var(--bone-dim)}
-.marquee .track span{margin:0 28px}.marquee .track b{color:var(--gold);font-style:normal;font-family:var(--grotesk);font-weight:300}
-#cta{text-align:center;padding:16vh 5vw}
-#cta h2{font-family:var(--serif);font-style:italic;font-size:clamp(40px,7vw,96px);line-height:1.02;font-weight:400}
-#cta p{color:var(--bone-dim);max-width:520px;margin:24px auto 40px;font-size:18px}
-footer{border-top:1px solid var(--line);padding:40px 5vw;display:flex;justify-content:space-between;flex-wrap:wrap;gap:20px;font-family:var(--mono);font-size:12px;color:var(--bone-dim);letter-spacing:.5px}
-footer .disc{max-width:560px;line-height:1.7}
+html.js .hero-h .ln > span{transform:translateY(110%);animation:rise 1s cubic-bezier(.2,.7,.2,1) .15s forwards}
+html.js .hero-h .ln:nth-child(2) > span{animation-delay:.27s}
+html.js .hero-label,html.js .hero-foot{opacity:0;animation:fade 1s .6s forwards}
 @keyframes rise{to{transform:none}}
 @keyframes fade{to{opacity:1}}
-@keyframes scrolldot{0%,100%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1)}}
-@keyframes scrollx{to{transform:translateX(-50%)}}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.hero-title .l span{transform:none}.hero-kicker,.hero-sub,.hero-cta,.scroll-hint{opacity:1}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html.js .hero-h .ln>span{transform:none}html.js .hero-label,html.js .hero-foot,html.js .reveal{opacity:1;transform:none}}
 </style>
 </head>
 <body>
-<div class="grain"></div>
-<div id="glow"></div>
 <nav>
-  <div class="brand">una<b>betting</b></div>
+  <div class="brand">una<i>betting</i></div>
   <div class="nav-links">
-    <a href="#truth">The Truth</a>
-    <a href="#what">The App</a>
-    <a href="#leak">The Leak Hunt</a>
+    <a href="#truth">Honesty</a>
+    <a href="#work">The Work</a>
+    <a href="#leak">Leak Hunt</a>
     <a href="https://github.com/SandroHub013/UnaBetting" target="_blank" rel="noopener">GitHub ↗</a>
   </div>
 </nav>
+
 <header id="hero">
-  <canvas id="stars"></canvas>
-  <div class="hero-kicker">Open-source · Tennis ML · Brutally honest</div>
-  <h1 class="hero-title">
-    <span class="l"><span>The market</span></span>
-    <span class="l"><span>usually <em>wins.</em></span></span>
+  <div class="hero-label label">Open-source · Tennis ML · Honest by design</div>
+  <h1 class="hero-h">
+    <span class="ln"><span>The market</span></span>
+    <span class="ln"><span>usually <em>wins.</em></span></span>
   </h1>
-  <p class="hero-sub"><b>We measure exactly how much.</b> UnaBetting is a leak-free tennis ML pipeline and a desktop app — with a local-LLM memory core, a 3D knowledge graph, and self-evolving loops. No hype. Real numbers.</p>
-  <div class="hero-cta">
-    <a class="btn fill" href="https://github.com/SandroHub013/UnaBetting" target="_blank" rel="noopener">★ Star on GitHub</a>
-    <a class="btn" href="#truth">See the honest numbers ↓</a>
+  <div class="hero-foot">
+    <p class="hero-sub"><b>We measure exactly how much.</b> A leak-free tennis ML pipeline and a desktop app — with a local-LLM memory core, a 3D knowledge graph, and self-evolving loops.</p>
+    <div class="hero-scroll">↓ &nbsp; Scroll</div>
   </div>
-  <div class="scroll-hint">Scroll</div>
 </header>
-<section id="truth" class="reveal">
-  <div class="eyebrow">The honest disclaimer</div>
-  <div class="truth-grid">
-    <div class="truth-statement">Most tennis models claim an edge. <em>Ours admits it doesn't have one</em> — and proves it leak-free.</div>
-    <div class="versus">
-      <div>
-        <div class="vs-row"><span class="lab">Our model</span><span class="num" data-count="66.3" data-suffix="%">0%</span></div>
-        <div class="vs-note">ensemble · out-of-sample test 2025+ · log loss 0.608</div>
-      </div>
-      <div>
-        <div class="vs-row"><span class="lab">The market (B365)</span><span class="num" data-count="67.7" data-suffix="%">0%</span></div>
-        <div class="vs-note">the favourite baseline we still haven't beaten</div>
-      </div>
+
+<section id="truth"><div class="wrap">
+  <div class="sec-num reveal">01 — The honest disclaimer</div>
+  <div class="statement reveal">Most models claim an edge. <em>Ours admits it hasn't found one</em> — and proves it leak-free.</div>
+  <div class="duel reveal">
+    <div class="cell">
+      <div class="who">Our model</div>
+      <div class="big" data-count="66.3" data-suffix="%">0%</div>
+      <div class="note">ensemble · out-of-sample 2025+ · log loss 0.608</div>
+    </div>
+    <div class="cell win">
+      <div class="who">The market (B365)</div>
+      <div class="big" data-count="67.7" data-suffix="%">0%</div>
+      <div class="note">the favourite baseline we still haven't beaten</div>
     </div>
   </div>
-</section>
-<section id="stats">
-  <div class="stat reveal"><div class="n" data-count="3" data-suffix="">0</div><div class="c">data leaks found &amp; fixed</div></div>
-  <div class="stat reveal"><div class="n" data-count="1440" data-suffix="">0</div><div class="c">nodes in the knowledge graph</div></div>
-  <div class="stat reveal"><div class="n">6</div><div class="c">self-evolving loops</div></div>
-  <div class="stat reveal"><div class="n"><em>0</em></div><div class="c">winnings promised</div></div>
-</section>
-<section id="what">
-  <div class="eyebrow reveal">What it is</div>
-  <h2 class="sec-head reveal">A research <em>cockpit</em>, not a slot machine.</h2>
-  <p class="sec-lead reveal">A native desktop app that orchestrates the whole project — data, models, betting discipline — and lets an agent help you drive it.</p>
-  <div class="cards reveal">
-    <div class="card"><div class="ic">◧</div><h3>Data cockpit</h3><p>Bankroll, signals, CLV, model trajectory — live from your own database, in bold color-block dashboards.</p><div class="tag">betanalytix.db</div></div>
-    <div class="card"><div class="ic">✦</div><h3>UnaBettingOS</h3><p>A local LLM (Ollama) wired to your data, the Obsidian vault and the knowledge graph — with persistent memory.</p><div class="tag">agentic · private</div></div>
-    <div class="card"><div class="ic">❂</div><h3>3D knowledge graph</h3><p>The whole codebase as a glowing star-field you can fly through. Communities by color, nodes by degree.</p><div class="tag">graphify · three.js</div></div>
-    <div class="card"><div class="ic">↻</div><h3>Self-evolving loops</h3><p>Scheduled agents that retrain, check results against Sofascore, review code, and merge contributors' PRs.</p><div class="tag">write loops, not prompts</div></div>
-    <div class="card"><div class="ic">▶</div><h3>Real terminals</h3><p>PowerShell, WSL and tmux inside the app — plus vibe-coding sessions with the agent of your choice.</p><div class="tag">pywinpty · xterm.js</div></div>
-    <div class="card"><div class="ic">⚖</div><h3>CLV, the metric of truth</h3><p>Every signal measured against the closing sharp line. Win/loss is noise; CLV is the only provable edge.</p><div class="tag">vs Pinnacle / Betfair</div></div>
+</div></section>
+
+<section id="graph"><div class="wrap">
+  <div class="sec-num reveal">02 — The knowledge graph</div>
+  <div class="statement reveal">The whole codebase, as a field of <em>stars.</em></div>
+  <p class="lead reveal">1,440 nodes, coloured by community, rendered in 3D inside the app — and queryable by the agent.</p>
+  <div class="band reveal"><img src="../assets/graph3d.png" alt="UnaBetting 3D knowledge graph" loading="lazy"><div class="cap">graphify · three.js · live in the desktop app</div></div>
+</div></section>
+
+<section id="work"><div class="wrap">
+  <div class="sec-num reveal">03 — The work</div>
+  <div class="statement reveal">A research <em>cockpit,</em> not a slot machine.</div>
+  <div class="reveal" style="margin-top:60px">
+    <div class="index-row"><div class="ix">01</div><div><h3>Data cockpit</h3><p>Bankroll, signals, CLV and model trajectory — live from your own database.</p></div><div class="meta">betanalytix.db</div></div>
+    <div class="index-row"><div class="ix">02</div><div><h3>UnaBettingOS</h3><p>A local LLM wired to your data, the Obsidian vault and the graph — with persistent memory.</p></div><div class="meta">agentic · private</div></div>
+    <div class="index-row"><div class="ix">03</div><div><h3>Self-evolving loops</h3><p>Scheduled agents retrain, check results, review code and merge contributors' PRs.</p></div><div class="meta">write loops</div></div>
+    <div class="index-row"><div class="ix">04</div><div><h3>CLV — the metric of truth</h3><p>Every signal measured against the closing sharp line. Win/loss is noise; CLV is the only provable edge.</p></div><div class="meta">vs Pinnacle</div></div>
   </div>
-</section>
-<div class="marquee" aria-hidden="true">
-  <div class="track"><span><b>leak-free</b></span><span>temporal split</span><span><b>randomized perspective</b></span><span>train-only medians</span><span><b>honest backtest</b></span><span>closing line value</span><span><b>leak-free</b></span><span>temporal split</span><span><b>randomized perspective</b></span><span>train-only medians</span><span><b>honest backtest</b></span><span>closing line value</span></div>
-</div>
-<section id="leak">
-  <div class="eyebrow reveal">The leak hunt</div>
-  <h2 class="sec-head reveal">Every inflated number, <em>hunted down.</em></h2>
-  <p class="sec-lead reveal">This project's real story is a chain of self-caught data leaks. Each one made the model look brilliant. Each one was a bug.</p>
-  <div class="reveal">
-    <div class="leak-row"><div class="when">2026-05-21</div><div><h4>Pre-split imputation</h4><p>Medians computed over the full dataset leaked the future into training.</p><div class="was">acc <s>78.8%</s> → <b>train-only medians</b></div></div></div>
-    <div class="leak-row"><div class="when">2026-05-22</div><div><h4>Unpaired perspective columns</h4><p>A <code>w_</code> feature with no <code>l_</code> twin reconstructed the target through the 50% flip.</p><div class="was">ROI <s>+46%</s> → <b>perspective pairs enforced</b></div></div></div>
-    <div class="leak-row"><div class="when">2026-06-09</div><div><h4>The fake 85% backtest</h4><p>No scaler, un-randomized rows, phantom even-money odds. The bankroll "exploded" — on a bug.</p><div class="was">win rate <s>85%</s> → <b>−92% honest ROI</b></div></div></div>
+</div></section>
+
+<section id="leak"><div class="wrap">
+  <div class="sec-num reveal">04 — The leak hunt</div>
+  <div class="statement reveal">Every inflated number, <em>hunted down.</em></div>
+  <p class="lead reveal">This project's real story is a chain of self-caught data leaks. Each made the model look brilliant. Each was a bug.</p>
+  <div class="reveal" style="margin-top:54px">
+    <div class="leak"><div class="when">2026 · 05 · 21</div><div><h4>Pre-split imputation</h4><p>Medians computed over the full dataset leaked the future into training.</p><div class="delta">acc <s>78.8%</s> → <b>train-only medians</b></div></div></div>
+    <div class="leak"><div class="when">2026 · 05 · 22</div><div><h4>Unpaired perspective columns</h4><p>A winner-side feature with no loser twin reconstructed the target through the flip.</p><div class="delta">ROI <s>+46%</s> → <b>perspective pairs enforced</b></div></div></div>
+    <div class="leak"><div class="when">2026 · 06 · 09</div><div><h4>The fake 85% backtest</h4><p>No scaler, un-randomized rows, phantom even-money odds. The bankroll "exploded" — on a bug.</p><div class="delta">win rate <s>85%</s> → <b>−92% honest ROI</b></div></div></div>
   </div>
-</section>
+</div></section>
+
 <section id="cta">
-  <h2>Honesty is the edge.</h2>
-  <p>Clone it, break it, contribute. The golden rule: every accuracy claim must be proven leak-free.</p>
-  <a class="btn fill" href="https://github.com/SandroHub013/UnaBetting" target="_blank" rel="noopener">Explore the repository ↗</a>
+  <div class="sec-num reveal" style="text-align:center">05 — Contribute</div>
+  <div class="statement reveal">Honesty <em>is</em> the edge.</div>
+  <p class="lead reveal" style="margin:24px auto 0;text-align:center">Clone it, break it, contribute. Every accuracy claim must be proven leak-free.</p>
+  <div class="reveal"><a class="btn" href="https://github.com/SandroHub013/UnaBetting" target="_blank" rel="noopener">Explore the repository ↗</a></div>
 </section>
+
 <footer>
-  <div class="disc"><b>18+ · Gamble responsibly.</b> This is a research tool, not betting advice. The model does not beat the market. Bet only with licensed operators, only what you can afford to lose. Gambling can be addictive.</div>
-  <div>Code: MIT · Data: CC BY-NC-SA (non-commercial)<br>© 2026 UnaBetting · github.com/SandroHub013/UnaBetting</div>
+  <div class="disc"><b>18+ · Gamble responsibly.</b> A research tool, not betting advice. The model does not beat the market. Bet only with licensed operators, only what you can afford to lose. Gambling can be addictive.</div>
+  <div>Code: MIT · Data: CC BY-NC-SA<br>© 2026 UnaBetting</div>
 </footer>
+
 <script>
-const glow=document.getElementById('glow');
-addEventListener('pointermove',e=>{glow.style.left=e.clientX+'px';glow.style.top=e.clientY+'px';},{passive:true});
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:0,rootMargin:'0px 0px -8% 0px'});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-// failsafe: never leave a section invisible — reveal everything after 2.6s
-setTimeout(()=>document.querySelectorAll('.reveal:not(.in)').forEach(el=>el.classList.add('in')),2600);
+setTimeout(()=>document.querySelectorAll('.reveal:not(.in)').forEach(el=>el.classList.add('in')),2800);
 const cio=new IntersectionObserver(es=>es.forEach(e=>{
   if(!e.isIntersecting)return;const el=e.target;cio.unobserve(el);
   const to=parseFloat(el.dataset.count),suf=el.dataset.suffix||'',dec=(to%1!==0)?1:0;let t0=null;
-  const step=ts=>{if(!t0)t0=ts;const p=Math.min((ts-t0)/1300,1);const v=(1-Math.pow(1-p,3))*to;
-    el.textContent=v.toFixed(dec)+suf;if(p<1)requestAnimationFrame(step);};
-  requestAnimationFrame(step);
+  const step=ts=>{if(!t0)t0=ts;const p=Math.min((ts-t0)/1400,1);const v=(1-Math.pow(1-p,3))*to;
+    el.textContent=v.toFixed(dec)+suf;if(p<1)requestAnimationFrame(step);};requestAnimationFrame(step);
 },{threshold:.6});
 document.querySelectorAll('[data-count]').forEach(el=>cio.observe(el));
-const cv=document.getElementById('stars'),cx=cv.getContext('2d');
-let W,H,nodes;const PAL=['#E69A10','#C75A2A','#5BD08B','#7D9BFF','#FF6EC7'];
-function resize(){W=cv.width=cv.offsetWidth;H=cv.height=cv.offsetHeight;
-  const n=Math.min(90,Math.floor(W*H/22000));
-  nodes=Array.from({length:n},()=>({x:Math.random()*W,y:Math.random()*H,
-    vx:(Math.random()-.5)*.22,vy:(Math.random()-.5)*.22,r:Math.random()*2.2+.6,
-    c:PAL[Math.floor(Math.random()*PAL.length)]}));}
-resize();addEventListener('resize',resize);
-function tick(){cx.clearRect(0,0,W,H);
-  for(let i=0;i<nodes.length;i++){const a=nodes[i];a.x+=a.vx;a.y+=a.vy;
-    if(a.x<0||a.x>W)a.vx*=-1;if(a.y<0||a.y>H)a.vy*=-1;
-    for(let j=i+1;j<nodes.length;j++){const b=nodes[j],dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy);
-      if(d<130){cx.globalAlpha=(1-d/130)*.18;cx.strokeStyle='#EFE7D2';cx.lineWidth=.6;
-        cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);cx.stroke();}}
-    cx.globalAlpha=.9;const g=cx.createRadialGradient(a.x,a.y,0,a.x,a.y,a.r*5);
-    g.addColorStop(0,a.c);g.addColorStop(1,'transparent');cx.fillStyle=g;
-    cx.beginPath();cx.arc(a.x,a.y,a.r*5,0,7);cx.fill();}
-  cx.globalAlpha=1;requestAnimationFrame(tick);}
-if(!matchMedia('(prefers-reduced-motion:reduce)').matches)tick();
 </script>
 </body>
 </html>
