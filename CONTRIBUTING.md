@@ -1,43 +1,62 @@
-# Contribuire a UnaBetting
+# Contributing to UnaBetting
 
-Grazie! Questo progetto vive di rigore metodologico: il valore non è "più accuracy"
-ma **accuracy dimostrata onestamente**.
+Thanks! This project lives on methodological rigor: the value isn't "more accuracy",
+it's **accuracy proven honestly**.
 
-## La regola d'oro: niente leak
+## The golden rule: no leaks
 
-Ogni modifica a feature/training/valutazione DEVE rispettare:
+Every change to features / training / evaluation MUST respect:
 
-1. **Split temporale**: train su anni passati, test su 2025+ — mai random split.
-2. **Prospettiva randomizzata**: i dati grezzi hanno `w_` = vincitore; ogni valutazione
-   su righe non randomizzate è gonfiata per costruzione (vedi
-   `docs/obsidian/Backtest_e_Metriche_Oneste.md` per i disastri storici).
-3. **Imputazione train-only**: mediane calcolate sul train, mai su tutto il dataset.
-4. **Coppie di prospettiva**: ogni feature `w_X` deve avere la gemella `l_X`
-   (`_enforce_perspective_pairs` lo garantisce — non aggirarlo).
-5. **Tilt check**: nuova feature? `python scripts/probe_feature_tilt.py` — se una
-   feature singola "indovina" il vincitore >70% delle volte, è un leak, non un segnale.
+1. **Temporal split** — train on past years, test on 2025+ — never a random split.
+2. **Randomized perspective** — raw data has `w_` = winner; any evaluation on
+   non-randomized rows is inflated by construction (see
+   `docs/obsidian/Backtest_e_Metriche_Oneste.md` for the historical disasters).
+3. **Train-only imputation** — medians computed on the train set, never on the full dataset.
+4. **Perspective pairs** — every `w_X` feature must have its `l_X` twin
+   (`_enforce_perspective_pairs` guarantees it — don't bypass it).
+5. **Tilt check** — new feature? run `python scripts/probe_feature_tilt.py`. If a single
+   feature "guesses" the winner > 70% of the time, it's a leak, not a signal.
 
-## Workflow
+## Contribution flow
 
-1. Scegli un esperimento da `EXPERIMENTS.md` (o proponine uno via issue).
-2. Branch da `main`, implementazione minima.
-3. Valuta: `python -m src.models.train` + `python -m src.models.backtest` +
+```mermaid
+flowchart LR
+  A[Pick an item<br/>EXPERIMENTS.md / issue] --> B[Branch from main]
+  B --> C[Minimal change · one concern]
+  C --> D[pytest green<br/>+ probe_feature_tilt if features]
+  D --> E[Open PR with<br/>before/after numbers]
+  E --> F{PR-review loop<br/>every 30 min}
+  F -->|tests green, no secrets,<br/>rules respected| G[merged · label loop-accepted]
+  F -->|problems| H[comment · label loop-changes-requested]
+  H --> C
+```
+
+### Steps
+
+1. Pick an item from `EXPERIMENTS.md` (or propose one via an issue).
+2. Branch from `main`, make the smallest viable change — **one concern per PR**.
+3. Evaluate: `python -m src.models.train` + `python -m src.models.backtest` +
    `python -m pytest tests/`.
-4. PR con i numeri PRIMA/DOPO (accuracy, log loss, ROC) e come li hai ottenuti.
-   Claim senza numeri riproducibili = PR respinta con affetto.
+4. Open a PR with the **before/after numbers** (accuracy, log loss, ROC) and how you
+   obtained them. A claim without reproducible numbers gets respectfully rejected.
 
-## Setup ambiente
+A PR-review loop checks open PRs every 30 minutes: it runs the tests, scans for
+secrets/personal data, verifies the leak-free rules, then **merges** good PRs (labelling
+them `loop-accepted`) or **requests changes** with specific feedback.
 
-Vedi il Quick start nel [README](README.md). Su Windows l'app desktop usa
-pywebview/WebView2 e pywinpty; su Linux/macOS gira con `python -m src.dashboard --browser`.
+## Environment setup
 
-## Cosa NON committare
+See the Quick start in the [README](README.md). On Windows the desktop app uses
+pywebview/WebView2 and pywinpty; on Linux/macOS run `python -m src.dashboard --browser`.
 
-`.env` (API key), `data/` (dataset rigenerabili), DB personali (`betanalytix.db`),
-screenshot/log personali. Il `.gitignore` copre già tutto: se `git status` ti mostra
-un file di dati personali, fermati e controlla.
+## What NOT to commit
 
-## Stile
+`.env` (API keys), `data/` (regenerable datasets), personal DBs (`betanalytix.db`),
+personal screenshots/logs, video render artifacts (`*.mp4`). The `.gitignore` already
+covers these: if `git status` shows a personal data file, stop and check.
 
-Python: segui il codice esistente (type hints leggeri, docstring corte, commenti solo
-dove il codice non parla da solo). Frontend: vanilla JS, niente build step.
+## Style
+
+Python: follow the surrounding code (light type hints, short docstrings, comments only
+where the code doesn't speak for itself). Frontend: vanilla JS, no build step.
+**Language: English** — code, comments, docs, commit messages, and PRs are all in English.

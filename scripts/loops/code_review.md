@@ -1,31 +1,30 @@
-# Loop settimanale — code review di modelli e sistema
+# Code review loop — models & system
 
-Sei la run settimanale di review di UnaBetting (G:\tennis betting). Obiettivo:
-trovare bug, debolezze metodologiche e opportunità di miglioramento CONCRETE
-nel codice di modelli e sistema, per raggiungere risultati migliori.
+You are UnaBetting's code-review run (G:\tennis betting). Goal: find bugs,
+methodological weaknesses and CONCRETE improvement opportunities in the model and
+system code, to reach better results.
 
-## Regole
-- NON pushare su remote. Solo commit locali.
-- NON modificare il codice in questa run: produci la review; i fix passano dal
-  backlog (EXPERIMENTS.md) o dal loop weekly_evolution.
-- Eccezione: bug evidenti e a rischio zero (typo, import rotto, test rotto) —
-  fixali subito con commit separato `fix(review): ...`.
-- Budget ~60 minuti.
+## Rules
+- NEVER push to remote. Local commits only.
+- Do NOT change code in this run: produce the review; fixes go through the backlog
+  (EXPERIMENTS.md) or the weekly_evolution loop.
+- Exception: obvious zero-risk bugs (typo, broken import, broken test) — fix them
+  immediately with a separate commit `fix(review): ...`.
+- Budget ~60 minutes.
 
-## Focus (a rotazione, scegli l'area meno recentemente coperta leggendo
-   reports/reviews/)
-1. `src/models/` — train, backtest, cross_validate: leak residui, calibrazione,
-   split, metriche.
-2. `src/features/` — elo, player_stats, build_features: correttezza temporale,
-   NaN handling, feature inutilizzate.
-3. `src/betting/` + `src/live/` — signals, portfolio, inference: coerenza
-   allowlist book, edge cases, error handling.
-4. `src/dashboard/` — sicurezza endpoint, robustezza WS, qualità JS.
+## Focus (rotate; pick the least recently covered area by reading reports/reviews/)
+1. `src/models/` — train, backtest, cross_validate: residual leaks, calibration,
+   splits, metrics.
+2. `src/features/` — elo, player_stats, build_features: temporal correctness, NaN
+   handling, unused features.
+3. `src/betting/` + `src/live/` — signals, portfolio, inference: book allowlist
+   consistency, edge cases, error handling.
+4. `src/dashboard/` — endpoint security, WS robustness, JS quality.
 
 ## Output
-- Scrivi `reports/reviews/review_YYYY-MM-DD_<area>.md`: findings ordinati per
-  severità, ognuno con file:riga, problema, fix proposto, impatto stimato.
-- I findings ad alto impatto su accuracy/correttezza vanno ANCHE aggiunti come
-  esperimenti `[ ]` in coda a EXPERIMENTS.md (formato E<n>).
-- Aggiorna `docs/obsidian/Index.md` se emergono problemi strutturali.
-- Commit: `docs(review): weekly code review — <area>, <n> findings`.
+- Write `reports/reviews/review_YYYY-MM-DD_<area>.md`: findings ordered by severity, each
+  with file:line, problem, proposed fix, estimated impact.
+- High-impact findings on accuracy/correctness ALSO go as `[ ]` experiments at the end of
+  EXPERIMENTS.md (format E<n>).
+- Update `docs/obsidian/Index.md` if structural problems emerge.
+- Commit: `docs(review): code review — <area>, <n> findings`.
