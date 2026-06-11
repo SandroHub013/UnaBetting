@@ -7,7 +7,9 @@ only if it beats the baseline, then commits.
 
 **Rules for the loop:**
 - One experiment per run. Smallest viable implementation.
-- Baseline to beat (2026-06-09): ensemble acc 66.28% / LL 0.6080 / ROC 0.7312 (test 2025+).
+- Baseline to beat (2026-06-12, after E2+E3+E4): routed acc **67.66%** / LL **0.6010** /
+  ROC **0.7397** (test 2025+); odds-ensemble 69.85% on real-odds rows. Prior baseline
+  was 66.28% / 0.6080 / 0.7312 (2026-06-09).
 - Evaluation = `models/atp_metrics.json` after `python -m src.models.train` + honest
   backtest `python -m src.models.backtest`. Log every result in `reports/metrics_history.csv`.
 - If result worse: revert code, mark FAILED with the numbers, move on.
@@ -29,13 +31,13 @@ only if it beats the baseline, then commits.
   exactly where it predicts. Ingest current-season match stats (Sackmann repo pull
   via `update_data.py`, or ATP site) and rebuild features. Expected: biggest single
   gain; legit ceiling ~ROC 0.80 / acc ~70-72% per walk-forward 2026 fold.
-- [x] **E2 — Walk-forward ensemble weighting.** PreFittedEnsemble is a flat mean;
-  weight members by validation log-loss (softmax over -LL). Cheap, +0.1-0.3pt typical.
-- [x] **E3 — XGB calibration regression.** XGB LL degraded 0.61→0.66 with val=[2024]
-  only (isotonic on a single year overfits). Try sigmoid calibration or val=[2023,2024]
-  for calibration while keeping train≤2023 for fitting.
-- [ ] **E4 — Odds-segment specialist.** Train a separate model on has_odds==1 rows
-  (market features real) vs blind model for no-odds rows; route at inference.
+- [x] **E2 — Walk-forward ensemble weighting.** DONE (PR #2). Softmax over -val-LL.
+  Folded into the E4 retrain below.
+- [x] **E3 — Per-model calibration.** DONE. Sigmoid/isotonic per model. Folded into E4.
+- [x] **E4 — Odds-segment specialist.** DONE + **VERIFIED 2026-06-12** (was merged but
+  never retrained until now — see lesson). Separate `odds` (market features, real-odds
+  rows) and `blind` (no market features, no-odds rows) families, routed at inference by
+  `has_odds`. **KEPT.**
 - [ ] **E5 — Surface-specific ELO K tuning.** Optuna over k_factor/decay per surface,
   objective = test-year-free walk-forward LL (use cross_validate.py, NOT the 2025 test).
 - [ ] **E6 — Fatigue interactions v2.** `decay_minutes_14d` × best_of_5, days_since_last
@@ -44,6 +46,24 @@ only if it beats the baseline, then commits.
   doubles the prediction surface for the spread/CLV strategy direction.
 
 ## Done
+
+- [x] **2026-06-12 — E2+E3+E4 verified (KEPT).** Merged earlier but NEVER retrained
+  until a manual run on 2026-06-12 (the Nightly loop that would have caught this is
+  paused). Numbers vs the 06-09 baseline:
+  - routed acc **66.28% → 67.66%** (+1.38pt), LL 0.6080 → **0.6010**, ROC 0.7312 → **0.7397**.
+  - odds-ensemble on real-odds rows: acc **69.85%**, LL 0.583, ROC 0.758 — for the first
+    time ABOVE the naive favourite (67.7%).
+  - **Honest backtest still LOSES: ROI −82.4% → −61.9%** (win rate 45.6%). More accurate
+    ≠ profitable: the model carries the market prob as a feature, so its betting
+    disagreements still lose to the vig. The "no predictive edge" verdict stands — just
+    less bad.
+  - Two bugs fixed during verification: `PreFittedEnsemble.__module__` hack broke
+    pickle saving under `python -m` (aliased the running module instead);
+    `log_metrics_history.py` made schema-tolerant (routed_*); `backtest.py` now loads
+    the odds-ensemble.
+  - **Lesson: a merged experiment is NOT a verified one.** With Nightly paused, E2/E3/E4
+    sat unevaluated for a day and even broke inference (stale pre-E2 pickles).
+    Re-enable Nightly, or have PR-review require before/after numbers from a retrain.
 
 - [x] **2026-06-09 — train≤2023 + has_odds flag** (was train≤2022, no flag).
   Result: ~flat. ensemble 66.58→66.28 acc, LL 0.6082→0.6080, ROC 0.7291→0.7312;
