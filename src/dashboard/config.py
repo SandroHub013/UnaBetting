@@ -65,6 +65,10 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 CHAT_MODEL = os.environ.get("CHAT_MODEL", "qwen3.5:9b")
 CHAT_KEEP_ALIVE = "30m"   # keep weights warm while the app is open
 
+# In-app updater: public repo to check for new releases/commits.
+PUBLIC_REPO = os.environ.get("UNABETTING_REPO", "SandroHub013/UnaBetting")
+UPDATE_BRANCH = "main"
+
 # File explorer / editor (IDE panel)
 IGNORE_DIRS = {".git", "__pycache__", ".pytest_cache", "node_modules",
                ".antigravitycli", "tennis_betting_sota.egg-info"}

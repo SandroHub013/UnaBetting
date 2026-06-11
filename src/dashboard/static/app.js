@@ -33,6 +33,7 @@ const I18N = {
     note_browser: 'Browser agentico: apri URL, leggi il contenuto, segui i link. Anche l\'agente UnaBettingOS può navigare (tool browse_web).', brurl_ph: 'url o dominio…', brback: 'indietro', note_graph: 'Il grafo del progetto (graphify): nodi-stella colorati per community, 3D. Trascina per ruotare, scroll per zoom, click su un nodo per il focus.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'loop notturno', l_weekly: 'loop settimanale', l_metrics: 'storico metriche', loops_none: 'nessuna run ancora',
     term_label: 'TERMINALE', vibe_hint: 'agente a scelta, in tmux su WSL (la sessione sopravvive alla chiusura del tab)',
+    upd_title: 'Aggiornamento disponibile', upd_btn: 'Aggiorna ora', upd_later: 'Più tardi', upd_doing: 'aggiornamento…', upd_done: 'Aggiornato ✓ — riavvia l\'app per applicare', upd_fail: 'Aggiornamento fallito', upd_restart: 'Riavvia app',
     chat_intro: "Sono <b>UnaBettingOS</b> — memoria e intelligenza agentica dell'app (qwen3.5:9b, locale). Dati live, vault Obsidian, knowledge graph e memoria persistente: chiedimi dei match, del modello, della storia del progetto — o dimmi \"ricorda che…\".",
     chat_ph: 'scrivi… (Invio per inviare)', open_graph: 'apri il grafo 3D', go: 'vai',
     filter: '⌕ filtra…', register_bet: 'Registra una bet', save: 'Salva',
@@ -65,6 +66,7 @@ const I18N = {
     note_browser: 'Agentic browser: open a URL, read the content, follow links. UnaBettingOS can browse too (browse_web tool).', brurl_ph: 'url or domain…', brback: 'back', note_graph: 'The project graph (graphify): star nodes colored by community, 3D. Drag to rotate, scroll to zoom, click a node to focus.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'nightly loop', l_weekly: 'weekly loop', l_metrics: 'metrics history', loops_none: 'no runs yet',
     term_label: 'TERMINAL', vibe_hint: 'pick an agent, in tmux on WSL (the session survives closing the tab)',
+    upd_title: 'Update available', upd_btn: 'Update now', upd_later: 'Later', upd_doing: 'updating…', upd_done: 'Updated ✓ — restart the app to apply', upd_fail: 'Update failed', upd_restart: 'Restart app',
     chat_intro: "I'm <b>UnaBettingOS</b> — the app's agentic memory & intelligence (qwen3.5:9b, local). Live data, Obsidian vault, knowledge graph and persistent memory: ask me about matches, the model, the project's history — or say \"remember that…\".",
     chat_ph: 'type… (Enter to send)', open_graph: 'open the 3D graph', go: 'go',
     filter: '⌕ filter…', register_bet: 'Log a bet', save: 'Save',
@@ -96,6 +98,7 @@ const I18N = {
     note_browser: 'Navegador agéntico: abre una URL, lee el contenido, sigue enlaces. UnaBettingOS también puede navegar (herramienta browse_web).', brurl_ph: 'url o dominio…', brback: 'atrás', note_graph: 'El grafo del proyecto (graphify): nodos-estrella coloreados por comunidad, 3D. Arrastra para rotar, scroll para zoom, clic en un nodo para enfocar.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'bucle nocturno', l_weekly: 'bucle semanal', l_metrics: 'historial de métricas', loops_none: 'aún sin runs',
     term_label: 'TERMINAL', vibe_hint: 'elige un agente, en tmux sobre WSL (la sesión sobrevive al cierre de la pestaña)',
+    upd_title: 'Actualización disponible', upd_btn: 'Actualizar ahora', upd_later: 'Más tarde', upd_doing: 'actualizando…', upd_done: 'Actualizado ✓ — reinicia la app para aplicar', upd_fail: 'Actualización fallida', upd_restart: 'Reiniciar app',
     chat_intro: "Soy <b>UnaBettingOS</b> — memoria e inteligencia agéntica de la app (qwen3.5:9b, local). Datos en vivo, vault Obsidian, grafo de conocimiento y memoria persistente: pregúntame por los partidos, el modelo o la historia del proyecto — o di \"recuerda que…\".",
     chat_ph: 'escribe… (Intro para enviar)', open_graph: 'abrir el grafo 3D', go: 'ir',
     filter: '⌕ filtrar…', register_bet: 'Registrar apuesta', save: 'Guardar',
@@ -127,6 +130,7 @@ const I18N = {
     note_browser: 'Navigateur agentique : ouvre une URL, lis le contenu, suis les liens. UnaBettingOS peut aussi naviguer (outil browse_web).', brurl_ph: 'url ou domaine…', brback: 'retour', note_graph: 'Le graphe du projet (graphify) : nœuds-étoiles colorés par communauté, 3D. Glisser pour tourner, molette pour zoomer, clic sur un nœud pour focaliser.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'boucle nocturne', l_weekly: 'boucle hebdo', l_metrics: 'historique des métriques', loops_none: 'aucun run pour l\'instant',
     term_label: 'TERMINAL', vibe_hint: 'choisis un agent, en tmux sur WSL (la session survit à la fermeture de l\'onglet)',
+    upd_title: 'Mise à jour disponible', upd_btn: 'Mettre à jour', upd_later: 'Plus tard', upd_doing: 'mise à jour…', upd_done: 'Mis à jour ✓ — redémarre l\'app pour appliquer', upd_fail: 'Échec de la mise à jour', upd_restart: 'Redémarrer',
     chat_intro: "Je suis <b>UnaBettingOS</b> — la mémoire et l'intelligence agentique de l'app (qwen3.5:9b, local). Données en direct, vault Obsidian, graphe de connaissances et mémoire persistante : demande-moi les matchs, le modèle, l'historique du projet — ou dis \"souviens-toi que…\".",
     chat_ph: 'écris… (Entrée pour envoyer)', open_graph: 'ouvrir le graphe 3D', go: 'aller',
     filter: '⌕ filtrer…', register_bet: 'Enregistrer un pari', save: 'Enregistrer',
@@ -158,6 +162,7 @@ const I18N = {
     note_browser: 'Agentischer Browser: URL öffnen, Inhalt lesen, Links folgen. UnaBettingOS kann auch browsen (browse_web-Tool).', brurl_ph: 'url oder Domain…', brback: 'zurück', note_graph: 'Der Projektgraph (graphify): Stern-Knoten nach Community gefärbt, 3D. Ziehen zum Drehen, Scrollen zum Zoomen, Klick auf einen Knoten zum Fokussieren.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'Nightly-Loop', l_weekly: 'Weekly-Loop', l_metrics: 'Metrik-Historie', loops_none: 'noch keine Runs',
     term_label: 'TERMINAL', vibe_hint: 'wähle einen Agenten, in tmux auf WSL (die Session überlebt das Schließen des Tabs)',
+    upd_title: 'Update verfügbar', upd_btn: 'Jetzt aktualisieren', upd_later: 'Später', upd_doing: 'aktualisiere…', upd_done: 'Aktualisiert ✓ — App neu starten zum Anwenden', upd_fail: 'Update fehlgeschlagen', upd_restart: 'App neu starten',
     chat_intro: "Ich bin <b>UnaBettingOS</b> — das agentische Gedächtnis & die Intelligenz der App (qwen3.5:9b, lokal). Live-Daten, Obsidian-Vault, Wissensgraph und persistentes Gedächtnis: frag mich nach Matches, dem Modell, der Projektgeschichte — oder sag \"merke dir, dass…\".",
     chat_ph: 'schreiben… (Enter zum Senden)', open_graph: '3D-Graph öffnen', go: 'los',
     filter: '⌕ filtern…', register_bet: 'Wette eintragen', save: 'Speichern',
@@ -1323,6 +1328,47 @@ function applyLang(lang) {
   });
 }
 
+/* ================= IN-APP UPDATER ================= */
+async function checkUpdate(manual = false) {
+  let d;
+  try { d = await getJSON('/api/update/check'); }
+  catch (e) { if (manual) toast('update check failed: ' + e.message, true); return; }
+  if (!d.available) { if (manual) toast(t('upd_done').includes('✓') ? 'up to date ✓' : 'up to date'); return; }
+  showUpdateModal(d);
+}
+
+function showUpdateModal(d) {
+  if ($('.upd-overlay')) return;
+  const ov = el('div', 'upd-overlay');
+  ov.innerHTML = `<div class="upd-card">
+    <h3>↻ ${t('upd_title')}</h3>
+    <div class="upd-meta">${d.current} → <b>${d.latest}</b> · +${d.behind} commit${d.behind > 1 ? 's' : ''} · ${dt(d.latest_date)}</div>
+    <div class="upd-notes">${escHtml(d.notes || '')}</div>
+    <div class="upd-status" id="upd-status"></div>
+    <div class="upd-actions">
+      <button class="btn" id="upd-later">${t('upd_later')}</button>
+      <button class="btn primary" id="upd-go">${t('upd_btn')}</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  $('#upd-later').onclick = () => ov.remove();
+  $('#upd-go').onclick = async () => {
+    const st = $('#upd-status'); st.textContent = t('upd_doing');
+    $('#upd-go').disabled = true;
+    try {
+      const r = await fetch('/api/update/apply', { method: 'POST' });
+      const res = await r.json();
+      if (!r.ok || !res.ok) throw new Error(res.detail || res.output || 'error');
+      st.textContent = t('upd_done');
+      $('#upd-go').textContent = t('upd_restart');
+      $('#upd-go').disabled = false;
+      $('#upd-go').onclick = () => location.reload();
+    } catch (err) {
+      st.textContent = t('upd_fail') + ': ' + err.message;
+      $('#upd-go').disabled = false;
+    }
+  };
+}
+
 /* ================= BOOT ================= */
 const themeSel = $('#theme-sel');
 themeSel.innerHTML = THEMES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
@@ -1347,3 +1393,4 @@ document.querySelectorAll('#activitybar button[data-act]').forEach(b => {
 
 renderSidebar('cockpit');
 openPanel('overview');
+setTimeout(() => checkUpdate(), 2500);   // check for a new release shortly after boot

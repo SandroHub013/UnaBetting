@@ -495,6 +495,58 @@ def browse(url: str):
     return {"url": url, "title": title or url, "text": text, "links": links, "content_type": ct}
 
 
+def _git(args, timeout=90):
+    import subprocess
+    return subprocess.run(["git", "-C", str(config.PROJECT_ROOT)] + args,
+                          capture_output=True, text=True, timeout=timeout)
+
+
+def _update_remote():
+    """The remote pointing at the public UnaBetting repo (fallback: origin)."""
+    r = _git(["remote", "-v"])
+    for line in r.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and config.PUBLIC_REPO.lower() in parts[1].lower():
+            return parts[0]
+    return "origin"
+
+
+@router.get("/update/check")
+def update_check():
+    """Is a newer version available on the public repo? (strictly-behind, ff-able)."""
+    try:
+        cur = _git(["rev-parse", "--short", "HEAD"]).stdout.strip()
+        remote, branch = _update_remote(), config.UPDATE_BRANCH
+        _git(["fetch", remote, branch], timeout=60)
+        ref = f"{remote}/{branch}"
+        counts = _git(["rev-list", "--left-right", "--count", f"HEAD...{ref}"]).stdout.split()
+        ahead = int(counts[0]) if len(counts) == 2 else 0
+        behind = int(counts[1]) if len(counts) == 2 else 0
+        latest = _git(["rev-parse", "--short", ref]).stdout.strip()
+        msg = _git(["log", "-1", "--format=%s", ref]).stdout.strip()
+        ldate = _git(["log", "-1", "--format=%cI", ref]).stdout.strip()
+        # only offer when strictly behind and cleanly fast-forwardable
+        return {"current": cur, "latest": latest, "behind": behind, "ahead": ahead,
+                "available": behind > 0 and ahead == 0, "notes": msg, "latest_date": ldate}
+    except Exception as e:
+        return _err(502, "update_check_failed", e)
+
+
+@router.post("/update/apply")
+def update_apply():
+    """Fast-forward pull from the public repo. Local settings (.env, data/, models/,
+    gitignored files, browser localStorage) are untouched. Refuses if not ff-able."""
+    try:
+        remote, branch = _update_remote(), config.UPDATE_BRANCH
+        r = _git(["pull", "--ff-only", remote, branch], timeout=180)
+        ok = r.returncode == 0
+        out = (r.stdout + r.stderr).strip()[-1500:]
+        return {"ok": ok, "output": out,
+                "restart_required": ok and "Already up to date" not in out}
+    except Exception as e:
+        return _err(500, "update_failed", e)
+
+
 @router.get("/loops")
 def loops():
     """Loop run logs (reports/loops) newest first, for the Loops panel."""
