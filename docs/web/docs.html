@@ -157,11 +157,12 @@ python -m src.dashboard</pre>
     <p>Every headline number is produced under three non-negotiable rules — temporal split, randomized perspective, train-only medians. Here is where things actually stand:</p>
     <table class="tbl">
       <tr><th>Metric</th><th>Value</th></tr>
-      <tr><td>Model accuracy (ensemble, test 2025+)</td><td class="neg">66.3%</td></tr>
-      <tr><td>Market favourite (Bet365)</td><td class="pos">67.7%</td></tr>
-      <tr><td>Log loss</td><td>0.608</td></tr>
-      <tr><td>ROC AUC</td><td>0.731</td></tr>
-      <tr><td>Honest backtest ROI</td><td class="neg">negative</td></tr>
+      <tr><td>Model accuracy (ensemble, test 2025+)</td><td class="neg" id="d-acc">66.3%</td></tr>
+      <tr><td>Odds-ensemble (real-odds rows)</td><td id="d-odds">69.8%</td></tr>
+      <tr><td>Market favourite (Bet365)</td><td class="pos" id="d-market">67.7%</td></tr>
+      <tr><td>Log loss</td><td id="d-ll">0.601</td></tr>
+      <tr><td>ROC AUC</td><td id="d-roc">0.740</td></tr>
+      <tr><td>Honest backtest ROI</td><td class="neg" id="d-roi">negative</td></tr>
     </table>
     <p>The market is more accurate than the model. We publish this on purpose: it's the difference between research and marketing.</p>
 
@@ -216,7 +217,14 @@ python -m src.dashboard</pre>
   Code MIT · Data CC BY-NC-SA · © 2026 UnaBetting
 </footer>
 
+<script src="metrics.js"></script>
 <script>
+// Single source of truth: publish_metrics.py writes metrics.js (window.__METRICS).
+(function(){const M=window.__METRICS;if(!M)return;const set=(id,v)=>{const e=document.getElementById(id);if(e&&v&&v!=='—')e.textContent=v;};
+  set('d-acc',M.acc+'%');set('d-odds',M.odds_acc+'%');set('d-market',M.market+'%');
+  set('d-ll',M.ll);set('d-roc',M.roc);
+  if(M.roi&&M.roi!=='—')set('d-roi',M.roi+'% (win rate '+M.winrate+'%)');
+})();
 // build right TOC from h2s
 const heads=[...document.querySelectorAll('.doc h2[id]')];
 const tl=document.getElementById('toc-links');

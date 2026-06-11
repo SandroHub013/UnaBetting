@@ -1,0 +1,12 @@
+{
+  "ran_at": "2026-06-12T01:08:40",
+  "matches": 2801,
+  "bets": 564,
+  "won": 257,
+  "lost": 307,
+  "win_rate": 0.4557,
+  "roi_pct": -61.9,
+  "max_drawdown_pct": 63.7,
+  "model_accuracy": 0.6862,
+  "market_accuracy": 0.6769
+}

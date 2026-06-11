@@ -145,6 +145,24 @@ def run_backtest():
     print(f"net profit:     EUR {profit:.2f}  ROI {profit / STARTING_BANKROLL:.1%}")
     print(f"max drawdown:   {max_dd:.1%}")
 
+    # Persist the headline backtest result so the metrics-publish step can read
+    # the money number without re-running the backtest.
+    import json as _json
+    from datetime import datetime as _dt
+    res = {
+        "ran_at": _dt.now().isoformat(timespec="seconds"),
+        "matches": int(len(df)), "bets": n, "won": wins, "lost": losses,
+        "win_rate": round(wins / n, 4) if n else None,
+        "roi_pct": round(profit / STARTING_BANKROLL * 100, 1),
+        "max_drawdown_pct": round(max_dd * 100, 1),
+        "model_accuracy": round(float(acc), 4),
+        "market_accuracy": round(float((df["odds_w"] < df["odds_l"]).mean()), 4),
+    }
+    out_p = ROOT / "reports" / "last_backtest.json"
+    out_p.parent.mkdir(exist_ok=True)
+    out_p.write_text(_json.dumps(res, indent=2), encoding="utf-8")
+    print(f"[+] saved {out_p.relative_to(ROOT)}")
+
 
 if __name__ == "__main__":
     run_backtest()

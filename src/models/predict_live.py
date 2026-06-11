@@ -15,19 +15,17 @@ def load_resources():
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
         
-    model_path = PROJECT_ROOT / config["paths"]["models"] / "atp_ensemble.pkl"
     scaler_path = PROJECT_ROOT / config["paths"]["models"] / "atp_scaler.pkl"
     features_meta_path = PROJECT_ROOT / config["paths"]["models"] / "atp_features.txt"
     medians_path = PROJECT_ROOT / config["paths"]["models"] / "atp_medians.pkl"
     
-    model = joblib.load(model_path)
     scaler = joblib.load(scaler_path)
     medians = joblib.load(medians_path) if medians_path.exists() else {}
     
     with open(features_meta_path, "r") as f:
         feature_cols = [line.strip() for line in f if line.strip()]
         
-    return config, model, scaler, feature_cols, medians
+    return config, scaler, feature_cols, medians
 
 def get_player_id(name, df):
     """Try to find player ID from name."""
@@ -39,8 +37,8 @@ def get_player_id(name, df):
         return match.iloc[0]['loser_id']
     return None
 
-def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p1, odds_p2):
-    config, model, scaler, feature_cols, medians = load_resources()
+def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p1=None, odds_p2=None):
+    config, scaler, feature_cols, medians = load_resources()
     
     # Load historical data to populate the engine
     unified_path = PROJECT_ROOT / "data" / "processed" / "atp_unified.csv"
@@ -101,10 +99,19 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
         input_data["elo_win_prob"] = 0.5 # Baseline
         
     # Implied Prob
-    margin = (1.0/odds_p1) + (1.0/odds_p2)
-    input_data["w_implied_prob"] = (1.0/odds_p1) / margin
-    input_data["l_implied_prob"] = (1.0/odds_p2) / margin
-    input_data["diff_implied_prob"] = input_data["w_implied_prob"] - input_data["l_implied_prob"]
+    if odds_p1 and odds_p2:
+        margin = (1.0/odds_p1) + (1.0/odds_p2)
+        input_data["w_implied_prob"] = (1.0/odds_p1) / margin
+        input_data["l_implied_prob"] = (1.0/odds_p2) / margin
+        input_data["diff_implied_prob"] = input_data["w_implied_prob"] - input_data["l_implied_prob"]
+        input_data["has_odds"] = 1
+        segment = "odds"
+    else:
+        input_data["w_implied_prob"] = 0
+        input_data["l_implied_prob"] = 0
+        input_data["diff_implied_prob"] = 0
+        input_data["has_odds"] = 0
+        segment = "blind"
     
     # CPI
     input_data["cpi"] = map_cpi(tourney_name, surface)
@@ -127,6 +134,15 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
         if col in X_live.columns and pd.isna(X_live.at[0, col]):
             X_live.at[0, col] = medians.get(col, 0.5 if 'rate' in col or 'pct' in col or 'prob' in col else 0)
     
+    # Load model
+    model_path = PROJECT_ROOT / config["paths"]["models"] / f"atp_target_{segment}_ensemble.pkl"
+    if not model_path.exists():
+        print(f"❌ Errore: Modello {segment} non trovato in {model_path}")
+        return
+        
+    model_data = joblib.load(model_path)
+    model = model_data["model"] if isinstance(model_data, dict) and "model" in model_data else model_data
+    
     # Scale and Predict
     X_scaled = scaler.transform(X_live)
     prob_p1 = model.predict_proba(X_scaled)[0, 1]
@@ -138,21 +154,24 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
     print(f"📊 Probabilità {p1_name}: {prob_p1:.2%}")
     print(f"📊 Probabilità {p2_name}: {prob_p2:.2%}")
     
-    # Value detection
-    fair_odds_p1 = 1.0 / prob_p1
-    fair_odds_p2 = 1.0 / prob_p2
-    
-    print(f"\n💰 Quote Bet365: {odds_p1} / {odds_p2}")
-    print(f"📉 Quote Fair:   {fair_odds_p1:.2f} / {fair_odds_p2:.2f}")
-    
-    if odds_p1 > fair_odds_p1:
-        edge = (odds_p1 / fair_odds_p1) - 1
-        print(f"✅ VALUE BET su {p1_name}! (Edge: {edge:.2%})")
-    elif odds_p2 > fair_odds_p2:
-        edge = (odds_p2 / fair_odds_p2) - 1
-        print(f"✅ VALUE BET su {p2_name}! (Edge: {edge:.2%})")
+    if odds_p1 and odds_p2:
+        # Value detection
+        fair_odds_p1 = 1.0 / prob_p1
+        fair_odds_p2 = 1.0 / prob_p2
+        
+        print(f"\n💰 Quote Bet365: {odds_p1} / {odds_p2}")
+        print(f"📉 Quote Fair:   {fair_odds_p1:.2f} / {fair_odds_p2:.2f}")
+        
+        if odds_p1 > fair_odds_p1:
+            edge = (odds_p1 / fair_odds_p1) - 1
+            print(f"✅ VALUE BET su {p1_name}! (Edge: {edge:.2%})")
+        elif odds_p2 > fair_odds_p2:
+            edge = (odds_p2 / fair_odds_p2) - 1
+            print(f"✅ VALUE BET su {p2_name}! (Edge: {edge:.2%})")
+        else:
+            print("❌ Nessun valore trovato.")
     else:
-        print("❌ Nessun valore trovato.")
+        print(f"\n📊 Nessuna quota fornita. Modello utilizzato: {segment.upper()}")
 
 if __name__ == "__main__":
     # Test con i dati estratti dall'utente

@@ -393,15 +393,24 @@ def model():
     if mpath.exists():
         try:
             m = _json.loads(mpath.read_text())
+            am = m.get("all_models") or {}
+            # Schema-tolerant: legacy used best_*; the routed E4 schema uses
+            # routed_* + named families (target_odds_*, target_routed_ensemble).
+            if "best_accuracy" in m:
+                best_model = m.get("best_model")
+                acc, ll = m.get("best_accuracy"), m.get("best_log_loss")
+                roc, ece = m.get("best_roc_auc"), m.get("best_ece")
+            else:
+                best_model = "target_routed_ensemble"
+                acc, ll = m.get("routed_accuracy"), m.get("routed_log_loss")
+                roc, ece = m.get("routed_roc_auc"), m.get("routed_ece")
             out["current"] = {
-                "best_model": m.get("best_model"),
-                "accuracy": m.get("best_accuracy"),
-                "log_loss": m.get("best_log_loss"),
-                "roc_auc": m.get("best_roc_auc"),
-                "ece": m.get("best_ece"),
+                "best_model": best_model,
+                "accuracy": acc, "log_loss": ll, "roc_auc": roc, "ece": ece,
                 "trained_at": m.get("trained_at"),
+                "odds_ensemble_accuracy": (am.get("target_odds_ensemble") or {}).get("accuracy"),
                 "models": {k: {"accuracy": v.get("accuracy"), "log_loss": v.get("log_loss")}
-                           for k, v in (m.get("all_models") or {}).items()},
+                           for k, v in am.items()},
             }
         except Exception:
             pass
