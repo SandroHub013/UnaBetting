@@ -27,7 +27,7 @@ only if it beats the baseline, then commits.
   gain; legit ceiling ~ROC 0.80 / acc ~70-72% per walk-forward 2026 fold.
 - [x] **E2 — Walk-forward ensemble weighting.** PreFittedEnsemble is a flat mean;
   weight members by validation log-loss (softmax over -LL). Cheap, +0.1-0.3pt typical.
-- [ ] **E3 — XGB calibration regression.** XGB LL degraded 0.61→0.66 with val=[2024]
+- [x] **E3 — XGB calibration regression.** XGB LL degraded 0.61→0.66 with val=[2024]
   only (isotonic on a single year overfits). Try sigmoid calibration or val=[2023,2024]
   for calibration while keeping train≤2023 for fitting.
 - [ ] **E4 — Odds-segment specialist.** Train a separate model on has_odds==1 rows
