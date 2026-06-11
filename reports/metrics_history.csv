@@ -1,0 +1,2 @@
+trained_at,best_model,accuracy,log_loss,roc_auc,brier,ece,lgbm_accuracy,xgb_log_loss
+2026-06-09T22:20:43.830420,target_ensemble,0.662846,0.60798,0.731235,0.210372,0.023395,0.669823,0.660484

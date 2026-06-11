@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema ML open source per tennis betting. 88 feature, 3 mercati, walk-forward validation, live inference. Pipeline riproducibile.">
+    <meta name="theme-color" content="#EFE7D2">
+    <title>Tennis Betting ML — The Model That Plays The Market</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.cdnfonts.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23EFE7D2'/%3E%3Ctext x='50' y='65' font-family='monospace' font-size='52' font-weight='700' fill='%232E6B3F' text-anchor='middle'%3Et%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+    <!-- Background layers (Hermes effect) -->
+    <div class="bg-layer bg-multiply" aria-hidden="true"></div>
+    <div class="bg-layer bg-filler" aria-hidden="true"></div>
+    <div class="bg-layer bg-radial" aria-hidden="true"></div>
+    <div class="bg-layer bg-radial-2" aria-hidden="true"></div>
+    <canvas class="bg-layer" id="bg-canvas" aria-hidden="true"></canvas>
+    <canvas class="bg-layer" id="bg-canvas-2" aria-hidden="true"></canvas>
+    <div class="bg-layer bg-difference" aria-hidden="true"></div>
+
+    <a href="#app" style="position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;" onfocus="this.style.cssText='position:fixed; top:1rem; left:1rem; width:auto; height:auto; background:var(--ink); color:var(--bg); padding:0.5rem 1rem; z-index:999; font-family:var(--font-label); font-size:0.875rem;'">Salta al contenuto</a>
+
+    <main id="app" role="main"></main>
+
+    <script src="app.js" defer></script>
+</body>
+</html>

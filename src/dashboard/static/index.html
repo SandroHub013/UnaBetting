@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnaBetting</title>
+  <link rel="icon" href="/static/icon.ico">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- top bar -->
+  <div id="topbar">
+    <span class="logo">unabetting<span class="cursor">_</span></span>
+    <select id="theme-sel" class="theme-sel" title="tema"></select>
+    <span class="top-status" id="top-status">● 127.0.0.1:8765 · locale</span>
+  </div>
+
+  <div id="shell">
+    <!-- activity bar -->
+    <nav id="activitybar">
+      <button data-act="cockpit" class="active" title="Cockpit dati">◧</button>
+      <button data-act="chat" title="UnaBettingOS — memoria agentica">✦</button>
+      <button data-act="graph" title="Knowledge graph 3D">❂</button>
+      <button data-act="browser" title="Browser web agentico">🌐</button>
+      <button data-act="explorer" title="Esplora progetto">🗀</button>
+      <button data-act="pipeline" title="Pipeline">▶</button>
+      <button data-act="loops" title="Loop autoevolutivi">↻</button>
+      <button data-act="docs" title="Documentazione">¶</button>
+      <div class="spacer"></div>
+      <button data-act="config" title="config.yaml">⚙</button>
+    </nav>
+
+    <!-- sidebar -->
+    <aside id="sidebar">
+      <div class="sb-title" id="sb-title">COCKPIT</div>
+      <div class="sb-body" id="sb-body"></div>
+    </aside>
+
+    <!-- main column -->
+    <div id="main">
+      <div id="tabbar"></div>
+      <div id="content"></div>
+
+      <!-- terminal panel -->
+      <div id="termpanel">
+        <div id="term-resizer" title="trascina per ridimensionare"></div>
+        <div id="termbar">
+          <span class="tp-label">TERMINALE</span>
+          <button id="term-new-ps">+ PowerShell</button>
+          <button id="term-new-wsl">+ WSL</button>
+          <button id="term-new-vibe" class="vibe">⚡ VIBE CODING ▾</button>
+          <span class="tp-hint">agente a scelta, in tmux su WSL (la sessione sopravvive alla chiusura del tab)</span>
+          <div class="spacer"></div>
+          <button id="term-toggle" title="mostra/nascondi">▾</button>
+        </div>
+        <div id="term-tabs"></div>
+        <div id="term-panes"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

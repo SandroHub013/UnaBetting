@@ -1,0 +1,60 @@
+
+# Claude local files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Secrets & Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Data (too large for git)
+data/raw/
+data/processed/
+data/features/
+data/live/
+
+# Trained models (too large for git) + generated training artifacts
+models/*.pkl
+models/*.pth
+models/*.json
+models/*.txt
+
+# Local run logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache.sqlite
+
+# Personal data - NEVER public (bet history, bankroll, scraping artifacts)
+data/betanalytix.db
+data/betanalytix.db-shm
+data/betanalytix.db-wal
+*.db-shm
+*.db-wal
+debug_bet365*
+Cattura.PNG
+reports/screenshots/
+reports/loops/
+
+.antigravitycli/
+
+# Video render artifacts (large; rebuild from source)
+video_mission/**/renders/
+video_mission/**/output/
+video_mission/snapshots/
+*.mp4

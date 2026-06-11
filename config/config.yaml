@@ -1,0 +1,170 @@
+# Tennis Prediction Model Configuration
+
+# ============================================================
+# DATA SOURCES
+# ============================================================
+data:
+  sackmann:
+    atp_repo: "https://github.com/JeffSackmann/tennis_atp.git"
+    wta_repo: "https://github.com/JeffSackmann/tennis_wta.git"
+    pointbypoint_repo: "https://github.com/JeffSackmann/tennis_pointbypoint.git"
+    slam_pbp_repo: "https://github.com/JeffSackmann/tennis_slam_pointbypoint.git"
+    charting_repo: "https://github.com/JeffSackmann/tennis_MatchChartingProject.git"
+
+  tennis_data_co_uk:
+    base_url: "http://www.tennis-data.co.uk"
+    atp_start_year: 2000
+    wta_start_year: 2007
+
+  odds_api:
+    base_url: "https://api.the-odds-api.com/v4"
+    api_key: "${ODDS_API_KEY}"  # Set via environment variable
+    sport: "tennis_atp"
+    # 2026-06-10: ONLY the books we use — Pinnacle (sharp reference) + the
+    # ADM-legal execution venues. Requested directly instead of whole regions:
+    # fewer credits, zero noise. Empty string -> fall back to regions.
+    bookmakers: "pinnacle,williamhill,sport888,marathonbet,betfair_ex_eu,betfair_ex_uk"
+    regions: "eu,uk"   # fallback only when bookmakers is empty
+    markets: "h2h,spreads,totals"
+
+# ============================================================
+# PATHS
+# ============================================================
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  features: "data/features"
+  models: "models"
+  reports: "reports"
+
+# ============================================================
+# FEATURE ENGINEERING
+# ============================================================
+features:
+  elo:
+    k_factor: 32 # Standard ELO K-factor
+    k_factor_grand_slam: 48 # Higher K for Grand Slams
+    initial_rating: 1500
+    surface_weight: 0.7 # Weight for surface-specific ELO
+
+  rolling_windows:
+    short: 10 # Last 10 matches
+    medium: 20 # Last 20 matches
+    long: 50 # Last 50 matches
+
+  surfaces:
+    - "Hard"
+    - "Clay"
+    - "Grass"
+    - "Carpet" # Historical only
+
+  tournament_levels:
+    - "G" # Grand Slam
+    - "M" # Masters 1000
+    - "A" # ATP 500/250
+    - "D" # Davis Cup
+    - "F" # Tour Finals
+
+# ============================================================
+# MODEL TRAINING
+# ============================================================
+model:
+  train_start_year: 2005
+  test_start_year: 2025
+  # train = years < min(validation_years); test 2025+ kept fixed for comparability.
+  # 2026-06-09: was [2023, 2024] — freed 2023 into train so the model isn't
+  # predicting 2025-26 with parameters frozen at 2022.
+  validation_years: [2024]
+
+  # Models to train
+  algorithms:
+    - logistic_regression
+    - random_forest
+    - xgboost
+    - lightgbm
+    - neural_network
+    - ensemble
+
+  xgboost:
+    n_estimators: 200
+    max_depth: 3
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.5
+
+  lightgbm:
+    n_estimators: 106
+    max_depth: 7
+    learning_rate: 0.03895
+    num_leaves: 27
+    subsample: 0.825
+    colsample_bytree: 0.6565
+
+  neural_network:
+    hidden_layers: [128, 64, 32]
+    dropout: 0.3
+    learning_rate: 0.001
+    epochs: 100
+    batch_size: 64
+
+# ============================================================
+# BETTING STRATEGY
+# ============================================================
+betting:
+  min_value_edge: 0.03 # Minimum edge as EV: (odds * model_prob) - 1
+  kelly_fraction: 0.25 # Fractional Kelly (25%)
+  max_bet_fraction: 0.05 # Max 5% of bankroll per bet
+  max_stake: 500 # Maximum absolute stake in EUR (bookmaker limits)
+  min_odds: 1.20 # Minimum odds to consider
+  max_odds: 10.0 # Maximum odds to consider
+  initial_bankroll: 1000 # Starting bankroll in EUR
+  # --- Execution realism (backtest) ---
+  commission_rate: 0.0 # Commission on NET winnings. 0 for fixed-odds bookmakers (B365),
+                       # ~0.05 for exchanges (Betfair). Applied only to winning bets.
+  slippage_max: 0.02 # Max fractional price slippage at execution: actual_odds =
+                     # odds * (1 - U(0, slippage_max)). Models opening->worse-fill drift. 0 to disable.
+
+# ============================================================
+# AI AGENT (LLM)
+# ============================================================
+agent:
+  openrouter:
+    api_key: "${OPENROUTER_API_KEY}"  # Set via environment variable
+    model: "openai/gpt-5-nano"
+    max_history: 10  # Numero di messaggi da mantenere in memoria
+    system_prompt: |
+      Sei Sandro, un analista quantitativo specializzato in tennis betting. Lavori con un modello ML (XGBoost, 67% accuracy test, ROC 0.73 — leak-free) che produce predizioni H2H, spread e totals. ATTENZIONE: il backtest leak-free mostra ROI NEGATIVO; il modello non ha edge reale sul mercato — sconsiglia scommesse a capitale reale.
+
+      COME LEGGERE I DATI:
+      - Edge (EV) = (odds * model_prob) - 1. Sopra +3% e' value bet. Sopra +10% e' forte.
+      - Kelly Stake = frazione ottimale del bankroll da scommettere (gia' calcolata al 25% frazionario).
+      - Se un match ha flag "LOW CONFIDENCE", sconsiglia la scommessa — mancano dati storici per quel giocatore.
+      - Spread ML vs Market: se il modello prevede -3.5 games e la linea e' -1.5, c'e' valore sullo spread.
+      - Totals ML vs Market: se il modello prevede 24.5 games e la linea e' 22.5, c'e' valore sull'Over.
+
+      FORMATO RISPOSTA:
+      - Sii conciso e diretto (max 150 parole per match).
+      - Per ogni match con valore, dai un rating da 1 a 5 stelle.
+      - Indica sempre: lato consigliato, tipo di bet (H2H/spread/totals), e livello di fiducia.
+      - Se non ci sono value bet, dillo chiaramente — non forzare mai una giocata.
+      - Rispondi in italiano.
+      - Se ricevi un messaggio senza dati allegati (saluto, domanda generica), rispondi in modo conversazionale. Non inventare analisi.
+      - Se ricevi risultati di web search, analizzali nel contesto del betting.
+      - Se un match ha un news_adjustment, menzionalo nell'analisi.
+# ============================================================
+# NEWS ADJUSTMENT (web search → LLM → probability adjustment)
+# ============================================================
+news_adjustment:
+  model: "z-ai/glm-5.1"  # Modello LLM per analisi news
+  # Fallback automatico se il modello primario fallisce
+
+# ============================================================
+# MULTIMEDIA & AUDIO
+# ============================================================
+audio:
+  music_enabled: true
+  sfx_enabled: true
+  voice_enabled: true
+  tts_auto: false  # TTS non parte automaticamente. Usa /tts on o /speak.
+  volume_music: 0.15
+  volume_sfx: 0.7

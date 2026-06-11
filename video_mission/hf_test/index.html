@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      .clip {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        object-fit: cover;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="85"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- Scene 1: Hook - Overview Dashboard -->
+      <img src="assets/scene_1_hook_scene_1_hook.png" class="clip" data-start="0" data-duration="18" data-track-index="0" />
+      <audio src="assets/scene_1_hook.mp3" data-start="0" data-duration="18" data-track-index="1"></audio>
+
+      <!-- Scene 2: Solution - Segnali Table -->
+      <img src="assets/scene_2_solution_scene_2_solution.png" class="clip" data-start="18" data-duration="18" data-track-index="0" />
+      <audio src="assets/scene_2_solution.mp3" data-start="18" data-duration="18" data-track-index="1"></audio>
+
+      <!-- Scene 3: Quantum - Bet/Equity Curve -->
+      <img src="assets/scene_3_quantum_scene_3_quantum.png" class="clip" data-start="36" data-duration="18" data-track-index="0" />
+      <audio src="assets/scene_3_quantum.mp3" data-start="36" data-duration="18" data-track-index="1"></audio>
+
+      <!-- Scene 4: Mission - VIBE CODING / Hermes Architecture -->
+      <img src="assets/scene_4_mission_scene_4_mission.png" class="clip" data-start="54" data-duration="18" data-track-index="0" />
+      <audio src="assets/scene_4_mission.mp3" data-start="54" data-duration="18" data-track-index="1"></audio>
+
+      <!-- Scene 5: Quote/CLV Comparison (using Quote page screenshot) -->
+      <img src="assets/scene_4_mission_scene_4_mission.png" class="clip" data-start="72" data-duration="13" data-track-index="0" />
+      <audio src="assets/scene_4_mission.mp3" data-start="72" data-duration="13" data-track-index="1"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // Ken Burns zoom effect on each clip
+      gsap.utils.toArray('.clip').forEach(clip => {
+         const start = parseFloat(clip.getAttribute('data-start'));
+         const duration = parseFloat(clip.getAttribute('data-duration'));
+         tl.fromTo(clip,
+            { scale: 1.0, transformOrigin: "center center" },
+            { scale: 1.12, duration: duration, ease: "none" },
+            start
+         );
+      });
+
+      // Subtle fade transitions between scenes
+      const clips = gsap.utils.toArray('.clip');
+      for (let i = 0; i < clips.length - 1; i++) {
+        const curr = clips[i];
+        const next = clips[i + 1];
+        const currStart = parseFloat(curr.getAttribute('data-start'));
+        const currDur = parseFloat(curr.getAttribute('data-duration'));
+        const overlap = 0.5;
+        tl.fromTo(next,
+          { opacity: 0 },
+          { opacity: 1, duration: overlap, ease: "power2.out" },
+          currStart + currDur - overlap
+        );
+        tl.to(curr,
+          { opacity: 0, duration: overlap, ease: "power2.in" },
+          currStart + currDur - overlap
+        );
+      }
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

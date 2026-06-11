@@ -1,0 +1,867 @@
+{
+  "G:\\tennis betting\\check_db_dates.py": {
+    "mtime": 1773258651.4346957,
+    "ast_hash": "b664e1b8e2c3aadbf943c76b74ae6c92",
+    "semantic_hash": "b664e1b8e2c3aadbf943c76b74ae6c92"
+  },
+  "G:\\tennis betting\\clutch_test.py": {
+    "mtime": 1773176207.1740532,
+    "ast_hash": "7abd6e51e9a939f4dbdc50f4ed10251a",
+    "semantic_hash": "7abd6e51e9a939f4dbdc50f4ed10251a"
+  },
+  "G:\\tennis betting\\data_quality_audit.py": {
+    "mtime": 1780998153.9505916,
+    "ast_hash": "ebeb0597576e828cc2e4240e5ca3cd4c",
+    "semantic_hash": "ebeb0597576e828cc2e4240e5ca3cd4c"
+  },
+  "G:\\tennis betting\\debug_accuracy.py": {
+    "mtime": 1775919962.6326654,
+    "ast_hash": "436ae216a855005bf41cc04a7410ca27",
+    "semantic_hash": "436ae216a855005bf41cc04a7410ca27"
+  },
+  "G:\\tennis betting\\debug_prediction.py": {
+    "mtime": 1773252127.853305,
+    "ast_hash": "ee470e8f7f358db1027dfb6c54f7062d",
+    "semantic_hash": "ee470e8f7f358db1027dfb6c54f7062d"
+  },
+  "G:\\tennis betting\\debug_scraper.py": {
+    "mtime": 1773184594.2546341,
+    "ast_hash": "29c8319287933ea2efd4ab0f9d4d13c1",
+    "semantic_hash": "29c8319287933ea2efd4ab0f9d4d13c1"
+  },
+  "G:\\tennis betting\\debug_tien.py": {
+    "mtime": 1773258674.0778518,
+    "ast_hash": "0b359bab428837b5c67f4dec71b678e6",
+    "semantic_hash": "0b359bab428837b5c67f4dec71b678e6"
+  },
+  "G:\\tennis betting\\djokovic_trace.py": {
+    "mtime": 1773145481.89016,
+    "ast_hash": "71fe3c49caac9c892e05ee5305f0ace2",
+    "semantic_hash": "71fe3c49caac9c892e05ee5305f0ace2"
+  },
+  "G:\\tennis betting\\feature_audit.py": {
+    "mtime": 1773145413.7831461,
+    "ast_hash": "22f1e74bf2bf37d0e19399083348781a",
+    "semantic_hash": "22f1e74bf2bf37d0e19399083348781a"
+  },
+  "G:\\tennis betting\\forensic_leak_check.py": {
+    "mtime": 1775919983.7976668,
+    "ast_hash": "c4995ab9b4c3e3a708036c1407ef48cf",
+    "semantic_hash": "c4995ab9b4c3e3a708036c1407ef48cf"
+  },
+  "G:\\tennis betting\\generate_charts.py": {
+    "mtime": 1775345853.341935,
+    "ast_hash": "ee414b5cbdef067d06b3c8128a09249f",
+    "semantic_hash": "ee414b5cbdef067d06b3c8128a09249f"
+  },
+  "G:\\tennis betting\\generate_pptx.py": {
+    "mtime": 1775346077.6299243,
+    "ast_hash": "09d8d868806ac007450f7e4054591f4c",
+    "semantic_hash": "09d8d868806ac007450f7e4054591f4c"
+  },
+  "G:\\tennis betting\\setup.py": {
+    "mtime": 1773183685.5765224,
+    "ast_hash": "052589edefe55972d3bd635a9f1e4517",
+    "semantic_hash": "052589edefe55972d3bd635a9f1e4517"
+  },
+  "G:\\tennis betting\\strategy_analysis.py": {
+    "mtime": 1780999244.1471696,
+    "ast_hash": "5e4640d810a2f16e8926ac1660e0acd9",
+    "semantic_hash": "5e4640d810a2f16e8926ac1660e0acd9"
+  },
+  "G:\\tennis betting\\test_randomization.py": {
+    "mtime": 1773138768.3920932,
+    "ast_hash": "dcba7445cd2e3554fbe13497e0c36f79",
+    "semantic_hash": "dcba7445cd2e3554fbe13497e0c36f79"
+  },
+  "G:\\tennis betting\\update_data.py": {
+    "mtime": 1774953641.1826723,
+    "ast_hash": "f1416974e1c183c6a6da6b2ecd40ed0e",
+    "semantic_hash": "f1416974e1c183c6a6da6b2ecd40ed0e"
+  },
+  "G:\\tennis betting\\verify_rolling_leak.py": {
+    "mtime": 1773140716.3969195,
+    "ast_hash": "eb15d9142b5a89fe9ebcc2b21789297e",
+    "semantic_hash": "eb15d9142b5a89fe9ebcc2b21789297e"
+  },
+  "G:\\tennis betting\\.claude\\settings.json": {
+    "mtime": 1774956034.0037084,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\data\\cache\\research_cache.json": {
+    "mtime": 1781107976.2340498,
+    "ast_hash": "e1e960da1a3eb59b8d9653c01d750bad",
+    "semantic_hash": "e1e960da1a3eb59b8d9653c01d750bad"
+  },
+  "G:\\tennis betting\\src\\__init__.py": {
+    "mtime": 1773131188.1112118,
+    "ast_hash": "1b7d57d205a6da9eedf6cb2e50fcc262",
+    "semantic_hash": "1b7d57d205a6da9eedf6cb2e50fcc262"
+  },
+  "G:\\tennis betting\\src\\data\\clean.py": {
+    "mtime": 1774959248.7024875,
+    "ast_hash": "92b781a4e216b9e8085b04515caa4bb5",
+    "semantic_hash": "92b781a4e216b9e8085b04515caa4bb5"
+  },
+  "G:\\tennis betting\\src\\data\\download.py": {
+    "mtime": 1773131835.9351366,
+    "ast_hash": "dc203fb89173674f98c3ba3a973256a8",
+    "semantic_hash": "dc203fb89173674f98c3ba3a973256a8"
+  },
+  "G:\\tennis betting\\src\\data\\label_markets.py": {
+    "mtime": 1773248110.733568,
+    "ast_hash": "263810aed9abd96b1e5fc9103437e41f",
+    "semantic_hash": "263810aed9abd96b1e5fc9103437e41f"
+  },
+  "G:\\tennis betting\\src\\data\\scraper.py": {
+    "mtime": 1781109985.9962966,
+    "ast_hash": "554484a330f3e4b23ea0d34e642f5624",
+    "semantic_hash": "554484a330f3e4b23ea0d34e642f5624"
+  },
+  "G:\\tennis betting\\src\\data\\scrape_weather.py": {
+    "mtime": 1773177149.5063808,
+    "ast_hash": "a8a596415a34d268ef55f1fd85437bd7",
+    "semantic_hash": "a8a596415a34d268ef55f1fd85437bd7"
+  },
+  "G:\\tennis betting\\src\\data\\__init__.py": {
+    "mtime": 1773131190.12905,
+    "ast_hash": "c8781ebfce81eb2c59b32429d834395c",
+    "semantic_hash": "c8781ebfce81eb2c59b32429d834395c"
+  },
+  "G:\\tennis betting\\src\\features\\build_features.py": {
+    "mtime": 1781036242.3746655,
+    "ast_hash": "824f7335ae4d6830efb6926e50a87331",
+    "semantic_hash": "824f7335ae4d6830efb6926e50a87331"
+  },
+  "G:\\tennis betting\\src\\features\\clutch.py": {
+    "mtime": 1773176281.2889984,
+    "ast_hash": "e758c86094a6a50fd80d9fdbcd2853d8",
+    "semantic_hash": "e758c86094a6a50fd80d9fdbcd2853d8"
+  },
+  "G:\\tennis betting\\src\\features\\elo.py": {
+    "mtime": 1781028065.9994612,
+    "ast_hash": "051090b2dabe9d4033374ef295c8b8d9",
+    "semantic_hash": "051090b2dabe9d4033374ef295c8b8d9"
+  },
+  "G:\\tennis betting\\src\\features\\player_stats.py": {
+    "mtime": 1781026632.5660677,
+    "ast_hash": "e53d9798436445627ba260b18af79a04",
+    "semantic_hash": "e53d9798436445627ba260b18af79a04"
+  },
+  "G:\\tennis betting\\src\\features\\sota_features.py": {
+    "mtime": 1775259348.6249382,
+    "ast_hash": "6edf7d62418422214d43e14cca06543a",
+    "semantic_hash": "6edf7d62418422214d43e14cca06543a"
+  },
+  "G:\\tennis betting\\src\\features\\__init__.py": {
+    "mtime": 1773131292.0399747,
+    "ast_hash": "213116064ceab96638a7ad47af1b36ce",
+    "semantic_hash": "213116064ceab96638a7ad47af1b36ce"
+  },
+  "G:\\tennis betting\\src\\live\\agentic_research.py": {
+    "mtime": 1776377430.7023623,
+    "ast_hash": "c0da757ced44a818ccf6a5eae6fcd95b",
+    "semantic_hash": "c0da757ced44a818ccf6a5eae6fcd95b"
+  },
+  "G:\\tennis betting\\src\\live\\agent_llm.py": {
+    "mtime": 1775408631.3055878,
+    "ast_hash": "fe7d2b249060064f2877234be2ea651a",
+    "semantic_hash": "fe7d2b249060064f2877234be2ea651a"
+  },
+  "G:\\tennis betting\\src\\live\\inference.py": {
+    "mtime": 1781107839.2802944,
+    "ast_hash": "1dc98d928a3fec62924dceda35987252",
+    "semantic_hash": "1dc98d928a3fec62924dceda35987252"
+  },
+  "G:\\tennis betting\\src\\live\\news_adjustment.py": {
+    "mtime": 1775945108.7161987,
+    "ast_hash": "0ad0b8f5bbef61615c71c7c157e8dfdc",
+    "semantic_hash": "0ad0b8f5bbef61615c71c7c157e8dfdc"
+  },
+  "G:\\tennis betting\\src\\live\\warm_up.py": {
+    "mtime": 1773246747.53965,
+    "ast_hash": "2db1f733e1c468f9354683f677954d9b",
+    "semantic_hash": "2db1f733e1c468f9354683f677954d9b"
+  },
+  "G:\\tennis betting\\src\\live\\web_research.py": {
+    "mtime": 1775390960.8097632,
+    "ast_hash": "c8b1113c441e7a0752054ea6dd000c5b",
+    "semantic_hash": "c8b1113c441e7a0752054ea6dd000c5b"
+  },
+  "G:\\tennis betting\\src\\models\\cross_validate.py": {
+    "mtime": 1779388184.972788,
+    "ast_hash": "d3d0d13c3c58ff94072422f438e0f61d",
+    "semantic_hash": "d3d0d13c3c58ff94072422f438e0f61d"
+  },
+  "G:\\tennis betting\\src\\models\\dl_model.py": {
+    "mtime": 1775919977.2237027,
+    "ast_hash": "1afbb6db100a498096efcb241af5ba7f",
+    "semantic_hash": "1afbb6db100a498096efcb241af5ba7f"
+  },
+  "G:\\tennis betting\\src\\models\\predict_live.py": {
+    "mtime": 1774953559.9325144,
+    "ast_hash": "53dfcdadf3c9e3bca55a33eaf555f9b9",
+    "semantic_hash": "53dfcdadf3c9e3bca55a33eaf555f9b9"
+  },
+  "G:\\tennis betting\\src\\models\\select_features.py": {
+    "mtime": 1779435349.1099167,
+    "ast_hash": "d9223b4736b52e4972f1afd59b7e355a",
+    "semantic_hash": "d9223b4736b52e4972f1afd59b7e355a"
+  },
+  "G:\\tennis betting\\src\\models\\shuffle_test.py": {
+    "mtime": 1775919969.0059988,
+    "ast_hash": "7d0920f3d706e03dbc0b3b988a51475e",
+    "semantic_hash": "7d0920f3d706e03dbc0b3b988a51475e"
+  },
+  "G:\\tennis betting\\src\\models\\train.py": {
+    "mtime": 1781107656.040034,
+    "ast_hash": "90c2fafe094256ab3ebff7197c82521c",
+    "semantic_hash": "90c2fafe094256ab3ebff7197c82521c"
+  },
+  "G:\\tennis betting\\src\\models\\tune.py": {
+    "mtime": 1775919919.7325377,
+    "ast_hash": "5230c6ea1d81f1bb5c5e1980d62a6716",
+    "semantic_hash": "5230c6ea1d81f1bb5c5e1980d62a6716"
+  },
+  "G:\\tennis betting\\src\\models\\__init__.py": {
+    "mtime": 1773131414.0410285,
+    "ast_hash": "2fa5c7f60cfb401b4fb26900a4a0b729",
+    "semantic_hash": "2fa5c7f60cfb401b4fb26900a4a0b729"
+  },
+  "G:\\tennis betting\\src\\ui\\app.py": {
+    "mtime": 1780864122.1939654,
+    "ast_hash": "05026f0bd1c81d245338c4fe24c3403f",
+    "semantic_hash": "05026f0bd1c81d245338c4fe24c3403f"
+  },
+  "G:\\tennis betting\\src\\ui\\audio_engine.py": {
+    "mtime": 1775388248.1806078,
+    "ast_hash": "b25ba5a3ca1b03b9ea6f5f471235109d",
+    "semantic_hash": "b25ba5a3ca1b03b9ea6f5f471235109d"
+  },
+  "G:\\tennis betting\\src\\ui\\__init__.py": {
+    "mtime": 1775308643.9257033,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\tests\\test_elo.py": {
+    "mtime": 1779388548.7405381,
+    "ast_hash": "c54c9873f66fbbbb66d83925753186f4",
+    "semantic_hash": "c54c9873f66fbbbb66d83925753186f4"
+  },
+  "G:\\tennis betting\\tests\\test_leakage.py": {
+    "mtime": 1779435486.9351006,
+    "ast_hash": "2042544a408c33530bf390198c841638",
+    "semantic_hash": "2042544a408c33530bf390198c841638"
+  },
+  "G:\\tennis betting\\tests\\test_player_stats.py": {
+    "mtime": 1779400651.5024521,
+    "ast_hash": "6ede29ff4ed876510ccb30dcfa1ec990",
+    "semantic_hash": "6ede29ff4ed876510ccb30dcfa1ec990"
+  },
+  "G:\\tennis betting\\tests\\test_randomization.py": {
+    "mtime": 1779387524.2180579,
+    "ast_hash": "10040e44972560fafc9183096fea1993",
+    "semantic_hash": "10040e44972560fafc9183096fea1993"
+  },
+  "G:\\tennis betting\\tests\\test_scraper.py": {
+    "mtime": 1779437240.9737718,
+    "ast_hash": "e49c680d1e2bb5dac223710a2a4219aa",
+    "semantic_hash": "e49c680d1e2bb5dac223710a2a4219aa"
+  },
+  "G:\\tennis betting\\AGENT_BRIEF_HERMES.md": {
+    "mtime": 1778139578.0773907,
+    "ast_hash": "acbcff251331db8f0a244ec2a2699e2a",
+    "semantic_hash": "acbcff251331db8f0a244ec2a2699e2a"
+  },
+  "G:\\tennis betting\\AGENT_BRIEF_OPENCODE.md": {
+    "mtime": 1778139566.4538884,
+    "ast_hash": "8c24166d02104b1d3f716b99f5394f92",
+    "semantic_hash": "8c24166d02104b1d3f716b99f5394f92"
+  },
+  "G:\\tennis betting\\ALPHA_FINDINGS.md": {
+    "mtime": 1779453235.568603,
+    "ast_hash": "5b4d95cb5918f9877a3042858b0d8552",
+    "semantic_hash": "5b4d95cb5918f9877a3042858b0d8552"
+  },
+  "G:\\tennis betting\\ANALYSIS_OPENCODE.md": {
+    "mtime": 1778139906.0238767,
+    "ast_hash": "5b56c01c421ab4aba52cd41d8e623a3d",
+    "semantic_hash": "5b56c01c421ab4aba52cd41d8e623a3d"
+  },
+  "G:\\tennis betting\\CLAUDE.md": {
+    "mtime": 1774956034.0027094,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\debug_bet365_dump.html": {
+    "mtime": 1773184627.3120384,
+    "ast_hash": "f44e005168555c0012c2e01dc80991d9",
+    "semantic_hash": "f44e005168555c0012c2e01dc80991d9"
+  },
+  "G:\\tennis betting\\PROJECT_EVALUATION.md": {
+    "mtime": 1781027587.022472,
+    "ast_hash": "1abd45c7ac6073c264511cf01293e445",
+    "semantic_hash": "1abd45c7ac6073c264511cf01293e445"
+  },
+  "G:\\tennis betting\\README.md": {
+    "mtime": 1781161569.0101557,
+    "ast_hash": "6bcfcd8037b560af0be85a93cfe81f13",
+    "semantic_hash": "6bcfcd8037b560af0be85a93cfe81f13"
+  },
+  "G:\\tennis betting\\requirements.txt": {
+    "mtime": 1781108142.948523,
+    "ast_hash": "296823411116b90b708ecc54bcb8ae31",
+    "semantic_hash": "296823411116b90b708ecc54bcb8ae31"
+  },
+  "G:\\tennis betting\\.claude\\agents\\code-reviewer.md": {
+    "mtime": 1774958709.5302992,
+    "ast_hash": "a245e1813a90836c6266e64c606c3f54",
+    "semantic_hash": "a245e1813a90836c6266e64c606c3f54"
+  },
+  "G:\\tennis betting\\.claude\\agents\\security-auditor.md": {
+    "mtime": 1774958711.5529747,
+    "ast_hash": "6292e92eda646ca6f1c44aa36daa38ff",
+    "semantic_hash": "6292e92eda646ca6f1c44aa36daa38ff"
+  },
+  "G:\\tennis betting\\.claude\\agents\\tennis-betting-strategist.md": {
+    "mtime": 1774958791.3980796,
+    "ast_hash": "328105f8b694f122d53c0b0ed1268c3e",
+    "semantic_hash": "328105f8b694f122d53c0b0ed1268c3e"
+  },
+  "G:\\tennis betting\\.claude\\agents\\tennis-data-engineer.md": {
+    "mtime": 1774958793.1076002,
+    "ast_hash": "9fdf6654c59b3d2c6761ab7af1d87a0a",
+    "semantic_hash": "9fdf6654c59b3d2c6761ab7af1d87a0a"
+  },
+  "G:\\tennis betting\\.claude\\commands\\deploy.md": {
+    "mtime": 1774958707.3529706,
+    "ast_hash": "5f0e800fb3eb5ee68e01c7f55dd0c00b",
+    "semantic_hash": "5f0e800fb3eb5ee68e01c7f55dd0c00b"
+  },
+  "G:\\tennis betting\\.claude\\commands\\fix-issue.md": {
+    "mtime": 1774958705.0147107,
+    "ast_hash": "db34bc2210f0ca86c27e5d79c511eeac",
+    "semantic_hash": "db34bc2210f0ca86c27e5d79c511eeac"
+  },
+  "G:\\tennis betting\\.claude\\commands\\review.md": {
+    "mtime": 1774958702.960243,
+    "ast_hash": "97a2ddc3ad883df3ce1eceb0c5403fd9",
+    "semantic_hash": "97a2ddc3ad883df3ce1eceb0c5403fd9"
+  },
+  "G:\\tennis betting\\.claude\\rules\\api-conventions.md": {
+    "mtime": 1774956034.0047193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\.claude\\rules\\code-style.md": {
+    "mtime": 1774956034.0047193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\.claude\\rules\\testing.md": {
+    "mtime": 1774956034.0047193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\.claude\\skills\\deploy\\SKILL.md": {
+    "mtime": 1774956034.0047193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\.claude\\skills\\security-review\\SKILL.md": {
+    "mtime": 1774956034.0047193,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\config\\best_params.yaml": {
+    "mtime": 1773179158.4060414,
+    "ast_hash": "9316f6ad05dddb999f86ab1473b1de82",
+    "semantic_hash": "9316f6ad05dddb999f86ab1473b1de82"
+  },
+  "G:\\tennis betting\\config\\config.yaml": {
+    "mtime": 1781109946.3356187,
+    "ast_hash": "4f96a057b9f4648479bf9e2512a54ae5",
+    "semantic_hash": "4f96a057b9f4648479bf9e2512a54ae5"
+  },
+  "G:\\tennis betting\\config\\selected_features_atp.txt": {
+    "mtime": 1781036273.6511683,
+    "ast_hash": "a4185b536b14e07f973aa3081ce10e64",
+    "semantic_hash": "a4185b536b14e07f973aa3081ce10e64"
+  },
+  "G:\\tennis betting\\docs\\obsidian\\Architettura_Sistema.md": {
+    "mtime": 1780864810.9369683,
+    "ast_hash": "675646f4dd9e1e418d6cad1bdea8cbaf",
+    "semantic_hash": "675646f4dd9e1e418d6cad1bdea8cbaf"
+  },
+  "G:\\tennis betting\\docs\\obsidian\\Feature_Engineering.md": {
+    "mtime": 1781036356.1767628,
+    "ast_hash": "daf396775bdd64c8733c6bd6ab3b83a2",
+    "semantic_hash": "daf396775bdd64c8733c6bd6ab3b83a2"
+  },
+  "G:\\tennis betting\\docs\\obsidian\\Index.md": {
+    "mtime": 1781161586.482067,
+    "ast_hash": "8b8eb674d2376f51d6e704439caa9709",
+    "semantic_hash": "8b8eb674d2376f51d6e704439caa9709"
+  },
+  "G:\\tennis betting\\docs\\obsidian\\Modelli_e_Reti_Neurali.md": {
+    "mtime": 1780925512.2418897,
+    "ast_hash": "bd6dfb15f689d55e1598440ad7ed0937",
+    "semantic_hash": "bd6dfb15f689d55e1598440ad7ed0937"
+  },
+  "G:\\tennis betting\\reports\\index.html": {
+    "mtime": 1775387631.0075583,
+    "ast_hash": "d40a4e1db9f7e9bb9bc2773253afc81c",
+    "semantic_hash": "d40a4e1db9f7e9bb9bc2773253afc81c"
+  },
+  "G:\\tennis betting\\reports\\PAPER_MIGLIORAMENTO.md": {
+    "mtime": 1775399398.2755475,
+    "ast_hash": "8e39c948b7a3fba5026c533ab11aa710",
+    "semantic_hash": "8e39c948b7a3fba5026c533ab11aa710"
+  },
+  "G:\\tennis betting\\Cattura.PNG": {
+    "mtime": 1773262081.653788,
+    "ast_hash": "dbaf462791a9fe07cc4b496a10aed4cd",
+    "semantic_hash": "dbaf462791a9fe07cc4b496a10aed4cd"
+  },
+  "G:\\tennis betting\\debug_bet365.png": {
+    "mtime": 1773184550.726437,
+    "ast_hash": "bd7e45e0ecb059637d7de882f3dc5825",
+    "semantic_hash": "bd7e45e0ecb059637d7de882f3dc5825"
+  },
+  "G:\\tennis betting\\debug_bet365_hd.png": {
+    "mtime": 1773184625.7513375,
+    "ast_hash": "b691f0f079a94d6a0cd021b98f4e5ef5",
+    "semantic_hash": "b691f0f079a94d6a0cd021b98f4e5ef5"
+  },
+  "G:\\tennis betting\\reports\\chart_accuracy.png": {
+    "mtime": 1775345905.3598669,
+    "ast_hash": "2ce77798a158aa356f58deafb653c491",
+    "semantic_hash": "2ce77798a158aa356f58deafb653c491"
+  },
+  "G:\\tennis betting\\reports\\chart_backtest.png": {
+    "mtime": 1775345906.0464666,
+    "ast_hash": "544eea846413edd68e1a86e8859bbe59",
+    "semantic_hash": "544eea846413edd68e1a86e8859bbe59"
+  },
+  "G:\\tennis betting\\reports\\chart_bankroll.png": {
+    "mtime": 1775345907.230831,
+    "ast_hash": "1f943128b014530cea978119173ae055",
+    "semantic_hash": "1f943128b014530cea978119173ae055"
+  },
+  "G:\\tennis betting\\reports\\chart_cv.png": {
+    "mtime": 1775345906.4545379,
+    "ast_hash": "3b543bcd58d35dd95a60795438ba0ff4",
+    "semantic_hash": "3b543bcd58d35dd95a60795438ba0ff4"
+  },
+  "G:\\tennis betting\\reports\\chart_features.png": {
+    "mtime": 1775345906.8634133,
+    "ast_hash": "6ac51356322a0a803dccbebcfade8365",
+    "semantic_hash": "6ac51356322a0a803dccbebcfade8365"
+  },
+  "G:\\tennis betting\\reports\\chart_roc.png": {
+    "mtime": 1775345905.7011907,
+    "ast_hash": "d46d3f17519a2933e6ef7de2ffe2e819",
+    "semantic_hash": "d46d3f17519a2933e6ef7de2ffe2e819"
+  },
+  "G:\\tennis betting\\docs\\web\\app.js": {
+    "mtime": 1780873949.133921,
+    "ast_hash": "eae6526bf63d42ed19bae1e6d82e1303",
+    "semantic_hash": "eae6526bf63d42ed19bae1e6d82e1303"
+  },
+  "G:\\tennis betting\\src\\models\\optuna_tuning.py": {
+    "mtime": 1780872495.09686,
+    "ast_hash": "42bd6b045c0c9cafb18943234c494056",
+    "semantic_hash": "42bd6b045c0c9cafb18943234c494056"
+  },
+  "G:\\tennis betting\\src\\models\\pytorch_ensemble.py": {
+    "mtime": 1780873608.56666,
+    "ast_hash": "502b59a9932ef4c785dcb422c0db1060",
+    "semantic_hash": "502b59a9932ef4c785dcb422c0db1060"
+  },
+  "G:\\tennis betting\\video_mission\\video_engine.py": {
+    "mtime": 1781118679.4110959,
+    "ast_hash": "42e107b5dafe502031620157d2703978",
+    "semantic_hash": "42e107b5dafe502031620157d2703978"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\hyperframes.json": {
+    "mtime": 1780922350.717917,
+    "ast_hash": "c577e1703920c6b439dc845c86caa040",
+    "semantic_hash": "c577e1703920c6b439dc845c86caa040"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\meta.json": {
+    "mtime": 1780922350.7062025,
+    "ast_hash": "8853203a74f50e59c54fe047e0459b04",
+    "semantic_hash": "8853203a74f50e59c54fe047e0459b04"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\package.json": {
+    "mtime": 1780922350.71927,
+    "ast_hash": "cbc28bf6e565637e13ccced8b9c000cf",
+    "semantic_hash": "cbc28bf6e565637e13ccced8b9c000cf"
+  },
+  "G:\\tennis betting\\video_mission\\presentation\\hyperframes.json": {
+    "mtime": 1780922980.9777198,
+    "ast_hash": "c577e1703920c6b439dc845c86caa040",
+    "semantic_hash": "c577e1703920c6b439dc845c86caa040"
+  },
+  "G:\\tennis betting\\video_mission\\presentation\\meta.json": {
+    "mtime": 1780922980.976884,
+    "ast_hash": "9dcce95e0a58c05ad7241617b451a01d",
+    "semantic_hash": "9dcce95e0a58c05ad7241617b451a01d"
+  },
+  "G:\\tennis betting\\video_mission\\presentation\\package.json": {
+    "mtime": 1780922980.9777198,
+    "ast_hash": "dc2ee8b53e5ceb147db13900bc3d0fed",
+    "semantic_hash": "dc2ee8b53e5ceb147db13900bc3d0fed"
+  },
+  "G:\\tennis betting\\docs\\superpowers\\specs\\2026-06-08-tennis-betting-web-hermes-restyle-design.md": {
+    "mtime": 1780873682.1253963,
+    "ast_hash": "94e34570f262a2f2d3f555eec81bbb54",
+    "semantic_hash": "94e34570f262a2f2d3f555eec81bbb54"
+  },
+  "G:\\tennis betting\\docs\\web\\index.html": {
+    "mtime": 1780873963.6415622,
+    "ast_hash": "c81a17145a11d6dd84d2a75f2baf2996",
+    "semantic_hash": "c81a17145a11d6dd84d2a75f2baf2996"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\AGENTS.md": {
+    "mtime": 1780922300.1226382,
+    "ast_hash": "7c8458c2c0a1d1c7ce48064689767c26",
+    "semantic_hash": "7c8458c2c0a1d1c7ce48064689767c26"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\CLAUDE.md": {
+    "mtime": 1780922300.2701688,
+    "ast_hash": "8562192ba4feb6900697dbb77e093288",
+    "semantic_hash": "8562192ba4feb6900697dbb77e093288"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\index.html": {
+    "mtime": 1781121270.0998166,
+    "ast_hash": "45f8b84f7a97846a77a70e51ce6e0af6",
+    "semantic_hash": "45f8b84f7a97846a77a70e51ce6e0af6"
+  },
+  "G:\\tennis betting\\video_mission\\presentation\\AGENTS.md": {
+    "mtime": 1780922905.785515,
+    "ast_hash": "7c8458c2c0a1d1c7ce48064689767c26",
+    "semantic_hash": "7c8458c2c0a1d1c7ce48064689767c26"
+  },
+  "G:\\tennis betting\\video_mission\\presentation\\CLAUDE.md": {
+    "mtime": 1780922905.8676078,
+    "ast_hash": "8562192ba4feb6900697dbb77e093288",
+    "semantic_hash": "8562192ba4feb6900697dbb77e093288"
+  },
+  "G:\\tennis betting\\video_mission\\presentation\\index.html": {
+    "mtime": 1780923593.4187112,
+    "ast_hash": "5aee52bdbcef898e068ff5e9758b70a5",
+    "semantic_hash": "5aee52bdbcef898e068ff5e9758b70a5"
+  },
+  "G:\\tennis betting\\video_mission\\output\\preview.png": {
+    "mtime": 1780924421.4534476,
+    "ast_hash": "a7743584bc8750274b88c03ebaa83df1",
+    "semantic_hash": "a7743584bc8750274b88c03ebaa83df1"
+  },
+  "G:\\tennis betting\\video_mission\\output\\preview10.png": {
+    "mtime": 1780924482.6173475,
+    "ast_hash": "3d6a20fa61c06c12ca5cc8e9ca045998",
+    "semantic_hash": "3d6a20fa61c06c12ca5cc8e9ca045998"
+  },
+  "G:\\tennis betting\\video_mission\\output\\Manifesto_Tennis_AI_hyperframes.mp4": {
+    "mtime": 1780923632.0942001,
+    "ast_hash": "6075df4116afb9dc5102357d22e21763",
+    "semantic_hash": "6075df4116afb9dc5102357d22e21763"
+  },
+  "G:\\tennis betting\\video_mission\\output\\scene_1_hook.mp3": {
+    "mtime": 1780874187.2566848,
+    "ast_hash": "619b36f278d601d9dc19a9e6c196e729",
+    "semantic_hash": "619b36f278d601d9dc19a9e6c196e729"
+  },
+  "G:\\tennis betting\\video_mission\\output\\scene_2_solution.mp3": {
+    "mtime": 1780874255.463056,
+    "ast_hash": "f4e9dda857534b4470b8b6c1145ea5af",
+    "semantic_hash": "f4e9dda857534b4470b8b6c1145ea5af"
+  },
+  "G:\\tennis betting\\video_mission\\output\\scene_3_quantum.mp3": {
+    "mtime": 1780874257.1577806,
+    "ast_hash": "a53113786375f451b17a434de907922c",
+    "semantic_hash": "a53113786375f451b17a434de907922c"
+  },
+  "G:\\tennis betting\\video_mission\\output\\scene_4_mission.mp3": {
+    "mtime": 1780874259.3307233,
+    "ast_hash": "5a3ae0af4d20d69f5ff871d17d7ab911",
+    "semantic_hash": "5a3ae0af4d20d69f5ff871d17d7ab911"
+  },
+  "G:\\tennis betting\\inspect_db.py": {
+    "mtime": 1780997135.704564,
+    "ast_hash": "c22eaf407b55f2df1f2643de95835767",
+    "semantic_hash": "c22eaf407b55f2df1f2643de95835767"
+  },
+  "G:\\tennis betting\\src\\betting\\signals.py": {
+    "mtime": 1781110001.999965,
+    "ast_hash": "abd979cf26a39b7022fb387c092d1f06",
+    "semantic_hash": "abd979cf26a39b7022fb387c092d1f06"
+  },
+  "G:\\tennis betting\\src\\betting\\__init__.py": {
+    "mtime": 1780928320.3897858,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\scripts\\log_metrics_history.py": {
+    "mtime": 1781036574.7553213,
+    "ast_hash": "82191a5803d23da29613df8eeb3ed884",
+    "semantic_hash": "82191a5803d23da29613df8eeb3ed884"
+  },
+  "G:\\tennis betting\\scripts\\patch_has_odds.py": {
+    "mtime": 1781036251.4707508,
+    "ast_hash": "a9d1944726125d25bbccfdae8fe9eadf",
+    "semantic_hash": "a9d1944726125d25bbccfdae8fe9eadf"
+  },
+  "G:\\tennis betting\\scripts\\probe_feature_tilt.py": {
+    "mtime": 1781035548.061952,
+    "ast_hash": "c0a576c297435439630a09c5ba8d6dd9",
+    "semantic_hash": "c0a576c297435439630a09c5ba8d6dd9"
+  },
+  "G:\\tennis betting\\scripts\\verify_backtest_claims.py": {
+    "mtime": 1781035392.8127644,
+    "ast_hash": "b4e7821df5044f58f474769afd7d11c9",
+    "semantic_hash": "b4e7821df5044f58f474769afd7d11c9"
+  },
+  "G:\\tennis betting\\scripts\\verify_backtest_claims2.py": {
+    "mtime": 1781035644.5899174,
+    "ast_hash": "6d8c36b74b1ba3c00bafd8e596a97a0d",
+    "semantic_hash": "6d8c36b74b1ba3c00bafd8e596a97a0d"
+  },
+  "G:\\tennis betting\\src\\models\\backtest.py": {
+    "mtime": 1781035784.26692,
+    "ast_hash": "e788c3c6f4740168ef6a69c29b680a46",
+    "semantic_hash": "e788c3c6f4740168ef6a69c29b680a46"
+  },
+  "G:\\tennis betting\\EXPERIMENTS.md": {
+    "mtime": 1781036561.4559472,
+    "ast_hash": "2484c519fabc341737f89158f1ce2943",
+    "semantic_hash": "2484c519fabc341737f89158f1ce2943"
+  },
+  "G:\\tennis betting\\docs\\obsidian\\Backtest_e_Metriche_Oneste.md": {
+    "mtime": 1781036624.2472053,
+    "ast_hash": "34d67243ba7c1f98c63f43e50f74bb31",
+    "semantic_hash": "34d67243ba7c1f98c63f43e50f74bb31"
+  },
+  "G:\\tennis betting\\docs\\superpowers\\specs\\2026-06-09-mission-control-dashboard-design.md": {
+    "mtime": 1781029572.572362,
+    "ast_hash": "5c3947a41e92652ca456ac2e87c0e581",
+    "semantic_hash": "5c3947a41e92652ca456ac2e87c0e581"
+  },
+  "G:\\tennis betting\\scripts\\inspect_betanalytix.py": {
+    "mtime": 1781095856.9032652,
+    "ast_hash": "2a90601448fbd12abdbe7c11cf6f5741",
+    "semantic_hash": "2a90601448fbd12abdbe7c11cf6f5741"
+  },
+  "G:\\tennis betting\\scripts\\smoke_dashboard_ws.py": {
+    "mtime": 1781096357.4993465,
+    "ast_hash": "db23af2a0558f8c6971c399d3c184580",
+    "semantic_hash": "db23af2a0558f8c6971c399d3c184580"
+  },
+  "G:\\tennis betting\\scripts\\loops\\run_loop.ps1": {
+    "mtime": 1781161410.825474,
+    "ast_hash": "06f8319f87c0dd69e9ca51f56b73724a",
+    "semantic_hash": "06f8319f87c0dd69e9ca51f56b73724a"
+  },
+  "G:\\tennis betting\\src\\dashboard\\config.py": {
+    "mtime": 1781161093.8474863,
+    "ast_hash": "eb6b4a82516d0a7552207701d04ee1fa",
+    "semantic_hash": "eb6b4a82516d0a7552207701d04ee1fa"
+  },
+  "G:\\tennis betting\\src\\dashboard\\data_api.py": {
+    "mtime": 1781161211.4975674,
+    "ast_hash": "e849e89d568e1f5b79616f203038225b",
+    "semantic_hash": "e849e89d568e1f5b79616f203038225b"
+  },
+  "G:\\tennis betting\\src\\dashboard\\runner.py": {
+    "mtime": 1781096012.4468176,
+    "ast_hash": "5a477c607be68217946372f9fdf92485",
+    "semantic_hash": "5a477c607be68217946372f9fdf92485"
+  },
+  "G:\\tennis betting\\src\\dashboard\\server.py": {
+    "mtime": 1781111268.5564034,
+    "ast_hash": "693cc49b7c4cd0947b73e82ad1585d00",
+    "semantic_hash": "693cc49b7c4cd0947b73e82ad1585d00"
+  },
+  "G:\\tennis betting\\src\\dashboard\\terminal.py": {
+    "mtime": 1781108610.581287,
+    "ast_hash": "e5f53cdc027a2ecc9da7ee0cd6e9b4cc",
+    "semantic_hash": "e5f53cdc027a2ecc9da7ee0cd6e9b4cc"
+  },
+  "G:\\tennis betting\\src\\dashboard\\__init__.py": {
+    "mtime": 1781095949.314162,
+    "ast_hash": "7f4e620d9ddf12a0f6563267d5512f8e",
+    "semantic_hash": "7f4e620d9ddf12a0f6563267d5512f8e"
+  },
+  "G:\\tennis betting\\src\\dashboard\\__main__.py": {
+    "mtime": 1781161106.488951,
+    "ast_hash": "017e57a17e17c7ed0fe009aec1d55905",
+    "semantic_hash": "017e57a17e17c7ed0fe009aec1d55905"
+  },
+  "G:\\tennis betting\\src\\dashboard\\static\\app.js": {
+    "mtime": 1781161264.7114704,
+    "ast_hash": "f819d4a4b2b4a329f365fd75fe9b1db4",
+    "semantic_hash": "f819d4a4b2b4a329f365fd75fe9b1db4"
+  },
+  "G:\\tennis betting\\tests\\test_dashboard_api.py": {
+    "mtime": 1781111836.574324,
+    "ast_hash": "fcbbf0ed323dd5e5edd726ae64685509",
+    "semantic_hash": "fcbbf0ed323dd5e5edd726ae64685509"
+  },
+  "G:\\tennis betting\\scripts\\loops\\nightly_maintenance.md": {
+    "mtime": 1781037526.5617075,
+    "ast_hash": "3d34e0f1032e22702823bb5a9ece49ac",
+    "semantic_hash": "3d34e0f1032e22702823bb5a9ece49ac"
+  },
+  "G:\\tennis betting\\scripts\\loops\\weekly_evolution.md": {
+    "mtime": 1781037540.8156562,
+    "ast_hash": "fe54df9b0f26596170e6d5f168c8c4aa",
+    "semantic_hash": "fe54df9b0f26596170e6d5f168c8c4aa"
+  },
+  "G:\\tennis betting\\src\\dashboard\\static\\index.html": {
+    "mtime": 1781161197.2331955,
+    "ast_hash": "b71c1ec32c5c69de403adb3bbf1a9770",
+    "semantic_hash": "b71c1ec32c5c69de403adb3bbf1a9770"
+  },
+  "G:\\tennis betting\\scripts\\make_app_icon.py": {
+    "mtime": 1781098522.4803176,
+    "ast_hash": "b6df0a1e11e45d3569d76c4fea8e0263",
+    "semantic_hash": "b6df0a1e11e45d3569d76c4fea8e0263"
+  },
+  "G:\\tennis betting\\src\\dashboard\\static\\icon.png": {
+    "mtime": 1781098533.0249538,
+    "ast_hash": "37bfd991841e94bcb4273be4e63cbf33",
+    "semantic_hash": "37bfd991841e94bcb4273be4e63cbf33"
+  },
+  "G:\\tennis betting\\.antigravitycli\\c06bd2c7-8444-4f18-8878-dc6078ad3bea.json": {
+    "mtime": 1781112669.5162818,
+    "ast_hash": "afd2b96806dd59539a2d81792a1adc67",
+    "semantic_hash": "afd2b96806dd59539a2d81792a1adc67"
+  },
+  "G:\\tennis betting\\scripts\\check_results.py": {
+    "mtime": 1781161373.272566,
+    "ast_hash": "c78fe8be39e8beb4fe7a64ba75d1c037",
+    "semantic_hash": "c78fe8be39e8beb4fe7a64ba75d1c037"
+  },
+  "G:\\tennis betting\\scripts\\compare_adm_books.py": {
+    "mtime": 1781110025.6891553,
+    "ast_hash": "78f113c15098a17d19ece37b33f4dbda",
+    "semantic_hash": "78f113c15098a17d19ece37b33f4dbda"
+  },
+  "G:\\tennis betting\\scripts\\smoke_chat.py": {
+    "mtime": 1781111331.9449615,
+    "ast_hash": "431690c0076a9e814a1c1c978b550251",
+    "semantic_hash": "431690c0076a9e814a1c1c978b550251"
+  },
+  "G:\\tennis betting\\scripts\\smoke_vibe_term.py": {
+    "mtime": 1781108541.3625758,
+    "ast_hash": "52a223f9cea54e49cb6f80e7bccd565f",
+    "semantic_hash": "52a223f9cea54e49cb6f80e7bccd565f"
+  },
+  "G:\\tennis betting\\scripts\\test_ollama_tools.py": {
+    "mtime": 1781110830.4231148,
+    "ast_hash": "dda6be551e27c1a7e6a5649fda904d53",
+    "semantic_hash": "dda6be551e27c1a7e6a5649fda904d53"
+  },
+  "G:\\tennis betting\\src\\betting\\portfolio.py": {
+    "mtime": 1781108058.0646505,
+    "ast_hash": "453d87145cdecc2ffcaaee5b26c7f2f9",
+    "semantic_hash": "453d87145cdecc2ffcaaee5b26c7f2f9"
+  },
+  "G:\\tennis betting\\src\\dashboard\\chat.py": {
+    "mtime": 1781161175.1665688,
+    "ast_hash": "0b22d2803e2e5eefb9dfe2aad0b657a7",
+    "semantic_hash": "0b22d2803e2e5eefb9dfe2aad0b657a7"
+  },
+  "G:\\tennis betting\\CONTRIBUTING.md": {
+    "mtime": 1781112543.8122542,
+    "ast_hash": "65f7261eb6e44f99a88c218b5c6f46f3",
+    "semantic_hash": "65f7261eb6e44f99a88c218b5c6f46f3"
+  },
+  "G:\\tennis betting\\DATA_SOURCES.md": {
+    "mtime": 1781124338.0414524,
+    "ast_hash": "65ebcd0c45a8a8c60b536e4eb166f641",
+    "semantic_hash": "65ebcd0c45a8a8c60b536e4eb166f641"
+  },
+  "G:\\tennis betting\\debug_log.txt": {
+    "mtime": 1781117437.2387567,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "G:\\tennis betting\\docs\\obsidian\\UnaBettingOS_Memoria.md": {
+    "mtime": 1781161544.8968198,
+    "ast_hash": "fe70639e861baa5a2df8cad34df44e24",
+    "semantic_hash": "fe70639e861baa5a2df8cad34df44e24"
+  },
+  "G:\\tennis betting\\scripts\\loops\\code_review.md": {
+    "mtime": 1781161438.4698546,
+    "ast_hash": "f3827b1166d4b7923f4a6e55c5724042",
+    "semantic_hash": "f3827b1166d4b7923f4a6e55c5724042"
+  },
+  "G:\\tennis betting\\scripts\\loops\\docs_repo_sync.md": {
+    "mtime": 1781161451.0381725,
+    "ast_hash": "48dca66ace34a78b317e40e796c12527",
+    "semantic_hash": "48dca66ace34a78b317e40e796c12527"
+  },
+  "G:\\tennis betting\\scripts\\loops\\results_check.md": {
+    "mtime": 1781161418.1222835,
+    "ast_hash": "0f1cce763cdf3ddfe56d0479638e635e",
+    "semantic_hash": "0f1cce763cdf3ddfe56d0479638e635e"
+  },
+  "G:\\tennis betting\\src\\dashboard\\static\\graph3d.html": {
+    "mtime": 1781161250.5706975,
+    "ast_hash": "849f0b0fd65055b5b145dd47ba1188b4",
+    "semantic_hash": "849f0b0fd65055b5b145dd47ba1188b4"
+  },
+  "G:\\tennis betting\\Gemini_Generated_Image_kpwm5ekpwm5ekpwm.png": {
+    "mtime": 1781123116.5680325,
+    "ast_hash": "587f921f8f166c9675af91503d4aed0c",
+    "semantic_hash": "587f921f8f166c9675af91503d4aed0c"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_1_hook_scene_1_hook.png": {
+    "mtime": 1781118664.3464217,
+    "ast_hash": "f77e65e8ccc85d2f0ee9d9daadeb28ed",
+    "semantic_hash": "f77e65e8ccc85d2f0ee9d9daadeb28ed"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_2_solution_scene_2_solution.png": {
+    "mtime": 1781118665.5340168,
+    "ast_hash": "48b5799accd03e7c219acce4b52223d4",
+    "semantic_hash": "48b5799accd03e7c219acce4b52223d4"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_3_quantum_scene_3_quantum.png": {
+    "mtime": 1781118666.6760828,
+    "ast_hash": "644948237c17d1ee9ad42bb2883bdb20",
+    "semantic_hash": "644948237c17d1ee9ad42bb2883bdb20"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_4_mission_scene_4_mission.png": {
+    "mtime": 1781118667.824988,
+    "ast_hash": "8bbdf84a6f2f91dca103e5b7db6f8034",
+    "semantic_hash": "8bbdf84a6f2f91dca103e5b7db6f8034"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_1_hook.mp3": {
+    "mtime": 1781118690.6658688,
+    "ast_hash": "619b36f278d601d9dc19a9e6c196e729",
+    "semantic_hash": "619b36f278d601d9dc19a9e6c196e729"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_2_solution.mp3": {
+    "mtime": 1781118693.3454192,
+    "ast_hash": "f4e9dda857534b4470b8b6c1145ea5af",
+    "semantic_hash": "f4e9dda857534b4470b8b6c1145ea5af"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_3_quantum.mp3": {
+    "mtime": 1781118694.455684,
+    "ast_hash": "a53113786375f451b17a434de907922c",
+    "semantic_hash": "a53113786375f451b17a434de907922c"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\assets\\scene_4_mission.mp3": {
+    "mtime": 1781118696.086845,
+    "ast_hash": "5a3ae0af4d20d69f5ff871d17d7ab911",
+    "semantic_hash": "5a3ae0af4d20d69f5ff871d17d7ab911"
+  },
+  "G:\\tennis betting\\video_mission\\hf_test\\renders\\hf_test_2026-06-10_21-54-50.mp4": {
+    "mtime": 1781121430.2719893,
+    "ast_hash": "11cb114047ee549412e4da9a3c26926e",
+    "semantic_hash": "11cb114047ee549412e4da9a3c26926e"
+  }
+}

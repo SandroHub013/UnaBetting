@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      .title {
+        font-size: 96px;
+        font-weight: bold;
+      }
+      .subtitle {
+        font-size: 48px;
+        margin-top: 20px;
+      }
+      .features {
+        font-size: 36px;
+        margin-top: 40px;
+        line-height: 1.5;
+      }
+      .cta {
+        font-size: 42px;
+        margin-top: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="15"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- Title -->
+      <div id="title" class="clip title" data-start="0" data-duration="3">
+        Tennis Betting AI Project
+      </div>
+      <!-- Subtitle -->
+      <div id="subtitle" class="clip subtitle" data-start="3" data-duration="5">
+        Leveraging LLMs for match prediction
+      </div>
+      <!-- Features -->
+      <div id="features" class="clip features" data-start="8" data-duration="5">
+        Data collection • Model training • Betting simulation
+      </div>
+      <!-- Call to action -->
+      <div id="cta" class="clip cta" data-start="13" data-duration="2">
+        Stay tuned for more insights
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      // Title entrance: from y -50, opacity 0
+      tl.from("#title", { y: -50, opacity: 0, duration: 1 }, 0);
+      // Subtitle entrance
+      tl.from("#subtitle", { y: -30, opacity: 0, duration: 1 }, 3);
+      // Features entrance
+      tl.from("#features", { y: -20, opacity: 0, duration: 1 }, 8);
+      // CTA entrance
+      tl.from("#cta", { y: -10, opacity: 0, duration: 1 }, 13);
+      // Optional fade out at end
+      tl.to("#cta", { opacity: 0, duration: 1 }, 14);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
