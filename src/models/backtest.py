@@ -50,7 +50,11 @@ def load_inference_inputs():
 
 def predict_winner_prob(df):
     """Return P(actual winner wins) per match, via perspective-neutral inference."""
-    model_data = joblib.load(ROOT / "models/atp_target_xgboost.pkl")
+    # E4 (2026-06-12): the odds-ensemble (market features, real-odds rows) is the
+    # current headline model; falls back to the legacy single xgboost if absent.
+    _odds = ROOT / "models/atp_target_odds_ensemble.pkl"
+    model_data = joblib.load(_odds if _odds.exists()
+                             else ROOT / "models/atp_target_xgboost.pkl")
     model, features = model_data["model"], model_data["feature_cols"]
     scaler = joblib.load(ROOT / "models/atp_scaler.pkl")
     medians = pd.Series(joblib.load(ROOT / "models/atp_medians.pkl"))

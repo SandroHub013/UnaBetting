@@ -12,16 +12,39 @@ metrics_path = ROOT / "models" / "atp_metrics.json"
 out_path = ROOT / "reports" / "metrics_history.csv"
 
 m = json.loads(metrics_path.read_text())
+am = m.get("all_models", {})
+
+
+def _r(x):
+    return round(x, 6) if isinstance(x, (int, float)) else ""
+
+
+# Schema-tolerant: old runs used best_*; the routed E4 schema uses routed_* +
+# named families (target_odds_*, target_blind_*, target_routed_ensemble).
+if "best_accuracy" in m:                         # legacy schema
+    best_model = m.get("best_model", "")
+    acc, ll, roc = m["best_accuracy"], m["best_log_loss"], m["best_roc_auc"]
+    brier, ece = m.get("best_brier", ""), m.get("best_ece", "")
+else:                                            # routed E4 schema
+    best_model = "target_routed_ensemble"
+    acc = m.get("routed_accuracy")
+    ll = m.get("routed_log_loss")
+    roc = m.get("routed_roc_auc")
+    routed = am.get("target_routed_ensemble", {})
+    brier, ece = routed.get("brier", ""), m.get("routed_ece", "")
+
+# headline = the routed/overall model; also track the odds-ensemble (real-odds rows)
+odds_ens = am.get("target_odds_ensemble", am.get("target_ensemble", {}))
 row = {
     "trained_at": m["trained_at"],
-    "best_model": m["best_model"],
-    "accuracy": round(m["best_accuracy"], 6),
-    "log_loss": round(m["best_log_loss"], 6),
-    "roc_auc": round(m["best_roc_auc"], 6),
-    "brier": round(m["best_brier"], 6),
-    "ece": round(m["best_ece"], 6),
-    "lgbm_accuracy": round(m["all_models"].get("target_lightgbm", {}).get("accuracy", float("nan")), 6),
-    "xgb_log_loss": round(m["all_models"].get("target_xgboost", {}).get("log_loss", float("nan")), 6),
+    "best_model": best_model,
+    "accuracy": _r(acc),
+    "log_loss": _r(ll),
+    "roc_auc": _r(roc),
+    "brier": _r(brier),
+    "ece": _r(ece),
+    "odds_ens_accuracy": _r(odds_ens.get("accuracy", float("nan"))),
+    "odds_ens_log_loss": _r(odds_ens.get("log_loss", float("nan"))),
 }
 
 out_path.parent.mkdir(exist_ok=True)

@@ -26,15 +26,14 @@ from src.models.pytorch_ensemble import TennisEmbeddingNet, TennisTransformerNet
 
 class PreFittedEnsemble:
     """Wrapper per evitare il re-training di tutti gli stimatori nell'Ensemble. 
-    Usa modelli già fittati (e calibrati) e calcola la media pesata delle loro probabilità."""
+    Usa modelli già fittati (e calibrati) e calcola la media ponderata delle loro probabilità."""
     def __init__(self, models, is_regression=False, weights=None):
         self.models = models
         self.is_regression = is_regression
-        if weights is not None:
-            self.weights = np.array(weights)
-            self.weights = self.weights / np.sum(self.weights)
-        else:
+        if weights is None:
             self.weights = np.ones(len(models)) / len(models)
+        else:
+            self.weights = np.array(weights)
         
     def predict(self, X):
         if self.is_regression:
@@ -48,10 +47,20 @@ class PreFittedEnsemble:
         return np.average(probs, axis=0, weights=self.weights)
 
 
-# When train.py runs as `python -m src.models.train` this class is defined in
-# __main__, so pickles would record "__main__.PreFittedEnsemble" and break any
-# OTHER process that unpickles them (e.g. live inference). Pin the stable path.
+# Pickle identity across entrypoints. When this file runs as
+# `python -m src.models.train` the class lives in __main__; live inference imports
+# it as src.models.train. Forcing __module__ alone makes pickle look up
+# src.models.train.PreFittedEnsemble and compare identity — which fails ("not the
+# same object") if src.models.train is loaded as a SEPARATE module during the run.
+# Alias the running module under the canonical name so the class object is
+# identical on both save (training) and load (inference).
+import sys as _sys
 PreFittedEnsemble.__module__ = "src.models.train"
+_canon = _sys.modules.get("src.models.train")
+if _canon is None:
+    _sys.modules["src.models.train"] = _sys.modules[__name__]
+elif _canon is not _sys.modules[__name__]:
+    _canon.PreFittedEnsemble = PreFittedEnsemble
 
 
 try:
@@ -389,6 +398,179 @@ class TennisDataset(Dataset):
         }
 
 
+def _train_segment(target_col, segment, config, is_regression, X_train, y_train, P_train, X_val, y_val, P_val, X_test, y_test, P_test, feature_names, player_mapping, tour):
+    has_val = len(X_val) > 0
+    print(f"\n2. Training modelli {segment.upper()} per {target_col}...")
+    models = {}
+    raw_models = {}  # uncalibrated, for feature importance
+    results = {}
+
+    # --- Logistic Regression / Linear Regression ---
+    if is_regression:
+        from sklearn.linear_model import Ridge
+        print(f"\n  [>] Ridge Regression for {target_col} ({segment})...")
+        model_lr = Ridge(alpha=1.0)
+    else:
+        model_lr = LogisticRegression(max_iter=1000, C=1.0, random_state=42)
+        print(f"\n  [>] Logistic Regression for {target_col} ({segment})...")
+
+    if len(X_train) > 0:
+        model_lr.fit(X_train, y_train)
+        raw_models[f"{target_col}_{segment}_lr"] = model_lr
+        if not is_regression and has_val:
+            model_lr = _calibrate_classifier(model_lr, X_val, y_val, "LR")
+        models[f"{target_col}_{segment}_lr"] = model_lr
+        if len(X_test) > 0:
+            results[f"{target_col}_{segment}_lr"] = _evaluate_model(model_lr, X_test, y_test, f"LR {target_col} {segment}", is_regression)
+
+    # --- Random Forest ---
+    if is_regression:
+        from sklearn.ensemble import RandomForestRegressor
+        print(f"\n  [>] Random Forest Regressor for {target_col} ({segment})...")
+        rf = RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
+    else:
+        print(f"\n  [>] Random Forest Classifier for {target_col} ({segment})...")
+        rf = RandomForestClassifier(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
+
+    if len(X_train) > 0:
+        rf.fit(X_train, y_train)
+        raw_models[f"{target_col}_{segment}_rf"] = rf
+        if not is_regression and has_val:
+            rf = _calibrate_classifier(rf, X_val, y_val, "RF")
+        models[f"{target_col}_{segment}_rf"] = rf
+        if len(X_test) > 0:
+            results[f"{target_col}_{segment}_rf"] = _evaluate_model(rf, X_test, y_test, f"RF {target_col} {segment}", is_regression)
+
+    # --- XGBoost ---
+    if HAS_XGB:
+        print(f"\n  [>] XGBoost for {target_col} ({segment})...")
+        xgb_params = config["model"]["xgboost"]
+        if is_regression:
+            xgb_model = xgb.XGBRegressor(**xgb_params, random_state=42, objective='reg:absoluteerror')
+        else:
+            xgb_model = xgb.XGBClassifier(**xgb_params, random_state=42, eval_metric="logloss")
+
+        if len(X_train) > 0:
+            xgb_model.fit(X_train, y_train)
+            raw_models[f"{target_col}_{segment}_xgboost"] = xgb_model
+            if not is_regression and has_val:
+                xgb_model = _calibrate_classifier(xgb_model, X_val, y_val, "XGB", method="sigmoid")
+            models[f"{target_col}_{segment}_xgboost"] = xgb_model
+            if len(X_test) > 0:
+                results[f"{target_col}_{segment}_xgboost"] = _evaluate_model(xgb_model, X_test, y_test, f"XGB {target_col} {segment}", is_regression)
+
+    # --- LightGBM ---
+    if HAS_LGB:
+        print(f"\n  [>] LightGBM for {target_col} ({segment})...")
+        lgb_params = config["model"]["lightgbm"]
+        if is_regression:
+            lgb_model = lgb.LGBMRegressor(**lgb_params, random_state=42, verbose=-1, objective='regression_l1')
+        else:
+            lgb_model = lgb.LGBMClassifier(**lgb_params, random_state=42, verbose=-1)
+
+        if len(X_train) > 0:
+            lgb_model.fit(X_train, y_train)
+            raw_models[f"{target_col}_{segment}_lightgbm"] = lgb_model
+            if not is_regression and has_val:
+                lgb_model = _calibrate_classifier(lgb_model, X_val, y_val, "LGB")
+            models[f"{target_col}_{segment}_lightgbm"] = lgb_model
+            if len(X_test) > 0:
+                results[f"{target_col}_{segment}_lightgbm"] = _evaluate_model(lgb_model, X_test, y_test, f"LGB {target_col} {segment}", is_regression)
+
+    # --- Ensemble ---
+    if len(X_train) > 0 and len(X_test) > 0:
+        if is_regression:
+            print(f"\n  [>] Ensemble (Averaging) for {target_col} ({segment})...")
+            estimators = [models[f"{target_col}_{segment}_rf"]]
+            if HAS_XGB: estimators.append(models[f"{target_col}_{segment}_xgboost"])
+            if HAS_LGB: estimators.append(models[f"{target_col}_{segment}_lightgbm"])
+            ensemble = PreFittedEnsemble(estimators, is_regression=True)
+        else:
+            print(f"\n  [>] Ensemble (Softmax -LL Voting) for {target_col} ({segment})...")
+            estimators = [models[f"{target_col}_{segment}_lr"], models[f"{target_col}_{segment}_rf"]]
+            if HAS_XGB: estimators.append(models[f"{target_col}_{segment}_xgboost"])
+            if HAS_LGB: estimators.append(models[f"{target_col}_{segment}_lightgbm"])
+            
+            weights = None
+            if has_val:
+                lls = []
+                for m in estimators:
+                    preds = m.predict_proba(X_val)
+                    ll = log_loss(y_val, preds)
+                    lls.append(ll)
+                neg_lls = -np.array(lls)
+                exp_neg_lls = np.exp(neg_lls - np.max(neg_lls))
+                weights = exp_neg_lls / exp_neg_lls.sum()
+                
+            ensemble = PreFittedEnsemble(estimators, is_regression=False, weights=weights)
+
+        models[f"{target_col}_{segment}_ensemble"] = ensemble
+        results[f"{target_col}_{segment}_ensemble"] = _evaluate_model(ensemble, X_test, y_test, f"Ensemble {target_col} {segment}", is_regression)
+
+    # --- PyTorch Embedding Net ---
+    if not is_regression and len(X_train) > 0:
+        print(f"\n  [>] PyTorch Embedding Net for {target_col} ({segment})...")
+        train_dataset = TennisDataset(P_train['p1_id'], P_train['p2_id'], X_train, y_train)
+        val_dataset = TennisDataset(P_val['p1_id'], P_val['p2_id'], X_val, y_val)
+        
+        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False)
+        
+        num_players = len(player_mapping) + 1
+        emb_dim = 32
+        num_features = X_train.shape[1]
+        
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        nn_model = TennisTransformerNet(num_players, emb_dim, num_features).to(device)
+        
+        nn_model = train_tennis_model(nn_model, train_loader, val_loader, epochs=10, lr=0.001)
+        models[f"{target_col}_{segment}_pytorch"] = nn_model
+        
+        if len(X_test) > 0:
+            nn_model.eval()
+            test_dataset = TennisDataset(P_test['p1_id'], P_test['p2_id'], X_test, y_test)
+            test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
+            
+            y_prob_pt = []
+            with torch.no_grad():
+                for batch in test_loader:
+                    p1_ids = batch['p1_id'].to(device)
+                    p2_ids = batch['p2_id'].to(device)
+                    num_feats = batch['numerical_features'].to(device)
+                    outputs = nn_model(p1_ids, p2_ids, num_feats)
+                    y_prob_pt.extend(outputs.cpu().numpy().flatten())
+            
+            y_prob_pt = np.array(y_prob_pt)
+            y_pred_pt = (y_prob_pt >= 0.5).astype(int)
+            y_true_pt = y_test.values
+            
+            acc_pt = accuracy_score(y_true_pt, y_pred_pt)
+            ll_pt = log_loss(y_true_pt, y_prob_pt)
+            brier_pt = brier_score_loss(y_true_pt, y_prob_pt)
+            roc_pt = roc_auc_score(y_true_pt, y_prob_pt)
+            ece_pt = _expected_calibration_error(y_true_pt, y_prob_pt)
+            
+            print(f"    [PT] Accuracy: {acc_pt:.4f} | Log Loss: {ll_pt:.4f} | ROC AUC: {roc_pt:.4f} | ECE: {ece_pt:.4f}")
+            results[f"{target_col}_{segment}_pytorch"] = {"accuracy": acc_pt, "log_loss": ll_pt, "brier": brier_pt, "roc_auc": roc_pt, "ece": ece_pt}
+            
+            if HAS_XGB:
+                xgb_model = models[f"{target_col}_{segment}_xgboost"]
+                y_prob_xgb = xgb_model.predict_proba(X_test)[:, 1]
+                y_prob_deep = (y_prob_pt + y_prob_xgb) / 2.0
+                y_pred_deep = (y_prob_deep >= 0.5).astype(int)
+                
+                acc_deep = accuracy_score(y_true_pt, y_pred_deep)
+                ll_deep = log_loss(y_true_pt, y_prob_deep)
+                brier_deep = brier_score_loss(y_true_pt, y_prob_deep)
+                roc_deep = roc_auc_score(y_true_pt, y_prob_deep)
+                ece_deep = _expected_calibration_error(y_true_pt, y_prob_deep)
+                
+                print(f"    [DEEP] Accuracy: {acc_deep:.4f} | Log Loss: {ll_deep:.4f} | ROC AUC: {roc_deep:.4f} | ECE: {ece_deep:.4f}")
+                results[f"{target_col}_{segment}_deep_ensemble"] = {"accuracy": acc_deep, "log_loss": ll_deep, "brier": brier_deep, "roc_auc": roc_deep, "ece": ece_deep}
+
+    return models, results
+
+
 def train_models(tour="atp", target_col="target"):
     """
     Train all configured models for a specific target (target, game_diff, total_games).
@@ -420,235 +602,84 @@ def train_models(tour="atp", target_col="target"):
 
     # Check if target is discrete (Classification) or continuous (Regression)
     is_regression = target_col in ["game_diff", "total_games"]
-    has_val = len(X_val) > 0
 
-    # Train models
-    print(f"\n2. Training modelli per {target_col}...")
-    models = {}
-    raw_models = {}  # uncalibrated, for feature importance
-    results = {}
+    # --- Odds segment specialist (E4) ---
+    masks_train = {"odds": df.loc[X_train.index, "has_odds"] == 1, "blind": df.loc[X_train.index, "has_odds"] == 0}
+    masks_val = {"odds": df.loc[X_val.index, "has_odds"] == 1, "blind": df.loc[X_val.index, "has_odds"] == 0}
+    masks_test = {"odds": df.loc[X_test.index, "has_odds"] == 1, "blind": df.loc[X_test.index, "has_odds"] == 0}
 
-    # --- Logistic Regression / Linear Regression ---
-    if is_regression:
-        from sklearn.linear_model import Ridge
-        print(f"\n  [>] Ridge Regression for {target_col}...")
-        model_lr = Ridge(alpha=1.0)
-    else:
-        model_lr = LogisticRegression(max_iter=1000, C=1.0, random_state=42)
-        print(f"\n  [>] Logistic Regression for {target_col}...")
-
-    model_lr.fit(X_train, y_train)
-    raw_models[f"{target_col}_lr"] = model_lr
-    if not is_regression and has_val:
-        model_lr = _calibrate_classifier(model_lr, X_val, y_val, "LR")
-    models[f"{target_col}_lr"] = model_lr
-    results[f"{target_col}_lr"] = _evaluate_model(model_lr, X_test, y_test, f"LR {target_col}", is_regression)
-
-    # --- Random Forest ---
-    if is_regression:
-        from sklearn.ensemble import RandomForestRegressor
-        print(f"\n  [>] Random Forest Regressor for {target_col}...")
-        rf = RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
-    else:
-        print(f"\n  [>] Random Forest Classifier for {target_col}...")
-        rf = RandomForestClassifier(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
-
-    rf.fit(X_train, y_train)
-    raw_models[f"{target_col}_rf"] = rf
-    if not is_regression and has_val:
-        rf = _calibrate_classifier(rf, X_val, y_val, "RF")
-    models[f"{target_col}_rf"] = rf
-    results[f"{target_col}_rf"] = _evaluate_model(rf, X_test, y_test, f"RF {target_col}", is_regression)
-
-    # --- XGBoost ---
-    if HAS_XGB:
-        print(f"\n  [>] XGBoost for {target_col}...")
-        xgb_params = config["model"]["xgboost"]
-        if is_regression:
-            xgb_model = xgb.XGBRegressor(**xgb_params, random_state=42, objective='reg:absoluteerror')
-        else:
-            xgb_model = xgb.XGBClassifier(**xgb_params, random_state=42, eval_metric="logloss")
-
-        xgb_model.fit(X_train, y_train)
-        raw_models[f"{target_col}_xgboost"] = xgb_model
-        if not is_regression and has_val:
-            xgb_model = _calibrate_classifier(xgb_model, X_val, y_val, "XGB", method="sigmoid")
-        models[f"{target_col}_xgboost"] = xgb_model
-        results[f"{target_col}_xgboost"] = _evaluate_model(xgb_model, X_test, y_test, f"XGB {target_col}", is_regression)
-
-    # --- LightGBM ---
-    if HAS_LGB:
-        print(f"\n  [>] LightGBM for {target_col}...")
-        lgb_params = config["model"]["lightgbm"]
-        if is_regression:
-            lgb_model = lgb.LGBMRegressor(**lgb_params, random_state=42, verbose=-1, objective='regression_l1')
-        else:
-            lgb_model = lgb.LGBMClassifier(**lgb_params, random_state=42, verbose=-1)
-
-        lgb_model.fit(X_train, y_train)
-        raw_models[f"{target_col}_lightgbm"] = lgb_model
-        if not is_regression and has_val:
-            lgb_model = _calibrate_classifier(lgb_model, X_val, y_val, "LGB")
-        models[f"{target_col}_lightgbm"] = lgb_model
-        results[f"{target_col}_lightgbm"] = _evaluate_model(lgb_model, X_test, y_test, f"LGB {target_col}", is_regression)
-
-    # --- Ensemble (built from PRE-FITTED calibrated models to avoid massive computational bottleneck) ---
-    if is_regression:
-        print(f"\n  [>] Ensemble (Averaging) for {target_col}...")
-        estimators = [models[f"{target_col}_rf"]]
-        if HAS_XGB: estimators.append(models[f"{target_col}_xgboost"])
-        if HAS_LGB: estimators.append(models[f"{target_col}_lightgbm"])
-        ensemble = PreFittedEnsemble(estimators, is_regression=True)
-    else:
-        print(f"\n  [>] Ensemble (Soft Voting of Calibrated Models) for {target_col}...")
-        ens_names = [f"{target_col}_lr", f"{target_col}_rf"]
-        if HAS_XGB: ens_names.append(f"{target_col}_xgboost")
-        if HAS_LGB: ens_names.append(f"{target_col}_lightgbm")
-        
-        estimators = [models[n] for n in ens_names]
-        
-        # Walk-forward ensemble weighting based on validation log-loss (E2)
-        if has_val:
-            lls = []
-            for m in estimators:
-                val_prob = m.predict_proba(X_val)[:, 1]
-                val_ll = log_loss(y_val, val_prob)
-                lls.append(val_ll)
-                
-            neg_lls = -np.array(lls)
-            exp_neg_lls = np.exp(neg_lls - np.max(neg_lls)) # Stable softmax
-            weights = exp_neg_lls / exp_neg_lls.sum()
-            print(f"    [Ensemble Weights]: " + ", ".join([f"{n}: {w:.3f}" for n, w in zip(ens_names, weights)]))
-        else:
-            weights = None
-
-        ensemble = PreFittedEnsemble(estimators, is_regression=False, weights=weights)
-
-    # I modelli sottostanti sono già calibrati e fittati, evitiamo fit doppi.
-    models[f"{target_col}_ensemble"] = ensemble
-    results[f"{target_col}_ensemble"] = _evaluate_model(ensemble, X_test, y_test, f"Ensemble {target_col}", is_regression)
-
-    # --- PyTorch Embedding Net ---
+    all_models = {}
+    all_results = {}
+    
+    # Store predictions to compute combined metrics
+    y_test_pred_combined = np.zeros(len(X_test))
     if not is_regression:
-        print(f"\n  [>] PyTorch Embedding Net for {target_col}...")
-        train_dataset = TennisDataset(P_train['p1_id'], P_train['p2_id'], X_train, y_train)
-        val_dataset = TennisDataset(P_val['p1_id'], P_val['p2_id'], X_val, y_val)
-        
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False)
-        
-        num_players = len(player_mapping) + 1  # +1 for UNK
-        emb_dim = 32
-        num_features = X_train.shape[1]
-        
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        nn_model = TennisTransformerNet(num_players, emb_dim, num_features).to(device)
-        
-        nn_model = train_tennis_model(nn_model, train_loader, val_loader, epochs=10, lr=0.001)
-        models[f"{target_col}_pytorch"] = nn_model
-        
-        # Valutazione PyTorch
-        nn_model.eval()
-        test_dataset = TennisDataset(P_test['p1_id'], P_test['p2_id'], X_test, y_test)
-        test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
-        
-        y_prob_pt = []
-        with torch.no_grad():
-            for batch in test_loader:
-                p1_ids = batch['p1_id'].to(device)
-                p2_ids = batch['p2_id'].to(device)
-                num_feats = batch['numerical_features'].to(device)
-                outputs = nn_model(p1_ids, p2_ids, num_feats)
-                y_prob_pt.extend(outputs.cpu().numpy().flatten())
-        
-        y_prob_pt = np.array(y_prob_pt)
-        y_pred_pt = (y_prob_pt >= 0.5).astype(int)
-        y_true_pt = y_test.values
-        
-        acc_pt = accuracy_score(y_true_pt, y_pred_pt)
-        ll_pt = log_loss(y_true_pt, y_prob_pt)
-        brier_pt = brier_score_loss(y_true_pt, y_prob_pt)
-        roc_pt = roc_auc_score(y_true_pt, y_prob_pt)
-        ece_pt = _expected_calibration_error(y_true_pt, y_prob_pt)
-        
-        print(f"    [PT] Accuracy: {acc_pt:.4f} | Log Loss: {ll_pt:.4f} | ROC AUC: {roc_pt:.4f} | ECE: {ece_pt:.4f}")
-        results[f"{target_col}_pytorch"] = {"accuracy": acc_pt, "log_loss": ll_pt, "brier": brier_pt, "roc_auc": roc_pt, "ece": ece_pt}
-        
-        # --- Deep Ensemble (XGBoost + PyTorch) ---
-        if HAS_XGB:
-            print(f"\n  [>] Deep Ensemble (XGBoost + PyTorch) for {target_col}...")
-            # Probabilità XGBoost
-            xgb_model = models[f"{target_col}_xgboost"]
-            y_prob_xgb = xgb_model.predict_proba(X_test)[:, 1]
-            
-            # Media Semplice (Ensemble)
-            y_prob_deep = (y_prob_pt + y_prob_xgb) / 2.0
-            y_pred_deep = (y_prob_deep >= 0.5).astype(int)
-            
-            acc_deep = accuracy_score(y_true_pt, y_pred_deep)
-            ll_deep = log_loss(y_true_pt, y_prob_deep)
-            brier_deep = brier_score_loss(y_true_pt, y_prob_deep)
-            roc_deep = roc_auc_score(y_true_pt, y_prob_deep)
-            ece_deep = _expected_calibration_error(y_true_pt, y_prob_deep)
-            
-            print(f"    [DEEP] Accuracy: {acc_deep:.4f} | Log Loss: {ll_deep:.4f} | ROC AUC: {roc_deep:.4f} | ECE: {ece_deep:.4f}")
-            results[f"{target_col}_deep_ensemble"] = {"accuracy": acc_deep, "log_loss": ll_deep, "brier": brier_deep, "roc_auc": roc_deep, "ece": ece_deep}
+        y_test_prob_combined = np.zeros(len(X_test))
 
-    # --- Feature importance from raw (uncalibrated) LR ---
-    raw_lr_key = f"{target_col}_lr"
-    if raw_lr_key in raw_models:
-        print(f"\n  [?] Analisi feature piu' importanti (LR {target_col}):")
-        raw_lr = raw_models[raw_lr_key]
-        coef = raw_lr.coef_
-        coef_values = coef[0] if not is_regression else coef
-        coefs = pd.DataFrame({
-            "feature": feature_names,
-            "coef": coef_values
-        }).sort_values("coef", ascending=False)
-        print("  TOP POSITIVE:")
-        print(coefs.head(10))
-        print("\n  TOP NEGATIVE:")
-        print(coefs.tail(10))
+    for segment in ["odds", "blind"]:
+        m_tr = masks_train[segment]
+        m_v = masks_val[segment]
+        m_te = masks_test[segment]
+        
+        if m_tr.sum() == 0:
+            continue
+            
+        seg_models, seg_results = _train_segment(
+            target_col, segment, config, is_regression,
+            X_train[m_tr], y_train[m_tr], P_train[m_tr],
+            X_val[m_v], y_val[m_v], P_val[m_v],
+            X_test[m_te], y_test[m_te], P_test[m_te],
+            feature_names, player_mapping, tour
+        )
+        
+        all_models.update(seg_models)
+        all_results.update(seg_results)
+        
+        # We assume 'ensemble' is the best for the combined routing
+        if m_te.sum() > 0:
+            best_model_key = f"{target_col}_{segment}_ensemble"
+            if best_model_key in seg_models:
+                m_te_idx = np.where(m_te)[0]
+                if is_regression:
+                    preds = seg_models[best_model_key].predict(X_test[m_te])
+                    y_test_pred_combined[m_te_idx] = preds
+                else:
+                    preds = seg_models[best_model_key].predict(X_test[m_te])
+                    probs = seg_models[best_model_key].predict_proba(X_test[m_te])[:, 1]
+                    y_test_pred_combined[m_te_idx] = preds
+                    y_test_prob_combined[m_te_idx] = probs
 
-    # Summary
-    print(f"\n{'=' * 60}")
-    print(f"  RIEPILOGO RISULTATI - {target_col.upper()}")
-    print(f"{'=' * 60}")
-    if is_regression:
-        print(f"{'Modello':<25} {'MAE':>10} {'MSE':>10} {'R2':>10}")
-        print("-" * 58)
-        for name, res in results.items():
-            print(f"{name:<25} {res['mae']:>10.4f} {res['mse']:>10.4f} {res['r2']:>10.4f}")
-    else:
-        print(f"{'Modello':<25} {'Accuracy':>10} {'Log Loss':>10} {'ROC AUC':>10} {'ECE':>10}")
-        print("-" * 68)
-        for name, res in results.items():
-            ece_str = f"{res['ece']:.4f}" if 'ece' in res else "N/A"
-            print(f"{name:<25} {res['accuracy']:>10.4f} {res['log_loss']:>10.4f} {res['roc_auc']:>10.4f} {ece_str:>10}")
-
-    # Save best model (prefer log_loss for classifiers — better for calibrated betting)
-    if is_regression:
-        best_name = min(results, key=lambda x: results[x]["mae"])
-        print(f"\n  [*] Miglior modello: {best_name} (MAE: {results[best_name]['mae']:.4f})")
-    else:
-        best_name = min(results, key=lambda x: results[x]["log_loss"])
-        ece_val = results[best_name].get('ece', 0)
-        print(f"\n  [*] Miglior modello: {best_name} (Log Loss: {results[best_name]['log_loss']:.4f}, ECE: {ece_val:.4f})")
+    # --- Evaluate combined routing ---
+    if len(X_test) > 0:
+        print(f"\n{'=' * 60}")
+        print(f"  COMBINED ROUTED PERFORMANCE (Test Set) - {target_col.upper()}")
+        print(f"{'=' * 60}")
+        if is_regression:
+            from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+            mae = mean_absolute_error(y_test, y_test_pred_combined)
+            mse = mean_squared_error(y_test, y_test_pred_combined)
+            r2 = r2_score(y_test, y_test_pred_combined)
+            print(f"    Routed MAE: {mae:.4f} | MSE: {mse:.4f} | R2: {r2:.4f}")
+            all_results[f"{target_col}_routed_ensemble"] = {"mae": mae, "mse": mse, "r2": r2}
+        else:
+            acc = accuracy_score(y_test, y_test_pred_combined)
+            ll = log_loss(y_test, y_test_prob_combined)
+            brier = brier_score_loss(y_test, y_test_prob_combined)
+            roc = roc_auc_score(y_test, y_test_prob_combined)
+            ece = _expected_calibration_error(np.array(y_test), y_test_prob_combined)
+            print(f"    Routed Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {roc:.4f} | ECE: {ece:.4f}")
+            all_results[f"{target_col}_routed_ensemble"] = {"accuracy": acc, "log_loss": ll, "brier": brier, "roc_auc": roc, "ece": ece}
 
     # Save models (calibrated versions)
     models_dir = PROJECT_ROOT / config["paths"]["models"]
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    for name, model in models.items():
+    for name, model in all_models.items():
         if "pytorch" in name:
             model_path = models_dir / f"{tour}_{name}.pt"
-            # PyTorch models use torch.save. Save state dict and architecture parameters if needed
-            # For simplicity, we save the whole model + metadata
             torch.save({"model": model, "feature_cols": list(feature_names), "player_mapping": player_mapping}, model_path)
         else:
             model_path = models_dir / f"{tour}_{name}.pkl"
-            # Bundle feature_cols with artifact so inference can enforce column order
-            # (prevents silent desync when build_features output reorders across runs).
             joblib.dump({"model": model, "feature_cols": list(feature_names)}, model_path)
 
     # Save scaler
@@ -669,19 +700,16 @@ def train_models(tour="atp", target_col="target"):
     joblib.dump(medians, medians_path)
 
     # Save metrics for TUI ticker and dashboard
-    if not is_regression and results:
+    if not is_regression and all_results:
         import json as _json
-        best_res = results[best_name]
         metrics_out = {
-            "best_model": best_name,
-            "best_accuracy": float(best_res.get("accuracy", 0)),
-            "best_ece": float(best_res.get("ece", 0)),
-            "best_log_loss": float(best_res.get("log_loss", 0)),
-            "best_roc_auc": float(best_res.get("roc_auc", 0)),
-            "best_brier": float(best_res.get("brier", 0)),
+            "routed_accuracy": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("accuracy", 0)),
+            "routed_ece": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("ece", 0)),
+            "routed_log_loss": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("log_loss", 0)),
+            "routed_roc_auc": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("roc_auc", 0)),
             "all_models": {
                 name: {k: float(v) for k, v in res.items()}
-                for name, res in results.items()
+                for name, res in all_results.items()
             },
             "trained_at": datetime.now().isoformat(),
         }
@@ -691,7 +719,8 @@ def train_models(tour="atp", target_col="target"):
         print(f"  [+] Metrics saved to {metrics_path}")
 
     print(f"\n  [OK] Modelli calibrati e metadati salvati in: {models_dir}")
-    return models, results
+    return all_models, all_results
+
 
 
 def _expected_calibration_error(y_true, y_prob, n_bins=10):

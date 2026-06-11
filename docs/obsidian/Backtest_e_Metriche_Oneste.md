@@ -10,19 +10,25 @@ tags:
 Pagina di verità del progetto: numeri leak-free e storia dei falsi positivi.
 Storico delle run in `reports/metrics_history.csv` (append via `scripts/log_metrics_history.py`).
 
-## Metriche correnti (2026-06-09, train 2005-2023, val 2024, test 2025+)
+## Metriche correnti (2026-06-12, dopo E2+E3+E4 "routed", train 2005-2023, val 2024, test 2025+)
 
-| Metrica | Valore |
-|---|---|
-| Accuracy (ensemble, test 2025+) | **66.3%** |
-| Log Loss | 0.608 |
-| ROC AUC | 0.731 |
-| LightGBM singolo (best) | 67.0% acc |
-| Favorito B365 (baseline mercato) | **67.7%** |
-| Backtest onesto (Kelly/4, edge>3%, quote reali) | **ROI −82%, win rate 43%** |
+| Metrica | 06-09 (baseline) | 06-12 (E2+E3+E4) |
+|---|---|---|
+| Accuracy routed (test 2025+) | 66.3% | **67.7%** |
+| Log Loss | 0.608 | **0.601** |
+| ROC AUC | 0.731 | **0.740** |
+| Odds-ensemble su righe con quote | — | **69.85%** |
+| Favorito B365 (baseline mercato) | 67.7% | 67.7% |
+| Backtest onesto (Kelly/4, edge>3%, quote reali) | ROI −82% | **ROI −62%, win rate 46%** |
 
-**Il mercato è ancora più accurato del modello → nessun edge predittivo.** Coerente con
-i check CLV di maggio (entrambi negativi) e con l'analisi in `ALPHA_FINDINGS.md`.
+**Verdetto onesto (verificato 2026-06-12):** E2/E3/E4 = miglioramento REALE e persistito
+(accuracy +1.4pt, per la prima volta l'odds-ensemble 69.85% supera il favorito 67.7%).
+**Ma il backtest perde ancora (−62%, era −82%): più accurato ≠ redditizio.** Il modello
+porta la quota come feature, quindi i suoi "dissensi" col mercato perdono ancora contro il
+vig. **Nessun edge di scommessa — solo meno negativo.** Coerente coi check CLV di maggio.
+
+> ⚠️ Lezione: gli esperimenti erano stati *mergiati ma mai ri-allenati* (il loop Nightly che
+> li avrebbe valutati era in pausa). Un esperimento mergiato NON è un esperimento verificato.
 
 ## Il falso "85% win rate" (2026-06-09) — anatomia di un artefatto
 
