@@ -1,37 +1,33 @@
-# Loop notturno — manutenzione e refresh modello
+# Nightly loop — maintenance & model refresh
 
-Sei la run notturna automatica del progetto tennis-betting (G:\tennis betting).
-Esegui questi step IN ORDINE. Sii conservativo: se uno step fallisce, annota e
-prosegui se possibile; non improvvisare fix strutturali (quello è compito del
-loop settimanale).
+You are UnaBetting's automated nightly run (G:\tennis betting). Execute these steps
+IN ORDER. Be conservative: if a step fails, note it and continue when possible; do not
+improvise structural fixes (that's the weekly loop's job).
 
-## Regole vincolanti
-- NON pushare mai su remote. Solo commit locali sul branch corrente.
-- NON chiamare the-odds-api o altri servizi a quota/pagamento.
-- NON modificare la coda di EXPERIMENTS.md (solo il loop settimanale può).
-- Ogni inferenza fuori da train.py DEVE usare mediane train + scaler + prospettiva
-  randomizzata (vedi docs/obsidian/Backtest_e_Metriche_Oneste.md).
-- Budget: se superi ~30 minuti di lavoro, chiudi con commit di quanto fatto.
+## Hard rules
+- NEVER push to remote. Local commits only, on the current branch.
+- NEVER call the-odds-api or other paid/quota services.
+- Do NOT edit the EXPERIMENTS.md queue (only the weekly loop may).
+- Any inference outside train.py MUST use train medians + scaler + randomized
+  perspective (see docs/obsidian/Backtest_e_Metriche_Oneste.md).
+- Budget: if you exceed ~30 minutes, wrap up with a commit of what's done.
 
-## Step
-
-1. **Stato repo**: `git status --short`. Se ci sono modifiche non committate non
-   tue, NON toccarle; lavora intorno.
-2. **Dati**: `python update_data.py --check`. Se segnala dati nuovi:
-   `python update_data.py` (git pull Sackmann/TML + quote tennis-data.co.uk +
-   rebuild features — può richiedere ~20 min). Se nessun dato nuovo, salta al
-   punto 5.
-3. **Retrain**: `python -m src.models.train` (solo se le feature sono state
-   ricostruite al punto 2).
-4. **Log metriche**: `python scripts/log_metrics_history.py`.
-5. **Backtest onesto**: `python -m src.models.backtest`. Annota ROI e win rate.
-6. **Guardia regressione**: confronta le ultime due righe di
-   `reports/metrics_history.csv`. Se accuracy cala >1 punto o log_loss sale
-   >0.01: scrivi un avviso in cima a EXPERIMENTS.md sezione "## Alerts" (creala
-   se manca) con data e numeri — è l'unico caso in cui puoi toccare quel file.
-7. **Obsidian**: se le metriche correnti sono cambiate, aggiorna la tabella in
-   `docs/obsidian/Backtest_e_Metriche_Oneste.md` e lo Status in
+## Steps
+1. **Repo state**: `git status --short`. If there are uncommitted changes that aren't
+   yours, do NOT touch them; work around them.
+2. **Data**: `python update_data.py --check`. If it reports new data:
+   `python update_data.py` (git pull Sackmann/TML + tennis-data.co.uk odds + feature
+   rebuild — ~20 min). If no new data, skip to step 5.
+3. **Retrain**: `python -m src.models.train` (only if features were rebuilt in step 2).
+4. **Log metrics**: `python scripts/log_metrics_history.py`.
+5. **Honest backtest**: `python -m src.models.backtest`. Note ROI and win rate.
+6. **Regression guard**: compare the last two rows of `reports/metrics_history.csv`.
+   If accuracy drops >1 point or log loss rises >0.01: add a note under an `## Alerts`
+   section in EXPERIMENTS.md (create it if missing) with the date and numbers — that's
+   the only case where you may touch that file.
+7. **Obsidian**: if current metrics changed, update the table in
+   `docs/obsidian/Backtest_e_Metriche_Oneste.md` and the Status in
    `docs/obsidian/Index.md`.
-8. **Commit**: `git add` dei file toccati + commit con messaggio
-   `chore(loop): nightly maintenance YYYY-MM-DD — <esito sintetico>`.
-   Se non è cambiato nulla, NON committare; termina con "nessun aggiornamento".
+8. **Commit**: `git add` the touched files + commit
+   `chore(loop): nightly maintenance YYYY-MM-DD — <short outcome>`.
+   If nothing changed, do NOT commit; finish with "no updates".

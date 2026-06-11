@@ -163,7 +163,7 @@ const I18N = {
     filter: '⌕ filtern…', register_bet: 'Wette eintragen', save: 'Speichern',
   },
 };
-let LANG = localStorage.getItem('mc-lang') || 'it';
+let LANG = localStorage.getItem('mc-lang') || 'en';
 const t = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
 
 const $ = (s) => document.querySelector(s);
