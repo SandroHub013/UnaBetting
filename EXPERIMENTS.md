@@ -16,10 +16,14 @@ only if it beats the baseline, then commits.
 
 ## Queue (priority order)
 
-- [x] **E0 — Fix stale tests.** `tests/test_player_stats.py` and `tests/test_leakage.py`
-  fail with `KeyError: 'recent_form_5'` — the feature was renamed (`form_ewm` /
-  windowed `win_rate_*`). Update the tests to the current feature names so the
-  suite is green again. Low effort, unblocks CI confidence.
+- [x] **E0 — Fix stale tests.** DONE 2026-06-11 via PR #1: test_player_stats &
+  test_imputation_median_is_train_only now pass (feature names updated to
+  form_ewm/decay_minutes_14d/days_since_last; synthetic frame got winner_id/
+  loser_id; medians unpack made robust).
+- [ ] **E0b — Fix test_shuffled_target_accuracy_is_chance.** Still fails on real
+  data with `KeyError: 'target'` (separate from E0). prepare_training_data's
+  return/columns changed; the test accesses y['target'] that no longer exists in
+  that shape. Update the test to the current shuffle-guard contract.
 - [ ] **E1 — Serve-stats coverage 2025-26.** `_50` rolling serve/return features are
   84% NaN on the test years (Sackmann lags current season) — the model flies blind
   exactly where it predicts. Ingest current-season match stats (Sackmann repo pull

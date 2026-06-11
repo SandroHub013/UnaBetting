@@ -1,91 +1,146 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=1920, height=1080" />
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body {
-        margin: 0;
-        width: 1920px;
-        height: 1080px;
-        overflow: hidden;
-        background: #000;
-      }
-      .clip {
-        position: absolute;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        object-fit: cover;
-      }
-    </style>
-  </head>
-  <body>
-    <div
-      id="root"
-      data-composition-id="main"
-      data-start="0"
-      data-duration="85"
-      data-width="1920"
-      data-height="1080"
-    >
-      <!-- Scene 1: Hook - Overview Dashboard -->
-      <img src="assets/scene_1_hook_scene_1_hook.png" class="clip" data-start="0" data-duration="18" data-track-index="0" />
-      <audio src="assets/scene_1_hook.mp3" data-start="0" data-duration="18" data-track-index="1"></audio>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..500&family=Archivo:wght@300;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:#0B0B0E}
+  :root{--ink:#0B0B0E;--bone:#EFE7D2;--dim:#A8A294;--clay:#C75A2A;--gold:#E69A10;--grass:#5BD08B;
+    --serif:'Fraunces',Georgia,serif;--sans:'Archivo',system-ui,sans-serif;--mono:'JetBrains Mono',monospace}
+  .scene{position:absolute;inset:0;width:1920px;height:1080px;background:#0B0B0E;overflow:hidden}
+  .pad{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:130px 160px}
+  .kick{font-family:var(--mono);font-size:22px;letter-spacing:8px;text-transform:uppercase;color:var(--clay);margin-bottom:40px}
+  .mask{overflow:hidden;display:block;padding:0.12em 0}
+  .h{font-family:var(--serif);font-weight:300;font-size:168px;line-height:1.3;letter-spacing:-.02em;color:var(--bone)}
+  .h em{font-style:italic;color:var(--gold)}
+  .sub{font-family:var(--sans);font-weight:300;font-size:34px;color:var(--dim);margin-top:46px;max-width:1100px}
+  .sub b{color:var(--bone);font-weight:500}
+  /* duel */
+  .duel{display:flex;gap:0;align-items:stretch}
+  .col{flex:1;padding:0 60px}
+  .col:first-child{border-right:1px solid rgba(239,231,210,.18)}
+  .who{font-family:var(--mono);font-size:26px;letter-spacing:4px;text-transform:uppercase;color:var(--dim);margin-bottom:24px}
+  .num{font-family:var(--serif);font-weight:300;font-size:200px;line-height:1.3;letter-spacing:-.04em;color:var(--bone);font-variant-numeric:tabular-nums}
+  .col.mkt .num{color:var(--clay)}
+  .nnote{font-family:var(--mono);font-size:24px;color:var(--dim);margin-top:40px}
+  /* still scenes */
+  .still{position:absolute;inset:0;width:1920px;height:1080px;object-fit:cover;opacity:.92}
+  .vig{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,transparent 30%,rgba(11,11,14,.55) 78%,rgba(11,11,14,.92) 100%)}
+  .ovl{position:absolute;left:160px;bottom:150px}
+  .ovl .tag{font-family:var(--mono);font-size:24px;letter-spacing:6px;text-transform:uppercase;color:var(--gold);margin-bottom:22px}
+  .ovl .big{font-family:var(--serif);font-weight:300;font-size:110px;line-height:1.12;color:var(--bone);letter-spacing:-.01em}
+  .ovl .big em{font-style:italic;color:var(--clay)}
+  /* cta */
+  .wm{font-family:var(--serif);font-weight:300;font-size:170px;color:var(--bone);letter-spacing:-.01em}
+  .wm i{font-style:italic;color:var(--clay)}
+  .ctas{font-family:var(--sans);font-weight:300;font-size:40px;color:var(--dim);margin-top:30px}
+  .url{font-family:var(--mono);font-size:28px;letter-spacing:3px;color:var(--gold);margin-top:54px}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="23" data-width="1920" data-height="1080">
 
-      <!-- Scene 2: Solution - Segnali Table -->
-      <img src="assets/scene_2_solution_scene_2_solution.png" class="clip" data-start="18" data-duration="18" data-track-index="0" />
-      <audio src="assets/scene_2_solution.mp3" data-start="18" data-duration="18" data-track-index="1"></audio>
-
-      <!-- Scene 3: Quantum - Bet/Equity Curve -->
-      <img src="assets/scene_3_quantum_scene_3_quantum.png" class="clip" data-start="36" data-duration="18" data-track-index="0" />
-      <audio src="assets/scene_3_quantum.mp3" data-start="36" data-duration="18" data-track-index="1"></audio>
-
-      <!-- Scene 4: Mission - VIBE CODING / Hermes Architecture -->
-      <img src="assets/scene_4_mission_scene_4_mission.png" class="clip" data-start="54" data-duration="18" data-track-index="0" />
-      <audio src="assets/scene_4_mission.mp3" data-start="54" data-duration="18" data-track-index="1"></audio>
-
-      <!-- Scene 5: Quote/CLV Comparison (using Quote page screenshot) -->
-      <img src="assets/scene_4_mission_scene_4_mission.png" class="clip" data-start="72" data-duration="13" data-track-index="0" />
-      <audio src="assets/scene_4_mission.mp3" data-start="72" data-duration="13" data-track-index="1"></audio>
+  <!-- S1 — title -->
+  <div class="scene clip" id="s1" data-start="0" data-duration="4.5" data-track-index="0">
+    <div class="pad">
+      <div class="kick" id="s1k">Unabetting — Honest Tennis ML</div>
+      <div class="mask" data-layout-allow-overflow><div class="h" id="s1a">The market</div></div>
+      <div class="mask" data-layout-allow-overflow><div class="h" id="s1b">usually <em>wins.</em></div></div>
     </div>
+  </div>
 
-    <script>
-      window.__timelines = window.__timelines || {};
-      const tl = gsap.timeline({ paused: true });
+  <!-- S2 — the duel -->
+  <div class="scene clip" id="s2" data-start="4.5" data-duration="4.7" data-track-index="0">
+    <div class="pad">
+      <div class="duel" data-layout-allow-overflow>
+        <div class="col" data-layout-allow-overflow><div class="who" id="s2w1">Our model</div><div class="num" id="s2n1">0%</div></div>
+        <div class="col mkt" data-layout-allow-overflow><div class="who" id="s2w2">The market</div><div class="num" id="s2n2">0%</div></div>
+      </div>
+      <div class="nnote" id="s2note">— and we still haven't beaten it. That's the honest part.</div>
+    </div>
+  </div>
 
-      // Ken Burns zoom effect on each clip
-      gsap.utils.toArray('.clip').forEach(clip => {
-         const start = parseFloat(clip.getAttribute('data-start'));
-         const duration = parseFloat(clip.getAttribute('data-duration'));
-         tl.fromTo(clip,
-            { scale: 1.0, transformOrigin: "center center" },
-            { scale: 1.12, duration: duration, ease: "none" },
-            start
-         );
-      });
+  <!-- S3 — knowledge graph still -->
+  <div class="scene clip" id="s3" data-start="9.2" data-duration="4.8" data-track-index="0">
+    <img class="still" id="s3img" src="assets/graph3d.png" alt="" data-layout-allow-overflow />
+    <div class="vig"></div>
+    <div class="ovl">
+      <div class="tag" id="s3t">1,440 nodes</div>
+      <div class="big" id="s3b">The codebase as a<br><em>field of stars.</em></div>
+    </div>
+  </div>
 
-      // Subtle fade transitions between scenes
-      const clips = gsap.utils.toArray('.clip');
-      for (let i = 0; i < clips.length - 1; i++) {
-        const curr = clips[i];
-        const next = clips[i + 1];
-        const currStart = parseFloat(curr.getAttribute('data-start'));
-        const currDur = parseFloat(curr.getAttribute('data-duration'));
-        const overlap = 0.5;
-        tl.fromTo(next,
-          { opacity: 0 },
-          { opacity: 1, duration: overlap, ease: "power2.out" },
-          currStart + currDur - overlap
-        );
-        tl.to(curr,
-          { opacity: 0, duration: overlap, ease: "power2.in" },
-          currStart + currDur - overlap
-        );
-      }
+  <!-- S4 — cockpit still -->
+  <div class="scene clip" id="s4" data-start="14" data-duration="4.5" data-track-index="0">
+    <img class="still" id="s4img" src="assets/dashboard.png" alt="" data-layout-allow-overflow />
+    <div class="vig"></div>
+    <div class="ovl">
+      <div class="tag" id="s4t">The desktop app</div>
+      <div class="big" id="s4b">A research <em>cockpit</em>,<br>not a slot machine.</div>
+    </div>
+  </div>
 
-      window.__timelines["main"] = tl;
-    </script>
-  </body>
+  <!-- S5 — CTA -->
+  <div class="scene clip" id="s5" data-start="18.5" data-duration="4.5" data-track-index="0">
+    <div class="pad" style="justify-content:center">
+      <div class="wm" id="s5wm">una<i>betting</i></div>
+      <div class="ctas" id="s5c">Open-source · leak-free · brutally honest.</div>
+      <div class="url" id="s5u">github.com/SandroHub013/UnaBetting</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+window.__timelines = window.__timelines || {};
+const tl = gsap.timeline({ paused: true });
+const E = "expo.out", P = "power3.out";
+
+/* helper: count a number element up */
+function countUp(sel, to, at, dur){
+  const el = document.querySelector(sel); const o = {v:0};
+  tl.to(o, {v:to, duration:dur, ease:"power2.out",
+    onUpdate:()=>{ el.textContent = o.v.toFixed(1)+'%'; }}, at);
+}
+
+/* S1 */
+tl.from("#s1k", {y:24, opacity:0, duration:.7, ease:P}, .15);
+tl.from("#s1a", {yPercent:115, duration:.9, ease:E}, .35);
+tl.from("#s1b", {yPercent:115, duration:.9, ease:E}, .5);
+
+/* S2 — fade scene in, stagger labels, count numbers */
+tl.from("#s2", {opacity:0, duration:.5, ease:"power2.out"}, 4.5);
+tl.from("#s2w1", {y:30, opacity:0, duration:.6, ease:P}, 4.75);
+tl.from("#s2n1", {y:50, opacity:0, duration:.7, ease:E}, 4.85);
+countUp("#s2n1", 66.3, 4.95, 1.1);
+tl.from("#s2w2", {y:30, opacity:0, duration:.6, ease:P}, 5.15);
+tl.from("#s2n2", {y:50, opacity:0, duration:.7, ease:E}, 5.25);
+countUp("#s2n2", 67.7, 5.35, 1.2);
+tl.from("#s2note", {opacity:0, y:20, duration:.7, ease:"power2.out"}, 6.9);
+
+/* S3 — fade in, ken burns, overlay */
+tl.from("#s3", {opacity:0, duration:.6, ease:"power2.out"}, 9.2);
+tl.fromTo("#s3img", {scale:1.0, transformOrigin:"50% 45%"}, {scale:1.12, duration:4.8, ease:"none"}, 9.2);
+tl.from("#s3t", {x:-30, opacity:0, duration:.6, ease:P}, 9.7);
+tl.from("#s3b", {y:40, opacity:0, duration:.8, ease:E}, 9.9);
+
+/* S4 */
+tl.from("#s4", {opacity:0, duration:.6, ease:"power2.out"}, 14);
+tl.fromTo("#s4img", {scale:1.0, transformOrigin:"50% 50%"}, {scale:1.1, duration:4.5, ease:"none"}, 14);
+tl.from("#s4t", {x:-30, opacity:0, duration:.6, ease:P}, 14.5);
+tl.from("#s4b", {y:40, opacity:0, duration:.8, ease:E}, 14.7);
+
+/* S5 — CTA, then fade to black (final scene only) */
+tl.from("#s5", {opacity:0, duration:.6, ease:"power2.out"}, 18.5);
+tl.from("#s5wm", {scale:.9, opacity:0, duration:.9, ease:E}, 18.8);
+tl.from("#s5c", {y:24, opacity:0, duration:.6, ease:P}, 19.3);
+tl.from("#s5u", {opacity:0, duration:.7, ease:"power2.out"}, 19.7);
+tl.to("#s5", {opacity:0, duration:.7, ease:"power2.in"}, 22.3);
+
+window.__timelines["main"] = tl;
+</script>
+</body>
 </html>

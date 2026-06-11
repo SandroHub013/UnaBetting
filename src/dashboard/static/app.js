@@ -1,6 +1,176 @@
 /* MISSION_CONTROL — IDE-style frontend. Vanilla JS, no build step. */
 'use strict';
 
+/* ================= I18N ================= */
+const LANGS = [['it', '🇮🇹 Italiano'], ['en', '🇬🇧 English'], ['es', '🇪🇸 Español'],
+               ['fr', '🇫🇷 Français'], ['de', '🇩🇪 Deutsch']];
+const I18N = {
+  it: {
+    act_cockpit: 'Cockpit dati', act_os: 'UnaBettingOS — memoria agentica', act_graph: 'Knowledge graph 3D',
+    act_browser: 'Browser web agentico', act_explorer: 'Esplora progetto', act_pipeline: 'Pipeline',
+    act_loops: 'Loop autoevolutivi', act_docs: 'Documentazione', act_config: 'Config',
+    t_cockpit: 'Cockpit', t_os: 'UnaBettingOS', t_graph: 'Knowledge graph', t_browser: 'Browser web',
+    t_explorer: 'Esplora progetto', t_pipeline: 'Pipeline', t_loops: 'Loop autoevolutivi',
+    t_docs: 'Documentazione', t_config: 'Config',
+    s_data_actions: 'Dati & azioni', s_memory: 'Memoria & conoscenza', s_live: 'Live',
+    s_pipeline_dm: 'Pipeline dati/modello', s_shortcuts: 'Scorciatoie', s_brain: 'Cervello',
+    s_runlogs: 'Log run (reports/loops)', s_root: 'Radice', s_obsidian: 'Obsidian',
+    overview: 'Overview', signals: 'Segnali', bets: 'Bet', quotes: 'Quote',
+    bankroll: 'Bankroll', profit: 'Profit', winrate: 'Win rate', open_bets: 'Bet aperte',
+    decisions: 'Decisioni', model: 'Modello', accuracy: 'Accuracy', vs_market: 'vs Mercato',
+    last_train: 'Train', match: 'Match', when: 'Quando', edge: 'Edge', odds: 'Quota',
+    stake: 'Stake €', status: 'Status', record: 'Record', yield_: 'Yield',
+    sec_bank: 'Banca', sec_model: 'Modello', sub_honest: 'onesta, leak-free', sub_market: 'favorito B365 — da battere', sub_train: 'TennisLoopNightly 07:13',
+    c_edgedist: 'Distribuzione edge — ultime {n} decisioni', c_today: 'Match nel feed (ultimo snapshot)', c_traj: 'Traiettoria modello — accuracy & log loss', c_permodel: 'Accuracy per modello (run corrente)',
+    tournament: 'Torneo', surface: 'Sup.', side: 'Side', conf: 'Conf.', player: 'Puntata su', book: 'Book', takenodds: 'Quota presa', outcome: 'Esito', modelprob: 'p modello', bankroll_after: 'Bankroll €', profit_eur: 'Profit €',
+    allstatus: 'tutti gli status', st_pending: 'pending', st_won: 'vinta', st_lost: 'persa',
+    betmatch_ph: 'Match (es. Sinner vs Alcaraz)', betplayer_ph: 'Puntata su (giocatore)', betodds_ph: 'Quota', betstake_ph: 'Stake €', betnotes_ph: 'Note / bookmaker (opzionale)', bet_add: '+ registra', equity: 'Equity curve — bankroll dopo ogni bet risolta', bet_won: '✓ vinta', bet_lost: '✗ persa', undo: '↩',
+    f_edgepos: 'solo edge > 0', f_lowconf: 'escludi low-conf', f_clvpos: 'solo CLV positivo',
+    ready: 'pronto', running: 'in esecuzione:', finished: 'terminato (exit', errw: 'errore', copyout: 'copia output', copied: 'output copiato', copyfail: 'copia fallita', loading: 'carico…', links_l: 'Link:', nodata: 'nessun dato', rows_l: 'righe', choosematch: '— scegli match —', snap_l: 'snapshot:', nosnap: 'nessuno snapshot',
+    q_today: 'quali sono i match di oggi?', q_sig: 'ultimi segnali del modello?', q_model: 'com’è messo il modello?', q_bank: 'stato del bankroll?', q_vault: 'cerca nel vault: perché il backtest dava 85%?', q_graphelo: 'interroga il grafo: EloRating', q_remember: 'ricorda che: ', q_recall: 'cosa ti ho chiesto di ricordare?',
+    note_os: '<b>UnaBettingOS</b> — centro di memoria agentica. Modello locale <b>qwen3.5:9b</b> via Ollama. Collegato a: dati live, vault Obsidian, knowledge graph, memoria persistente.', note_memfile: 'La memoria vive in docs/obsidian/UnaBettingOS_Memoria.md — versionata con git.', note_cold: 'Nota: la prima risposta a freddo carica il modello in VRAM (~1-2 min); poi resta caldo.',
+    scanlive: '⚡ scan match live', note_scan: 'scarica quote fresche (the-odds-api, consuma crediti) e fa girare modello + news. Risultati nel tab Segnali.', stopb: '■ stop', note_ponly: 'Output nel tab "Pipeline". Solo comandi whitelisted: il resto passa dai terminali.',
+    note_browser: 'Browser agentico: apri URL, leggi il contenuto, segui i link. Anche l\'agente UnaBettingOS può navigare (tool browse_web).', brurl_ph: 'url o dominio…', brback: 'indietro', note_graph: 'Il grafo del progetto (graphify): nodi-stella colorati per community, 3D. Trascina per ruotare, scroll per zoom, click su un nodo per il focus.',
+    l_exp: 'EXPERIMENTS.md', l_nightly: 'loop notturno', l_weekly: 'loop settimanale', l_metrics: 'storico metriche', loops_none: 'nessuna run ancora',
+    term_label: 'TERMINALE', vibe_hint: 'agente a scelta, in tmux su WSL (la sessione sopravvive alla chiusura del tab)',
+    upd_title: 'Aggiornamento disponibile', upd_btn: 'Aggiorna ora', upd_later: 'Più tardi', upd_doing: 'aggiornamento…', upd_done: 'Aggiornato ✓ — riavvia l\'app per applicare', upd_fail: 'Aggiornamento fallito', upd_restart: 'Riavvia app',
+    chat_intro: "Sono <b>UnaBettingOS</b> — memoria e intelligenza agentica dell'app (qwen3.5:9b, locale). Dati live, vault Obsidian, knowledge graph e memoria persistente: chiedimi dei match, del modello, della storia del progetto — o dimmi \"ricorda che…\".",
+    chat_ph: 'scrivi… (Invio per inviare)', open_graph: 'apri il grafo 3D', go: 'vai',
+    filter: '⌕ filtra…', register_bet: 'Registra una bet', save: 'Salva',
+  },
+  en: {
+    act_cockpit: 'Data cockpit', act_os: 'UnaBettingOS — agentic memory', act_graph: '3D knowledge graph',
+    act_browser: 'Agentic web browser', act_explorer: 'Project explorer', act_pipeline: 'Pipeline',
+    act_loops: 'Self-evolving loops', act_docs: 'Documentation', act_config: 'Config',
+    t_cockpit: 'Cockpit', t_os: 'UnaBettingOS', t_graph: 'Knowledge graph', t_browser: 'Web browser',
+    t_explorer: 'Project explorer', t_pipeline: 'Pipeline', t_loops: 'Self-evolving loops',
+    t_docs: 'Documentation', t_config: 'Config',
+    s_data_actions: 'Data & actions', s_memory: 'Memory & knowledge', s_live: 'Live',
+    s_pipeline_dm: 'Data/model pipeline', s_shortcuts: 'Shortcuts', s_brain: 'Brain',
+    s_runlogs: 'Run logs (reports/loops)', s_root: 'Root', s_obsidian: 'Obsidian',
+    overview: 'Overview', signals: 'Signals', bets: 'Bets', quotes: 'Odds',
+    bankroll: 'Bankroll', profit: 'Profit', winrate: 'Win rate', open_bets: 'Open bets',
+    decisions: 'Decisions', model: 'Model', accuracy: 'Accuracy', vs_market: 'vs Market',
+    last_train: 'Train', match: 'Match', when: 'When', edge: 'Edge', odds: 'Odds',
+    stake: 'Stake €', status: 'Status', record: 'Record', yield_: 'Yield',
+    sec_bank: 'Bank', sec_model: 'Model', sub_honest: 'honest, leak-free', sub_market: 'B365 favourite — to beat', sub_train: 'TennisLoopNightly 07:13',
+    c_edgedist: 'Edge distribution — last {n} decisions', c_today: 'Matches in feed (latest snapshot)', c_traj: 'Model trajectory — accuracy & log loss', c_permodel: 'Accuracy per model (current run)',
+    tournament: 'Tournament', surface: 'Surf.', side: 'Side', conf: 'Conf.', player: 'Bet on', book: 'Book', takenodds: 'Taken odds', outcome: 'Outcome', modelprob: 'model p', bankroll_after: 'Bankroll €', profit_eur: 'Profit €',
+    allstatus: 'all statuses', st_pending: 'pending', st_won: 'won', st_lost: 'lost',
+    betmatch_ph: 'Match (e.g. Sinner vs Alcaraz)', betplayer_ph: 'Bet on (player)', betodds_ph: 'Odds', betstake_ph: 'Stake €', betnotes_ph: 'Notes / bookmaker (optional)', bet_add: '+ log', equity: 'Equity curve — bankroll after each settled bet', bet_won: '✓ won', bet_lost: '✗ lost', undo: '↩',
+    f_edgepos: 'edge > 0 only', f_lowconf: 'exclude low-conf', f_clvpos: 'positive CLV only',
+    ready: 'ready', running: 'running:', finished: 'finished (exit', errw: 'error', copyout: 'copy output', copied: 'output copied', copyfail: 'copy failed', loading: 'loading…', links_l: 'Links:', nodata: 'no data', rows_l: 'rows', choosematch: '— choose match —', snap_l: 'snapshot:', nosnap: 'no snapshot',
+    q_today: 'what are today’s matches?', q_sig: 'latest model signals?', q_model: 'how is the model doing?', q_bank: 'bankroll status?', q_vault: 'search the vault: why did the backtest show 85%?', q_graphelo: 'query the graph: EloRating', q_remember: 'remember that: ', q_recall: 'what did I ask you to remember?',
+    note_os: '<b>UnaBettingOS</b> — agentic memory hub. Local model <b>qwen3.5:9b</b> via Ollama. Wired to: live data, Obsidian vault, knowledge graph, persistent memory.', note_memfile: 'Memory lives in docs/obsidian/UnaBettingOS_Memoria.md — git-versioned.', note_cold: 'Note: the first cold reply loads the model into VRAM (~1-2 min); then it stays warm.',
+    scanlive: '⚡ scan live matches', note_scan: 'fetches fresh odds (the-odds-api, uses credits) and runs model + news. Results in the Signals tab.', stopb: '■ stop', note_ponly: 'Output in the "Pipeline" tab. Whitelisted commands only: everything else goes through the terminals.',
+    note_browser: 'Agentic browser: open a URL, read the content, follow links. UnaBettingOS can browse too (browse_web tool).', brurl_ph: 'url or domain…', brback: 'back', note_graph: 'The project graph (graphify): star nodes colored by community, 3D. Drag to rotate, scroll to zoom, click a node to focus.',
+    l_exp: 'EXPERIMENTS.md', l_nightly: 'nightly loop', l_weekly: 'weekly loop', l_metrics: 'metrics history', loops_none: 'no runs yet',
+    term_label: 'TERMINAL', vibe_hint: 'pick an agent, in tmux on WSL (the session survives closing the tab)',
+    upd_title: 'Update available', upd_btn: 'Update now', upd_later: 'Later', upd_doing: 'updating…', upd_done: 'Updated ✓ — restart the app to apply', upd_fail: 'Update failed', upd_restart: 'Restart app',
+    chat_intro: "I'm <b>UnaBettingOS</b> — the app's agentic memory & intelligence (qwen3.5:9b, local). Live data, Obsidian vault, knowledge graph and persistent memory: ask me about matches, the model, the project's history — or say \"remember that…\".",
+    chat_ph: 'type… (Enter to send)', open_graph: 'open the 3D graph', go: 'go',
+    filter: '⌕ filter…', register_bet: 'Log a bet', save: 'Save',
+  },
+  es: {
+    act_cockpit: 'Panel de datos', act_os: 'UnaBettingOS — memoria agéntica', act_graph: 'Grafo 3D',
+    act_browser: 'Navegador web agéntico', act_explorer: 'Explorador del proyecto', act_pipeline: 'Pipeline',
+    act_loops: 'Bucles autoevolutivos', act_docs: 'Documentación', act_config: 'Config',
+    t_cockpit: 'Panel', t_os: 'UnaBettingOS', t_graph: 'Grafo de conocimiento', t_browser: 'Navegador',
+    t_explorer: 'Explorador', t_pipeline: 'Pipeline', t_loops: 'Bucles', t_docs: 'Documentación', t_config: 'Config',
+    s_data_actions: 'Datos y acciones', s_memory: 'Memoria y conocimiento', s_live: 'En vivo',
+    s_pipeline_dm: 'Pipeline datos/modelo', s_shortcuts: 'Atajos', s_brain: 'Cerebro',
+    s_runlogs: 'Logs (reports/loops)', s_root: 'Raíz', s_obsidian: 'Obsidian',
+    overview: 'Resumen', signals: 'Señales', bets: 'Apuestas', quotes: 'Cuotas',
+    bankroll: 'Bankroll', profit: 'Beneficio', winrate: 'Aciertos', open_bets: 'Apuestas abiertas',
+    decisions: 'Decisiones', model: 'Modelo', accuracy: 'Precisión', vs_market: 'vs Mercado',
+    last_train: 'Train', match: 'Partido', when: 'Cuándo', edge: 'Edge', odds: 'Cuota',
+    stake: 'Stake €', status: 'Estado', record: 'Récord', yield_: 'Yield',
+    sec_bank: 'Banca', sec_model: 'Modelo', sub_honest: 'honesta, sin fugas', sub_market: 'favorito B365 — a batir', sub_train: 'TennisLoopNightly 07:13',
+    c_edgedist: 'Distribución de edge — últimas {n} decisiones', c_today: 'Partidos en el feed (último snapshot)', c_traj: 'Trayectoria del modelo — accuracy y log loss', c_permodel: 'Accuracy por modelo (run actual)',
+    tournament: 'Torneo', surface: 'Sup.', side: 'Lado', conf: 'Conf.', player: 'Apuesta a', book: 'Casa', takenodds: 'Cuota tomada', outcome: 'Resultado', modelprob: 'p modelo', bankroll_after: 'Bankroll €', profit_eur: 'Beneficio €',
+    allstatus: 'todos los estados', st_pending: 'pendiente', st_won: 'ganada', st_lost: 'perdida',
+    betmatch_ph: 'Partido (ej. Sinner vs Alcaraz)', betplayer_ph: 'Apuesta a (jugador)', betodds_ph: 'Cuota', betstake_ph: 'Stake €', betnotes_ph: 'Notas / casa (opcional)', bet_add: '+ registrar', equity: 'Curva de equity — bankroll tras cada apuesta resuelta', bet_won: '✓ ganada', bet_lost: '✗ perdida', undo: '↩',
+    f_edgepos: 'solo edge > 0', f_lowconf: 'excluir low-conf', f_clvpos: 'solo CLV positivo',
+    ready: 'listo', running: 'ejecutando:', finished: 'terminado (exit', errw: 'error', copyout: 'copiar salida', copied: 'salida copiada', copyfail: 'copia fallida', loading: 'cargando…', links_l: 'Enlaces:', nodata: 'sin datos', rows_l: 'filas', choosematch: '— elige partido —', snap_l: 'snapshot:', nosnap: 'sin snapshot',
+    q_today: '¿qué partidos hay hoy?', q_sig: '¿últimas señales del modelo?', q_model: '¿cómo está el modelo?', q_bank: '¿estado del bankroll?', q_vault: 'busca en el vault: ¿por qué el backtest daba 85%?', q_graphelo: 'consulta el grafo: EloRating', q_remember: 'recuerda que: ', q_recall: '¿qué te pedí recordar?',
+    note_os: '<b>UnaBettingOS</b> — centro de memoria agéntica. Modelo local <b>qwen3.5:9b</b> vía Ollama. Conectado a: datos en vivo, vault Obsidian, grafo de conocimiento, memoria persistente.', note_memfile: 'La memoria vive en docs/obsidian/UnaBettingOS_Memoria.md — versionada con git.', note_cold: 'Nota: la primera respuesta en frío carga el modelo en VRAM (~1-2 min); luego queda caliente.',
+    scanlive: '⚡ escanear partidos en vivo', note_scan: 'descarga cuotas frescas (the-odds-api, consume créditos) y ejecuta modelo + news. Resultados en la pestaña Señales.', stopb: '■ parar', note_ponly: 'Salida en la pestaña "Pipeline". Solo comandos en whitelist: el resto va por los terminales.',
+    note_browser: 'Navegador agéntico: abre una URL, lee el contenido, sigue enlaces. UnaBettingOS también puede navegar (herramienta browse_web).', brurl_ph: 'url o dominio…', brback: 'atrás', note_graph: 'El grafo del proyecto (graphify): nodos-estrella coloreados por comunidad, 3D. Arrastra para rotar, scroll para zoom, clic en un nodo para enfocar.',
+    l_exp: 'EXPERIMENTS.md', l_nightly: 'bucle nocturno', l_weekly: 'bucle semanal', l_metrics: 'historial de métricas', loops_none: 'aún sin runs',
+    term_label: 'TERMINAL', vibe_hint: 'elige un agente, en tmux sobre WSL (la sesión sobrevive al cierre de la pestaña)',
+    upd_title: 'Actualización disponible', upd_btn: 'Actualizar ahora', upd_later: 'Más tarde', upd_doing: 'actualizando…', upd_done: 'Actualizado ✓ — reinicia la app para aplicar', upd_fail: 'Actualización fallida', upd_restart: 'Reiniciar app',
+    chat_intro: "Soy <b>UnaBettingOS</b> — memoria e inteligencia agéntica de la app (qwen3.5:9b, local). Datos en vivo, vault Obsidian, grafo de conocimiento y memoria persistente: pregúntame por los partidos, el modelo o la historia del proyecto — o di \"recuerda que…\".",
+    chat_ph: 'escribe… (Intro para enviar)', open_graph: 'abrir el grafo 3D', go: 'ir',
+    filter: '⌕ filtrar…', register_bet: 'Registrar apuesta', save: 'Guardar',
+  },
+  fr: {
+    act_cockpit: 'Cockpit de données', act_os: 'UnaBettingOS — mémoire agentique', act_graph: 'Graphe 3D',
+    act_browser: 'Navigateur web agentique', act_explorer: 'Explorateur du projet', act_pipeline: 'Pipeline',
+    act_loops: 'Boucles auto-évolutives', act_docs: 'Documentation', act_config: 'Config',
+    t_cockpit: 'Cockpit', t_os: 'UnaBettingOS', t_graph: 'Graphe de connaissances', t_browser: 'Navigateur',
+    t_explorer: 'Explorateur', t_pipeline: 'Pipeline', t_loops: 'Boucles', t_docs: 'Documentation', t_config: 'Config',
+    s_data_actions: 'Données & actions', s_memory: 'Mémoire & connaissances', s_live: 'En direct',
+    s_pipeline_dm: 'Pipeline données/modèle', s_shortcuts: 'Raccourcis', s_brain: 'Cerveau',
+    s_runlogs: 'Logs (reports/loops)', s_root: 'Racine', s_obsidian: 'Obsidian',
+    overview: 'Aperçu', signals: 'Signaux', bets: 'Paris', quotes: 'Cotes',
+    bankroll: 'Bankroll', profit: 'Profit', winrate: 'Taux de gain', open_bets: 'Paris ouverts',
+    decisions: 'Décisions', model: 'Modèle', accuracy: 'Précision', vs_market: 'vs Marché',
+    last_train: 'Train', match: 'Match', when: 'Quand', edge: 'Edge', odds: 'Cote',
+    stake: 'Mise €', status: 'Statut', record: 'Bilan', yield_: 'Yield',
+    sec_bank: 'Banque', sec_model: 'Modèle', sub_honest: 'honnête, sans fuite', sub_market: 'favori B365 — à battre', sub_train: 'TennisLoopNightly 07:13',
+    c_edgedist: 'Distribution de l\'edge — {n} dernières décisions', c_today: 'Matchs dans le feed (dernier snapshot)', c_traj: 'Trajectoire du modèle — accuracy & log loss', c_permodel: 'Accuracy par modèle (run actuel)',
+    tournament: 'Tournoi', surface: 'Surf.', side: 'Côté', conf: 'Conf.', player: 'Parié sur', book: 'Book', takenodds: 'Cote prise', outcome: 'Résultat', modelprob: 'p modèle', bankroll_after: 'Bankroll €', profit_eur: 'Profit €',
+    allstatus: 'tous les statuts', st_pending: 'en attente', st_won: 'gagné', st_lost: 'perdu',
+    betmatch_ph: 'Match (ex. Sinner vs Alcaraz)', betplayer_ph: 'Parié sur (joueur)', betodds_ph: 'Cote', betstake_ph: 'Mise €', betnotes_ph: 'Notes / bookmaker (optionnel)', bet_add: '+ enregistrer', equity: 'Courbe d\'equity — bankroll après chaque pari réglé', bet_won: '✓ gagné', bet_lost: '✗ perdu', undo: '↩',
+    f_edgepos: 'edge > 0 seulement', f_lowconf: 'exclure low-conf', f_clvpos: 'CLV positif seulement',
+    ready: 'prêt', running: 'en cours :', finished: 'terminé (exit', errw: 'erreur', copyout: 'copier la sortie', copied: 'sortie copiée', copyfail: 'échec copie', loading: 'chargement…', links_l: 'Liens :', nodata: 'aucune donnée', rows_l: 'lignes', choosematch: '— choisir un match —', snap_l: 'snapshot :', nosnap: 'aucun snapshot',
+    q_today: 'quels sont les matchs du jour ?', q_sig: 'derniers signaux du modèle ?', q_model: 'comment va le modèle ?', q_bank: 'état du bankroll ?', q_vault: 'cherche dans le vault : pourquoi le backtest donnait 85% ?', q_graphelo: 'interroge le graphe : EloRating', q_remember: 'souviens-toi que : ', q_recall: 'que t\'ai-je demandé de retenir ?',
+    note_os: '<b>UnaBettingOS</b> — centre de mémoire agentique. Modèle local <b>qwen3.5:9b</b> via Ollama. Connecté à : données en direct, vault Obsidian, graphe de connaissances, mémoire persistante.', note_memfile: 'La mémoire vit dans docs/obsidian/UnaBettingOS_Memoria.md — versionnée avec git.', note_cold: 'Note : la première réponse à froid charge le modèle en VRAM (~1-2 min) ; ensuite il reste chaud.',
+    scanlive: '⚡ scanner les matchs en direct', note_scan: 'télécharge des cotes fraîches (the-odds-api, consomme des crédits) et lance modèle + news. Résultats dans l\'onglet Signaux.', stopb: '■ stop', note_ponly: 'Sortie dans l\'onglet "Pipeline". Commandes whitelistées seulement : le reste passe par les terminaux.',
+    note_browser: 'Navigateur agentique : ouvre une URL, lis le contenu, suis les liens. UnaBettingOS peut aussi naviguer (outil browse_web).', brurl_ph: 'url ou domaine…', brback: 'retour', note_graph: 'Le graphe du projet (graphify) : nœuds-étoiles colorés par communauté, 3D. Glisser pour tourner, molette pour zoomer, clic sur un nœud pour focaliser.',
+    l_exp: 'EXPERIMENTS.md', l_nightly: 'boucle nocturne', l_weekly: 'boucle hebdo', l_metrics: 'historique des métriques', loops_none: 'aucun run pour l\'instant',
+    term_label: 'TERMINAL', vibe_hint: 'choisis un agent, en tmux sur WSL (la session survit à la fermeture de l\'onglet)',
+    upd_title: 'Mise à jour disponible', upd_btn: 'Mettre à jour', upd_later: 'Plus tard', upd_doing: 'mise à jour…', upd_done: 'Mis à jour ✓ — redémarre l\'app pour appliquer', upd_fail: 'Échec de la mise à jour', upd_restart: 'Redémarrer',
+    chat_intro: "Je suis <b>UnaBettingOS</b> — la mémoire et l'intelligence agentique de l'app (qwen3.5:9b, local). Données en direct, vault Obsidian, graphe de connaissances et mémoire persistante : demande-moi les matchs, le modèle, l'historique du projet — ou dis \"souviens-toi que…\".",
+    chat_ph: 'écris… (Entrée pour envoyer)', open_graph: 'ouvrir le graphe 3D', go: 'aller',
+    filter: '⌕ filtrer…', register_bet: 'Enregistrer un pari', save: 'Enregistrer',
+  },
+  de: {
+    act_cockpit: 'Daten-Cockpit', act_os: 'UnaBettingOS — agentisches Gedächtnis', act_graph: '3D-Wissensgraph',
+    act_browser: 'Agentischer Webbrowser', act_explorer: 'Projekt-Explorer', act_pipeline: 'Pipeline',
+    act_loops: 'Selbst-evolvierende Loops', act_docs: 'Dokumentation', act_config: 'Config',
+    t_cockpit: 'Cockpit', t_os: 'UnaBettingOS', t_graph: 'Wissensgraph', t_browser: 'Browser',
+    t_explorer: 'Explorer', t_pipeline: 'Pipeline', t_loops: 'Loops', t_docs: 'Dokumentation', t_config: 'Config',
+    s_data_actions: 'Daten & Aktionen', s_memory: 'Gedächtnis & Wissen', s_live: 'Live',
+    s_pipeline_dm: 'Daten/Modell-Pipeline', s_shortcuts: 'Verknüpfungen', s_brain: 'Gehirn',
+    s_runlogs: 'Run-Logs (reports/loops)', s_root: 'Wurzel', s_obsidian: 'Obsidian',
+    overview: 'Übersicht', signals: 'Signale', bets: 'Wetten', quotes: 'Quoten',
+    bankroll: 'Bankroll', profit: 'Gewinn', winrate: 'Trefferquote', open_bets: 'Offene Wetten',
+    decisions: 'Entscheidungen', model: 'Modell', accuracy: 'Genauigkeit', vs_market: 'vs Markt',
+    last_train: 'Train', match: 'Match', when: 'Wann', edge: 'Edge', odds: 'Quote',
+    stake: 'Einsatz €', status: 'Status', record: 'Bilanz', yield_: 'Yield',
+    sec_bank: 'Bank', sec_model: 'Modell', sub_honest: 'ehrlich, leak-frei', sub_market: 'B365-Favorit — zu schlagen', sub_train: 'TennisLoopNightly 07:13',
+    c_edgedist: 'Edge-Verteilung — letzte {n} Entscheidungen', c_today: 'Matches im Feed (letzter Snapshot)', c_traj: 'Modell-Verlauf — Accuracy & Log Loss', c_permodel: 'Accuracy je Modell (aktueller Run)',
+    tournament: 'Turnier', surface: 'Belag', side: 'Seite', conf: 'Konf.', player: 'Wette auf', book: 'Buchm.', takenodds: 'Genommene Quote', outcome: 'Ergebnis', modelprob: 'Modell-p', bankroll_after: 'Bankroll €', profit_eur: 'Gewinn €',
+    allstatus: 'alle Status', st_pending: 'offen', st_won: 'gewonnen', st_lost: 'verloren',
+    betmatch_ph: 'Match (z.B. Sinner vs Alcaraz)', betplayer_ph: 'Wette auf (Spieler)', betodds_ph: 'Quote', betstake_ph: 'Einsatz €', betnotes_ph: 'Notizen / Buchmacher (optional)', bet_add: '+ eintragen', equity: 'Equity-Kurve — Bankroll nach jeder abgerechneten Wette', bet_won: '✓ gewonnen', bet_lost: '✗ verloren', undo: '↩',
+    f_edgepos: 'nur Edge > 0', f_lowconf: 'low-conf ausschließen', f_clvpos: 'nur positives CLV',
+    ready: 'bereit', running: 'läuft:', finished: 'beendet (exit', errw: 'Fehler', copyout: 'Ausgabe kopieren', copied: 'Ausgabe kopiert', copyfail: 'Kopie fehlgeschlagen', loading: 'lädt…', links_l: 'Links:', nodata: 'keine Daten', rows_l: 'Zeilen', choosematch: '— Match wählen —', snap_l: 'Snapshot:', nosnap: 'kein Snapshot',
+    q_today: 'welche Matches sind heute?', q_sig: 'neueste Modell-Signale?', q_model: 'wie steht das Modell?', q_bank: 'Bankroll-Status?', q_vault: 'durchsuche das Vault: warum zeigte der Backtest 85%?', q_graphelo: 'frage den Graphen ab: EloRating', q_remember: 'merke dir, dass: ', q_recall: 'was solltest du dir merken?',
+    note_os: '<b>UnaBettingOS</b> — agentische Gedächtniszentrale. Lokales Modell <b>qwen3.5:9b</b> via Ollama. Verbunden mit: Live-Daten, Obsidian-Vault, Wissensgraph, persistentem Gedächtnis.', note_memfile: 'Das Gedächtnis liegt in docs/obsidian/UnaBettingOS_Memoria.md — git-versioniert.', note_cold: 'Hinweis: die erste Kaltantwort lädt das Modell in den VRAM (~1-2 Min); danach bleibt es warm.',
+    scanlive: '⚡ Live-Matches scannen', note_scan: 'holt frische Quoten (the-odds-api, verbraucht Credits) und führt Modell + News aus. Ergebnisse im Tab Signale.', stopb: '■ stopp', note_ponly: 'Ausgabe im Tab "Pipeline". Nur Whitelist-Befehle: alles andere über die Terminals.',
+    note_browser: 'Agentischer Browser: URL öffnen, Inhalt lesen, Links folgen. UnaBettingOS kann auch browsen (browse_web-Tool).', brurl_ph: 'url oder Domain…', brback: 'zurück', note_graph: 'Der Projektgraph (graphify): Stern-Knoten nach Community gefärbt, 3D. Ziehen zum Drehen, Scrollen zum Zoomen, Klick auf einen Knoten zum Fokussieren.',
+    l_exp: 'EXPERIMENTS.md', l_nightly: 'Nightly-Loop', l_weekly: 'Weekly-Loop', l_metrics: 'Metrik-Historie', loops_none: 'noch keine Runs',
+    term_label: 'TERMINAL', vibe_hint: 'wähle einen Agenten, in tmux auf WSL (die Session überlebt das Schließen des Tabs)',
+    upd_title: 'Update verfügbar', upd_btn: 'Jetzt aktualisieren', upd_later: 'Später', upd_doing: 'aktualisiere…', upd_done: 'Aktualisiert ✓ — App neu starten zum Anwenden', upd_fail: 'Update fehlgeschlagen', upd_restart: 'App neu starten',
+    chat_intro: "Ich bin <b>UnaBettingOS</b> — das agentische Gedächtnis & die Intelligenz der App (qwen3.5:9b, lokal). Live-Daten, Obsidian-Vault, Wissensgraph und persistentes Gedächtnis: frag mich nach Matches, dem Modell, der Projektgeschichte — oder sag \"merke dir, dass…\".",
+    chat_ph: 'schreiben… (Enter zum Senden)', open_graph: '3D-Graph öffnen', go: 'los',
+    filter: '⌕ filtern…', register_bet: 'Wette eintragen', save: 'Speichern',
+  },
+};
+let LANG = localStorage.getItem('mc-lang') || 'en';
+const t = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
+
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, html) => {
   const e = document.createElement(tag);
@@ -79,7 +249,7 @@ function makeTable(container, cols, rows, opts = {}) {
   container.innerHTML = '';
   const bar = el('div', 'table-toolbar');
   const inp = el('input', 'tbl-search');
-  inp.type = 'search'; inp.placeholder = '⌕ filtra…';
+  inp.type = 'search'; inp.placeholder = t('filter');
   inp.oninput = () => { state.query = inp.value.toLowerCase(); draw(); };
   bar.appendChild(inp);
   (opts.controls || []).forEach(c => { bar.appendChild(c.el); c.onChange = draw; });
@@ -114,8 +284,8 @@ function makeTable(container, cols, rows, opts = {}) {
 
   function draw() {
     const data = visibleRows();
-    count.textContent = `${data.length}/${rows.length} righe`;
-    if (!rows.length) { table.innerHTML = '<tr><td class="dim">nessun dato</td></tr>'; return; }
+    count.textContent = `${data.length}/${rows.length} ${t('rows_l')}`;
+    if (!rows.length) { table.innerHTML = `<tr><td class="dim">${t('nodata')}</td></tr>`; return; }
     const head = '<tr>' + cols.map(c => {
       const sorted = state.sortKey === c.key;
       const arrow = sorted ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
@@ -177,9 +347,9 @@ const THEMES = [
   ['batman', '🦇 Batman'], ['hitman', '♠ Hitman'], ['diablo', '🔥 Diablo IV'],
 ];
 
-function applyTheme(t) {
-  document.documentElement.dataset.theme = t;
-  localStorage.setItem('mc-theme', t);
+function applyTheme(th) {
+  document.documentElement.dataset.theme = th;
+  localStorage.setItem('mc-theme', th);
   refreshThemeColors();
   // terminali aperti: aggiorna i colori al volo
   Object.values(terms).forEach(x => {
@@ -205,33 +375,33 @@ const PANELS = {
     ]);
     const c = mo.current || {};
     pane.innerHTML = `<div class="pane-pad dash">
-      <div class="section-bar">Banca <small>betanalytix.db</small></div>
+      <div class="section-bar">${t('sec_bank')} <small>betanalytix.db</small></div>
       <div class="blk-row">
-        ${blk('Bankroll', d.bankroll !== null ? '€' + fmt(d.bankroll, 0) : '—', 'ink')}
-        ${blk('Profit', '€' + fmt(d.total_profit, 0), d.total_profit < 0 ? 'alarm' : 'grass')}
+        ${blk(t('bankroll'), d.bankroll !== null ? '€' + fmt(d.bankroll, 0) : '—', 'ink')}
+        ${blk(t('profit'), '€' + fmt(d.total_profit, 0), d.total_profit < 0 ? 'alarm' : 'grass')}
         ${blk('ROI', d.roi_pct !== null ? fmt(d.roi_pct, 1) + '%' : '—', '')}
-        ${blk('Win rate', d.win_rate !== null ? fmt(d.win_rate, 0) + '%' : '—', '')}
-        ${blk('Bet aperte', d.bets_open, 'sun')}
-        ${blk('Decisioni', d.decisions, '', 'ultimo scan ' + dt(d.last_scan))}
+        ${blk(t('winrate'), d.win_rate !== null ? fmt(d.win_rate, 0) + '%' : '—', '')}
+        ${blk(t('open_bets'), d.bets_open, 'sun')}
+        ${blk(t('decisions'), d.decisions, '', t('snap_l') + ' ' + dt(d.last_scan))}
       </div>
-      <div class="section-bar">Modello <small>${c.best_model || '—'} · test 2025+</small></div>
+      <div class="section-bar">${t('sec_model')} <small>${c.best_model || '—'} · test 2025+</small></div>
       <div class="blk-row">
-        ${blk('Accuracy', c.accuracy ? (c.accuracy * 100).toFixed(1) + '%' : '—', 'grass', 'onesta, leak-free')}
-        ${blk('vs Mercato', (mo.market_baseline * 100).toFixed(1) + '%', 'clay', 'favorito B365 — da battere')}
+        ${blk(t('accuracy'), c.accuracy ? (c.accuracy * 100).toFixed(1) + '%' : '—', 'grass', t('sub_honest'))}
+        ${blk(t('vs_market'), (mo.market_baseline * 100).toFixed(1) + '%', 'clay', t('sub_market'))}
         ${blk('Log loss', c.log_loss ? c.log_loss.toFixed(3) : '—', 'ink')}
         ${blk('ROC AUC', c.roc_auc ? c.roc_auc.toFixed(3) : '—', '')}
-        ${blk('Train', c.trained_at ? dt(c.trained_at) : '—', '', 'TennisLoopNightly 07:13')}
+        ${blk(t('last_train'), c.trained_at ? dt(c.trained_at) : '—', '', t('sub_train'))}
       </div>
       <div class="chart-grid">
-        <div class="chart-box"><h4>Distribuzione edge — ultime ${dec.length} decisioni</h4>
+        <div class="chart-box"><h4>${t('c_edgedist').replace('{n}', dec.length)}</h4>
           <canvas id="ch-edge"></canvas></div>
-        <div class="chart-box"><h4>Match nel feed (ultimo snapshot)</h4>
+        <div class="chart-box"><h4>${t('c_today')}</h4>
           <div class="today-list" id="today-list"></div></div>
       </div>
       <div class="chart-grid">
-        <div class="chart-box"><h4>Traiettoria modello — accuracy & log loss per training</h4>
+        <div class="chart-box"><h4>${t('c_traj')}</h4>
           <canvas id="ch-hist"></canvas></div>
-        <div class="chart-box"><h4>Accuracy per modello (run corrente)</h4>
+        <div class="chart-box"><h4>${t('c_permodel')}</h4>
           <canvas id="ch-models"></canvas></div>
       </div>
     </div>`;
@@ -254,7 +424,7 @@ const PANELS = {
     // today's matches with best legal price (top 8)
     const tl = $('#today-list');
     const matches = (odds.matches || []).slice(0, 8);
-    if (!matches.length) tl.innerHTML = '<div class="sb-note">nessuno snapshot — lancia ⚡ scan dalla Pipeline</div>';
+    if (!matches.length) tl.innerHTML = `<div class="sb-note">${t('nosnap')}</div>`;
     matches.forEach(async m => {
       const row = el('div', 'today-row', `<span class="t-m">${m}</span><span class="t-o">…</span>`);
       tl.appendChild(row);
@@ -295,18 +465,18 @@ const PANELS = {
     const rows = await getJSON('/api/decisions?limit=500');
     pane.innerHTML = '<div class="pane-pad" style="height:100%"><div class="tbl-host" style="height:100%"></div></div>';
     makeTable(pane.querySelector('.tbl-host'), [
-      { key: 'timestamp', label: 'Quando', fmt: dt },
-      { key: 'match_str', label: 'Match' }, { key: 'tournament', label: 'Torneo' },
-      { key: 'surface', label: 'Sup.' },
+      { key: 'timestamp', label: t('when'), fmt: dt },
+      { key: 'match_str', label: t('match') }, { key: 'tournament', label: t('tournament') },
+      { key: 'surface', label: t('surface') },
       { key: 'odds_1', label: 'Q1', fmt: v => fmt(v) }, { key: 'odds_2', label: 'Q2', fmt: v => fmt(v) },
       { key: 'ml_prob_1', label: 'ML p1', fmt: v => fmt(v, 3) }, { key: 'ml_prob_2', label: 'ML p2', fmt: v => fmt(v, 3) },
-      { key: 'edge', label: 'Edge', fmt: v => fmt(v, 3) }, { key: 'value_side', label: 'Side' },
+      { key: 'edge', label: 'Edge', fmt: v => fmt(v, 3) }, { key: 'value_side', label: t('side') },
       { key: 'kelly_fraction', label: 'Kelly', fmt: v => fmt(v, 4) },
-      { key: 'low_confidence', label: 'Conf.', fmt: v => v ? 'LOW' : 'ok' },
+      { key: 'low_confidence', label: t('conf'), fmt: v => v ? 'LOW' : 'ok' },
     ], rows, {
       sortKey: 'timestamp', sortDir: -1,
-      controls: [makeCheck('solo edge > 0', r => r.edge > 0),
-                 makeCheck('escludi low-conf', r => !r.low_confidence)],
+      controls: [makeCheck(t('f_edgepos'), r => r.edge > 0),
+                 makeCheck(t('f_lowconf'), r => !r.low_confidence)],
       cellClass: (k, r) => k === 'edge' ? (r.edge > 0 ? 'pos' : 'neg')
                          : k === 'low_confidence' ? (r.low_confidence ? 'neg' : 'dim') : '',
     });
@@ -322,23 +492,23 @@ const PANELS = {
 
     pane.innerHTML = `<div class="pane-pad dash" style="height:100%; overflow:auto">
       <div class="blk-row">
-        ${blk('Bankroll', bank.length ? '€' + fmt(bank[bank.length - 1].bankroll_after, 0) : '—', 'ink')}
-        ${blk('Profit', '€' + fmt(profit, 1), profit < 0 ? 'alarm' : 'grass')}
-        ${blk('Yield', staked ? (profit / staked * 100).toFixed(1) + '%' : '—', '', 'profit / volume puntato')}
-        ${blk('Record', `${won}–${settled.length - won}`, 'sun', rows.filter(r => r.status === 'pending').length + ' pending')}
+        ${blk(t('bankroll'), bank.length ? '€' + fmt(bank[bank.length - 1].bankroll_after, 0) : '—', 'ink')}
+        ${blk(t('profit'), '€' + fmt(profit, 1), profit < 0 ? 'alarm' : 'grass')}
+        ${blk('Yield', staked ? (profit / staked * 100).toFixed(1) + '%' : '—', '', 'profit / stake')}
+        ${blk(t('record'), `${won}–${settled.length - won}`, 'sun', rows.filter(r => r.status === 'pending').length + ' ' + t('st_pending'))}
       </div>
       <div class="chart-grid">
-        <div class="chart-box"><h4>Equity curve — bankroll dopo ogni bet risolta</h4><canvas id="ch-bank"></canvas></div>
-        <div class="chart-box"><h4>Registra una bet</h4>
+        <div class="chart-box"><h4>${t('equity')}</h4><canvas id="ch-bank"></canvas></div>
+        <div class="chart-box"><h4>${t('register_bet')}</h4>
           <form id="bet-form" class="bet-form">
-            <input name="match_str" placeholder="Match (es. Sinner vs Alcaraz)" required>
-            <input name="side_name" placeholder="Puntata su (giocatore)" required>
+            <input name="match_str" placeholder="${t('betmatch_ph')}" required>
+            <input name="side_name" placeholder="${t('betplayer_ph')}" required>
             <div class="bet-form-row">
-              <input name="odds" type="number" step="0.01" min="1.01" placeholder="Quota" required>
-              <input name="stake" type="number" step="0.5" min="0.5" placeholder="Stake €" required>
+              <input name="odds" type="number" step="0.01" min="1.01" placeholder="${t('betodds_ph')}" required>
+              <input name="stake" type="number" step="0.5" min="0.5" placeholder="${t('betstake_ph')}" required>
             </div>
-            <input name="notes" placeholder="Note / bookmaker (opzionale)">
-            <button class="btn primary" type="submit">+ registra</button>
+            <input name="notes" placeholder="${t('betnotes_ph')}">
+            <button class="btn primary" type="submit">${t('bet_add')}</button>
             <span class="panel-note" id="bet-form-status"></span>
           </form></div>
       </div>
@@ -369,19 +539,19 @@ const PANELS = {
 
     const host = pane.querySelector('.tbl-host');
     makeTable(host, [
-      { key: 'timestamp', label: 'Quando', fmt: dt }, { key: 'match_str', label: 'Match' },
-      { key: 'side_name', label: 'Puntata su' }, { key: 'odds', label: 'Quota', fmt: v => fmt(v) },
-      { key: 'stake', label: 'Stake €', fmt: v => fmt(v) },
-      { key: 'status', label: 'Status' },
-      { key: 'profit', label: 'Profit €', fmt: v => v === null ? '—' : fmt(v) },
-      { key: 'bankroll_after', label: 'Bankroll €', fmt: v => v === null ? '—' : fmt(v) },
-      { key: 'id', label: 'Esito', fmt: (v, r) => r.status === 'pending'
-          ? `<button class="row-act win" data-id="${v}" data-do="won">✓ vinta</button>
-             <button class="row-act lose" data-id="${v}" data-do="lost">✗ persa</button>`
-          : `<button class="row-act" data-id="${v}" data-do="undo">↩</button>` },
+      { key: 'timestamp', label: t('when'), fmt: dt }, { key: 'match_str', label: t('match') },
+      { key: 'side_name', label: t('player') }, { key: 'odds', label: t('odds'), fmt: v => fmt(v) },
+      { key: 'stake', label: t('stake'), fmt: v => fmt(v) },
+      { key: 'status', label: t('status') },
+      { key: 'profit', label: t('profit_eur'), fmt: v => v === null ? '—' : fmt(v) },
+      { key: 'bankroll_after', label: t('bankroll_after'), fmt: v => v === null ? '—' : fmt(v) },
+      { key: 'id', label: t('outcome'), fmt: (v, r) => r.status === 'pending'
+          ? `<button class="row-act win" data-id="${v}" data-do="won">${t('bet_won')}</button>
+             <button class="row-act lose" data-id="${v}" data-do="lost">${t('bet_lost')}</button>`
+          : `<button class="row-act" data-id="${v}" data-do="undo">${t('undo')}</button>` },
     ], rows, {
       sortKey: 'timestamp', sortDir: -1,
-      controls: [makeSelect([['', 'tutti gli status'], ['pending', 'pending'], ['won', 'won'], ['lost', 'lost']],
+      controls: [makeSelect([['', t('allstatus')], ['pending', t('st_pending')], ['won', t('st_won')], ['lost', t('st_lost')]],
                             v => r => r.status === v)],
       cellClass: (k, r) => k === 'status' ? (r.status === 'won' ? 'pos' : (r.status === 'lost' ? 'neg' : 'dim'))
                          : (k === 'profit' && r.profit !== null) ? (r.profit > 0 ? 'pos' : 'neg') : '',
@@ -408,13 +578,13 @@ const PANELS = {
     const vals = (d.rows || []).filter(r => r.clv !== null && r.clv !== undefined).map(r => r.clv);
     drawClv(pane.querySelector('#clv-chart'), vals);
     makeTable(pane.querySelector('.tbl-host'), [
-      { key: 'ts', label: 'Quando', fmt: dt }, { key: 'match', label: 'Match' },
-      { key: 'side', label: 'Side' }, { key: 'bookmaker', label: 'Book' },
-      { key: 'odds', label: 'Quota presa', fmt: v => fmt(v) },
+      { key: 'ts', label: t('when'), fmt: dt }, { key: 'match', label: t('match') },
+      { key: 'side', label: t('side') }, { key: 'bookmaker', label: t('book') },
+      { key: 'odds', label: t('takenodds'), fmt: v => fmt(v) },
       { key: 'clv', label: 'CLV', fmt: v => v === null ? '—' : (v * 100).toFixed(2) + '%' },
     ], d.rows || [], {
       sortKey: 'clv', sortDir: -1,
-      controls: [makeCheck('solo CLV positivo', r => r.clv !== null && r.clv > 0)],
+      controls: [makeCheck(t('f_clvpos'), r => r.clv !== null && r.clv > 0)],
       cellClass: (k, r) => k === 'clv' && r.clv !== null ? (r.clv > 0 ? 'pos' : 'neg') : '',
     });
   }},
@@ -422,17 +592,17 @@ const PANELS = {
     const d = await getJSON('/api/odds');
     pane.innerHTML = `<div class="pane-pad" style="height:100%">
       <div class="toolbar"><select class="match-sel"></select>
-        <span class="panel-note">${d.snapshot_ts ? 'snapshot: ' + d.snapshot_ts : 'nessuno snapshot'}</span></div>
+        <span class="panel-note">${d.snapshot_ts ? t('snap_l') + ' ' + d.snapshot_ts : t('nosnap')}</span></div>
       <div class="tbl-host"></div></div>`;
     const sel = pane.querySelector('.match-sel');
-    sel.innerHTML = '<option value="">— scegli match —</option>' + (d.matches || []).map(m => `<option>${m}</option>`).join('');
+    sel.innerHTML = `<option value="">${t('choosematch')}</option>` + (d.matches || []).map(m => `<option>${m}</option>`).join('');
     sel.onchange = async () => {
       if (!sel.value) return;
       const dd = await getJSON('/api/odds?match=' + encodeURIComponent(sel.value));
       makeTable(pane.querySelector('.tbl-host'), [
-        { key: 'bookmaker', label: 'Bookmaker' }, { key: 'p1', label: 'Giocatore 1' },
-        { key: 'price_1', label: 'Quota 1', fmt: v => fmt(v) },
-        { key: 'p2', label: 'Giocatore 2' }, { key: 'price_2', label: 'Quota 2', fmt: v => fmt(v) },
+        { key: 'bookmaker', label: t('book') }, { key: 'p1', label: t('player') + ' 1' },
+        { key: 'price_1', label: t('odds') + ' 1', fmt: v => fmt(v) },
+        { key: 'p2', label: t('player') + ' 2' }, { key: 'price_2', label: t('odds') + ' 2', fmt: v => fmt(v) },
       ], dd.rows, { sortKey: 'price_1', sortDir: -1 });   // default: quota 1 decrescente
     };
   }},
@@ -457,9 +627,11 @@ function drawClv(cv, vals) {
   });
 }
 
+const PANEL_TKEY = { overview: 'overview', segnali: 'signals', bet: 'bets', clv: 'CLV', quote: 'quotes' };
 function openPanel(name) {
   const p = PANELS[name];
-  openTab('panel:' + name, p.title, async (pane) => {
+  const title = I18N[LANG][PANEL_TKEY[name]] || p.title;
+  openTab('panel:' + name, title, async (pane) => {
     try { await p.render(pane); }
     catch (err) { pane.innerHTML = `<div class="pane-pad"><div class="banner">ERRORE: ${err.message}</div></div>`; }
   });
@@ -550,38 +722,32 @@ async function openFile(path, readonly = false) {
 const ACTS = {
   cockpit: { title: 'Cockpit', render: (body) => {
     ['overview', 'segnali', 'bet', 'clv', 'quote'].forEach(name => {
-      const b = el('button', 'sb-item', '◧ ' + PANELS[name].title);
+      const b = el('button', 'sb-item', '◧ ' + (I18N[LANG][PANEL_TKEY[name]] || PANELS[name].title));
       b.onclick = () => openPanel(name);
       body.appendChild(b);
     });
-    body.appendChild(el('div', 'sb-note', 'Dati live da betanalytix.db e odds_history.csv. Click sulle intestazioni per ordinare (1° click: decrescente).'));
+    body.appendChild(el('div', 'sb-note', 'betanalytix.db · odds_history.csv'));
   }},
   chat: { title: 'UnaBettingOS', render: (body) => {
-    body.appendChild(el('div', 'sb-note',
-      `<b>UnaBettingOS</b> — centro di memoria agentica. Modello locale <b>qwen3.5:9b</b> via Ollama. ` +
-      `Collegato a: dati live, vault Obsidian, knowledge graph, memoria persistente.`));
-    body.appendChild(el('div', 'sb-section', 'Dati & azioni'));
-    ['quali sono i match di oggi?', 'ultimi segnali del modello?',
-     'com’è messo il modello?', 'stato del bankroll?'].forEach(q => {
+    body.appendChild(el('div', 'sb-note', t('note_os')));
+    body.appendChild(el('div', 'sb-section', t('s_data_actions')));
+    [t('q_today'), t('q_sig'), t('q_model'), t('q_bank')].forEach(q => {
       const b = el('button', 'sb-item', '✦ ' + q);
       b.onclick = () => { openChat(); const inp = $('#chat-input'); if (inp) { inp.value = q; inp.focus(); } };
       body.appendChild(b);
     });
-    body.appendChild(el('div', 'sb-section', 'Memoria & conoscenza'));
-    ['cerca nel vault: perché il backtest dava 85%?',
-     'interroga il grafo: EloRating',
-     'ricorda che: ', 'cosa ti ho chiesto di ricordare?'].forEach(q => {
+    body.appendChild(el('div', 'sb-section', t('s_memory')));
+    [t('q_vault'), t('q_graphelo'), t('q_remember'), t('q_recall')].forEach(q => {
       const b = el('button', 'sb-item', '🧠 ' + q);
       b.onclick = () => { openChat(); const inp = $('#chat-input'); if (inp) { inp.value = q; inp.focus(); } };
       body.appendChild(b);
     });
-    body.appendChild(el('div', 'sb-note', 'La memoria vive in docs/obsidian/UnaBettingOS_Memoria.md — versionata con git come tutto il resto.'));
+    body.appendChild(el('div', 'sb-note', t('note_memfile')));
     openChat();
   }},
   browser: { title: 'Browser web', render: (body) => {
-    body.appendChild(el('div', 'sb-note',
-      'Browser agentico: apri URL, leggi il contenuto, segui i link. Anche l\'agente UnaBettingOS può navigare (tool browse_web).'));
-    body.appendChild(el('div', 'sb-section', 'Scorciatoie'));
+    body.appendChild(el('div', 'sb-note', t('note_browser')));
+    body.appendChild(el('div', 'sb-section', t('s_shortcuts')));
     [['Sofascore tennis', 'https://www.sofascore.com/tennis'],
      ['ATP Tour', 'https://www.atptour.com'],
      ['Tennis Abstract', 'http://www.tennisabstract.com'],
@@ -593,47 +759,46 @@ const ACTS = {
     openBrowser('https://www.sofascore.com/tennis');
   }},
   graph: { title: 'Knowledge graph', render: (body) => {
-    body.appendChild(el('div', 'sb-note',
-      'Il grafo del progetto (graphify): nodi-stella colorati per community, 3D. Trascina per ruotare, scroll per zoom, click su un nodo per il focus.'));
-    const b = el('button', 'sb-item', '❂ apri il grafo 3D');
+    body.appendChild(el('div', 'sb-note', t('note_graph')));
+    const b = el('button', 'sb-item', '❂ ' + t('open_graph'));
     b.onclick = openGraph3D;
     body.appendChild(b);
     openGraph3D();
   }},
   explorer: { title: 'Esplora progetto', render: (body) => { body.appendChild(buildTree('')); } },
   pipeline: { title: 'Pipeline', render: (body) => {
-    body.appendChild(el('div', 'sb-section', 'Live'));
-    const scan = el('button', 'sb-cmd', '⚡ scan match live');
+    body.appendChild(el('div', 'sb-section', t('s_live')));
+    const scan = el('button', 'sb-cmd', t('scanlive'));
     scan.dataset.cmd = 'scan';
     scan.onclick = () => runCommand('scan');
     body.appendChild(scan);
-    body.appendChild(el('div', 'sb-note', 'scarica quote fresche (the-odds-api, consuma crediti) e ci fa girare modello + news. Risultati nel tab Segnali.'));
-    body.appendChild(el('div', 'sb-section', 'Pipeline dati/modello'));
+    body.appendChild(el('div', 'sb-note', t('note_scan')));
+    body.appendChild(el('div', 'sb-section', t('s_pipeline_dm')));
     ['download', 'clean', 'features', 'train', 'backtest', 'inference', 'signals'].forEach(cmd => {
       const b = el('button', 'sb-cmd', '▶ ' + cmd);
       b.dataset.cmd = cmd;
       b.onclick = () => runCommand(cmd);
       body.appendChild(b);
     });
-    const stop = el('button', 'sb-cmd stop', '■ stop');
+    const stop = el('button', 'sb-cmd stop', t('stopb'));
     stop.onclick = () => { if (runWs && runWs.readyState === 1) runWs.send(JSON.stringify({ type: 'stop' })); };
     body.appendChild(stop);
-    body.appendChild(el('div', 'sb-note', 'Output nel tab "Pipeline". Solo comandi whitelisted: il resto passa dai terminali.'));
+    body.appendChild(el('div', 'sb-note', t('note_ponly')));
   }},
   loops: { title: 'Loop autoevolutivi', render: async (body) => {
-    body.appendChild(el('div', 'sb-section', 'Cervello'));
-    [['EXPERIMENTS.md', 'EXPERIMENTS.md'],
-     ['loop notturno', 'scripts/loops/nightly_maintenance.md'],
-     ['loop settimanale', 'scripts/loops/weekly_evolution.md'],
-     ['storico metriche', 'reports/metrics_history.csv']].forEach(([label, p]) => {
+    body.appendChild(el('div', 'sb-section', t('s_brain')));
+    [[t('l_exp'), 'EXPERIMENTS.md'],
+     [t('l_nightly'), 'scripts/loops/nightly_maintenance.md'],
+     [t('l_weekly'), 'scripts/loops/weekly_evolution.md'],
+     [t('l_metrics'), 'reports/metrics_history.csv']].forEach(([label, p]) => {
       const b = el('button', 'sb-item', '¶ ' + label);
       b.onclick = () => openFile(p);
       body.appendChild(b);
     });
-    body.appendChild(el('div', 'sb-section', 'Log run (reports/loops)'));
+    body.appendChild(el('div', 'sb-section', t('s_runlogs')));
     try {
       const logs = await getJSON('/api/loops');
-      if (!logs.length) body.appendChild(el('div', 'sb-note', 'nessuna run ancora — nightly 07:13, weekly dom 09:23'));
+      if (!logs.length) body.appendChild(el('div', 'sb-note', t('loops_none')));
       logs.slice(0, 25).forEach(l => {
         const b = el('button', 'sb-item', '≡ ' + l.name);
         b.onclick = () => openFile(l.path, true);
@@ -642,7 +807,7 @@ const ACTS = {
     } catch (err) { body.appendChild(el('div', 'sb-note', 'errore: ' + err.message)); }
   }},
   docs: { title: 'Documentazione', render: async (body) => {
-    body.appendChild(el('div', 'sb-section', 'Radice'));
+    body.appendChild(el('div', 'sb-section', t('s_root')));
     ['README.md', 'EXPERIMENTS.md', 'DATA_SOURCES.md', 'docs/ALPHA_FINDINGS.md', 'docs/PROJECT_EVALUATION.md'].forEach(p => {
       const b = el('button', 'sb-item', '¶ ' + p);
       b.onclick = () => openFile(p);
@@ -695,15 +860,23 @@ function buildTree(path) {
   return wrap;
 }
 
+const ACT_TKEY = { cockpit: 't_cockpit', chat: 't_os', graph: 't_graph', browser: 't_browser',
+                   explorer: 't_explorer', pipeline: 't_pipeline', loops: 't_loops',
+                   docs: 't_docs', config: 't_config' };
+let currentAct = 'cockpit';
+function renderSidebar(actId) {
+  currentAct = actId;
+  const act = ACTS[actId];
+  $('#sb-title').textContent = (I18N[LANG][ACT_TKEY[actId]] || act.title).toUpperCase();
+  const body = $('#sb-body');
+  body.innerHTML = '';
+  act.render(body);
+}
 $('#activitybar').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   document.querySelectorAll('#activitybar button').forEach(b => b.classList.toggle('active', b === btn));
-  const act = ACTS[btn.dataset.act];
-  $('#sb-title').textContent = act.title.toUpperCase();
-  const body = $('#sb-body');
-  body.innerHTML = '';
-  act.render(body);
+  renderSidebar(btn.dataset.act);
 });
 
 /* ================= PIPELINE RUNNER ================= */
@@ -713,15 +886,15 @@ function pipelinePane() {
   return openTab('panel:pipeline', 'Pipeline', (pane) => {
     pane.innerHTML = `<div class="pane-pad" style="height:100%">
       <div class="toolbar">
-        <span class="panel-note" id="pl-status" style="margin:0">pronto</span>
-        <button class="btn" id="pl-copy">copia output</button>
+        <span class="panel-note" id="pl-status" style="margin:0">${t('ready')}</span>
+        <button class="btn" id="pl-copy">${t('copyout')}</button>
       </div>
       <pre class="cli-box" id="pl-out"></pre></div>`;
     pane.querySelector('#pl-copy').onclick = async () => {
       try {
         await navigator.clipboard.writeText($('#pl-out').textContent);
-        toast('output copiato negli appunti');
-      } catch (err) { toast('copia fallita: ' + err.message, true); }
+        toast(t('copied'));
+      } catch (err) { toast(t('copyfail') + ': ' + err.message, true); }
     };
   });
 }
@@ -734,21 +907,21 @@ function runCommand(cmd) {
   if (!runWs || runWs.readyState !== 1) {
     runWs = new WebSocket(`ws://${location.host}/ws/run`);
     runWs.onopen = send;
-    runWs.onerror = () => { status.textContent = 'errore connessione'; };
+    runWs.onerror = () => { status.textContent = t('errw'); };
     runWs.onmessage = (ev) => {
       const m = JSON.parse(ev.data);
       if (m.type === 'start') {
         out.textContent = `$ ${m.cmd}\n`;
-        status.textContent = 'in esecuzione: ' + m.cmd;
+        status.textContent = t('running') + ' ' + m.cmd;
         document.querySelectorAll('.sb-cmd').forEach(b => b.classList.toggle('running', b.dataset.cmd === m.cmd));
       } else if (m.type === 'line') {
         out.textContent += m.text + '\n'; out.scrollTop = out.scrollHeight;
       } else if (m.type === 'exit') {
         out.textContent += `\n[exit ${m.code}]\n`;
-        status.textContent = 'terminato (exit ' + m.code + ')';
+        status.textContent = t('finished') + ' ' + m.code + ')';
         document.querySelectorAll('.sb-cmd').forEach(b => b.classList.remove('running'));
       } else if (m.type === 'error') {
-        out.textContent += '[ERRORE] ' + m.detail + '\n'; status.textContent = 'errore';
+        out.textContent += '[ERROR] ' + m.detail + '\n'; status.textContent = t('errw');
       }
     };
   } else send();
@@ -905,16 +1078,16 @@ function openBrowser(url) {
   openTab('panel:browser', '🌐 Browser', (pane) => {
     pane.innerHTML = `<div class="browser-host">
       <form class="browser-bar" id="browser-bar">
-        <button type="button" class="btn" id="br-back" title="indietro">←</button>
-        <input id="br-url" placeholder="url o dominio…" value="${url || ''}">
-        <button class="btn primary" type="submit">vai</button>
+        <button type="button" class="btn" id="br-back" title="${t('brback')}">←</button>
+        <input id="br-url" placeholder="${t('brurl_ph')}" value="${url || ''}">
+        <button class="btn primary" type="submit">${t('go')}</button>
       </form>
-      <div class="browser-view" id="br-view"><div class="panel-note">carico…</div></div>
+      <div class="browser-view" id="br-view"><div class="panel-note">${t('loading')}</div></div>
     </div>`;
     const hist = [];
     const go = async (u) => {
       const view = $('#br-view');
-      view.innerHTML = '<div class="panel-note">carico ' + escHtml(u) + '…</div>';
+      view.innerHTML = `<div class="panel-note">${t('loading')} ${escHtml(u)}</div>`;
       try {
         const d = await getJSON('/api/browse?url=' + encodeURIComponent(u));
         $('#br-url').value = d.url;
@@ -924,7 +1097,7 @@ function openBrowser(url) {
         view.innerHTML = `<h2 class="br-title">${escHtml(d.title)}</h2>
           <div class="br-src">${escHtml(d.url)}</div>
           <pre class="br-text">${escHtml(d.text)}</pre>
-          ${links ? '<div class="br-links"><b>Link:</b>' + links + '</div>' : ''}`;
+          ${links ? '<div class="br-links"><b>' + t('links_l') + '</b>' + links + '</div>' : ''}`;
         view.querySelectorAll('.br-link').forEach(a =>
           a.onclick = (e) => { e.preventDefault(); go(a.dataset.href); });
         view.scrollTop = 0;
@@ -954,11 +1127,10 @@ function openChat() {
   openTab('panel:chat', '✦ Chat', (pane) => {
     pane.innerHTML = `<div class="chat-host">
       <div class="chat-msgs" id="chat-msgs">
-        <div class="chat-msg bot">Sono <b>UnaBettingOS</b> — memoria e intelligenza agentica dell'app (qwen3.5:9b, locale).
-Dati live, vault Obsidian, knowledge graph e memoria persistente: chiedimi dei match, del modello, della storia del progetto — o dimmi "ricorda che…".</div>
+        <div class="chat-msg bot">${t('chat_intro')}</div>
       </div>
       <form class="chat-form" id="chat-form">
-        <input id="chat-input" autocomplete="off" placeholder="scrivi… (Invio per inviare)">
+        <input id="chat-input" autocomplete="off" placeholder="${t('chat_ph')}">
         <button class="btn primary" type="submit">▶</button>
       </form></div>`;
     $('#chat-form').onsubmit = (e) => { e.preventDefault(); sendChat(); };
@@ -1134,6 +1306,69 @@ async function captureShot(r) {
   }
 }
 
+/* ================= I18N APPLY ================= */
+function applyLang(lang) {
+  LANG = lang;
+  localStorage.setItem('mc-lang', lang);
+  document.documentElement.lang = lang;
+  // tooltip activity bar
+  document.querySelectorAll('#activitybar button[data-act]').forEach(b => {
+    const k = 'act_' + (b.dataset.act === 'chat' ? 'os' : b.dataset.act);
+    if (I18N[lang][k]) b.title = I18N[lang][k];
+  });
+  // etichette statiche del termbar
+  const tl = $('#tp-label'); if (tl) tl.textContent = t('term_label');
+  const th = $('#tp-hint'); if (th) th.textContent = t('vibe_hint');
+  // ri-renderizza sidebar attiva
+  renderSidebar(currentAct);
+  // ri-renderizza i pannelli-cockpit aperti (titoli + contenuti localizzati)
+  Object.keys(tabs).filter(id => id.startsWith('panel:')).forEach(id => {
+    const name = id.split(':')[1];
+    if (PANELS[name]) { const wasActive = activeTab === id; closeTab(id); openPanel(name); if (!wasActive) {} }
+  });
+}
+
+/* ================= IN-APP UPDATER ================= */
+async function checkUpdate(manual = false) {
+  let d;
+  try { d = await getJSON('/api/update/check'); }
+  catch (e) { if (manual) toast('update check failed: ' + e.message, true); return; }
+  if (!d.available) { if (manual) toast(t('upd_done').includes('✓') ? 'up to date ✓' : 'up to date'); return; }
+  showUpdateModal(d);
+}
+
+function showUpdateModal(d) {
+  if ($('.upd-overlay')) return;
+  const ov = el('div', 'upd-overlay');
+  ov.innerHTML = `<div class="upd-card">
+    <h3>↻ ${t('upd_title')}</h3>
+    <div class="upd-meta">${d.current} → <b>${d.latest}</b> · +${d.behind} commit${d.behind > 1 ? 's' : ''} · ${dt(d.latest_date)}</div>
+    <div class="upd-notes">${escHtml(d.notes || '')}</div>
+    <div class="upd-status" id="upd-status"></div>
+    <div class="upd-actions">
+      <button class="btn" id="upd-later">${t('upd_later')}</button>
+      <button class="btn primary" id="upd-go">${t('upd_btn')}</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  $('#upd-later').onclick = () => ov.remove();
+  $('#upd-go').onclick = async () => {
+    const st = $('#upd-status'); st.textContent = t('upd_doing');
+    $('#upd-go').disabled = true;
+    try {
+      const r = await fetch('/api/update/apply', { method: 'POST' });
+      const res = await r.json();
+      if (!r.ok || !res.ok) throw new Error(res.detail || res.output || 'error');
+      st.textContent = t('upd_done');
+      $('#upd-go').textContent = t('upd_restart');
+      $('#upd-go').disabled = false;
+      $('#upd-go').onclick = () => location.reload();
+    } catch (err) {
+      st.textContent = t('upd_fail') + ': ' + err.message;
+      $('#upd-go').disabled = false;
+    }
+  };
+}
+
 /* ================= BOOT ================= */
 const themeSel = $('#theme-sel');
 themeSel.innerHTML = THEMES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
@@ -1143,5 +1378,19 @@ themeSel.value = savedTheme;
 document.documentElement.dataset.theme = savedTheme;
 refreshThemeColors();
 
-ACTS.cockpit.render($('#sb-body'));
+const langSel = $('#lang-sel');
+langSel.innerHTML = LANGS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+langSel.value = LANG;
+langSel.onchange = () => applyLang(langSel.value);
+document.documentElement.lang = LANG;
+
+document.querySelectorAll('#activitybar button[data-act]').forEach(b => {
+  const k = 'act_' + (b.dataset.act === 'chat' ? 'os' : b.dataset.act);
+  if (I18N[LANG][k]) b.title = I18N[LANG][k];
+});
+{ const tl = $('#tp-label'); if (tl) tl.textContent = t('term_label');
+  const th = $('#tp-hint'); if (th) th.textContent = t('vibe_hint'); }
+
+renderSidebar('cockpit');
 openPanel('overview');
+setTimeout(() => checkUpdate(), 2500);   // check for a new release shortly after boot
