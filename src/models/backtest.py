@@ -28,7 +28,9 @@ MIN_EDGE = 0.03
 MAX_STAKE_PCT = 0.02      # max 2% of bankroll per bet
 MIN_ODDS = 1.30           # skip super-favourites (Kelly variance trap)
 STARTING_BANKROLL = 1000.0
-SEED = 123
+SEED = 42   # MUST match train.prepare_training_data's randomization seed (42), so the
+            # backtest reproduces the exact preprocessing the headline metrics were
+            # measured on — no separate, drift-prone reimplementation.
 
 
 def load_inference_inputs():
@@ -72,24 +74,16 @@ def predict_winner_prob(df):
     scaler = joblib.load(scaler_path)
     medians = pd.Series(joblib.load(medians_path))
 
+    # Canonical preprocessing — reuse train.py's perspective randomizer instead of
+    # a hand-rolled copy, so the backtest sees byte-for-byte the same inputs the
+    # headline metrics were measured on (randomize @ seed 42 -> train medians -> scaler).
+    from src.models.train import _randomize_perspective
     X = df[features].copy()
-    rng = np.random.RandomState(SEED)
-    flip = rng.random(len(X)) > 0.5
-
-    for wc in [c for c in features if c.startswith("w_")]:
-        lc = "l_" + wc[2:]
-        if lc in X.columns:
-            X.loc[flip, [wc, lc]] = X.loc[flip, [lc, wc]].values
-    for dc in [c for c in features if c.startswith("diff_")]:
-        X.loc[flip, dc] = -X.loc[flip, dc]
-    for col in ["rank_diff", "age_diff", "height_diff"]:
-        if col in X.columns:
-            X.loc[flip, col] = -X.loc[flip, col]
-    if "rank_ratio" in X.columns:
-        X.loc[flip, "rank_ratio"] = 1.0 / X.loc[flip, "rank_ratio"]
-    for col in ["elo_win_prob", "elo_surface_win_prob"]:
-        if col in X.columns:
-            X.loc[flip, col] = 1.0 - X.loc[flip, col]
+    # Raw rows are winner-POV (p1 == winner), so the pre-flip target is 1 everywhere;
+    # the randomizer flips ~50% of rows and the target with them.
+    y = pd.DataFrame({"target": np.ones(len(X), dtype=int)}, index=X.index)
+    X, y = _randomize_perspective(X, y, seed=SEED)
+    flip = y["target"].values == 0  # rows where p1 became the loser after the flip
 
     X = X.fillna(medians.reindex(features))
     X = pd.DataFrame(scaler.transform(X), columns=features, index=X.index)
