@@ -55,10 +55,12 @@ only if it beats the baseline, then commits.
   objective = test-year-free walk-forward LL (use cross_validate.py, NOT the 2025 test).
 - [ ] **E6 — Fatigue interactions v2.** `decay_minutes_14d` × best_of_5, days_since_last
   × age. Verify tilt stays <0.70 (scripts/probe_feature_tilt.py) before training.
-- [ ] **E7 — WTA pipeline parity.** Same features/training for WTA (config exists);
+- [x] **E7 — WTA pipeline parity.** DONE 2026-06-12. Same features/training for WTA;
   doubles the prediction surface for the spread/CLV strategy direction.
 
 ## Done
+
+- [x] **2026-06-12 — E7 WTA pipeline parity.** DONE. Implemented end-to-end integration for the WTA tour (features, models, and live routing pipelines). All scripts and inference engines updated, and models built and calibrated successfully.
 
 - [x] **2026-06-12 — E2+E3+E4 verified (KEPT).** Merged earlier but NEVER retrained
   until a manual run on 2026-06-12 (the Nightly loop that would have caught this is
