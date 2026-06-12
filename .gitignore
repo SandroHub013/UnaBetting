@@ -25,6 +25,7 @@ data/live/
 # Trained models (too large for git) + generated training artifacts
 models/*.pkl
 models/*.pth
+models/*.pt
 models/*.json
 models/*.txt
 
