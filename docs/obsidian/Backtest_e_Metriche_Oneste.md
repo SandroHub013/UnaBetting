@@ -56,13 +56,23 @@ giusto, righe non randomizzate mostrano +11pt di bias di orientamento (76% vs 65
 |---|---|---|---|
 | 2026-05-21 | Imputazione pre-split | acc 78.8% | mediane train-only |
 | 2026-05-22 | Coppie w_/l_ spaiate | acc 77.8%, ROI +46% | `_enforce_perspective_pairs` |
-| 2026-05 | Serve rolling stats (2024-25) | ROC 0.96 walk-forward | feature `_50` NaN sul 2025+ (lag Sackmann) |
+| 2026-05 | Serve rolling stats (2024-25) | ROC 0.96 walk-forward | feature `_50` NaN sul 2025+ |
 | 2026-06-09 | Backtest degenere (4 bug sopra) | win rate 85% | backtest riscritto |
+| 2026-06-12 | `_50` NaN-poison (E1) | feature serve ~53% NaN | `_num()` NaN-safe → 1.8% |
 
-## Leva principale per più accuracy
+## E1 — la leva serve, FALSIFICATA (2026-06-12)
 
-Le feature serve/return `_50` sono **NaN sull'84% dei match 2025-26** (Sackmann lagga la
-stagione corrente): out-of-sample il modello gira solo su elo+quote+form. Recuperare le
-statistiche correnti è l'esperimento E1 in `EXPERIMENTS.md` (tetto realistico ~70-72%).
+A lungo abbiamo creduto che le serve-feature `_50` fossero NaN sull'84% dei match 2025-26
+per il *lag dati Sackmann*. **Falso.** I serve-stat grezzi 2021-2025 sono presenti al
+94-98%; solo il 2026 in corso è sparso. Il ~53% di NaN sulle `_50` veniva da un **bug**:
+`sum(m.get(k,0) or 0 ...)` — in Python `np.nan or 0` ritorna `np.nan` (NaN è truthy),
+quindi **una sola partita senza stat in una finestra di 50 avvelenava l'intera somma**
+(~95% di probabilità). Fix con coercizione NaN-safe `_num()` → NaN `_50` da 53% → **1.8%**.
+
+**Esito onesto:** accuracy **neutra** (routed 67.66 → 67.36, dentro ±0.7pt di SE; LL
+0.6010 → 0.6006; ROC piatto; backtest ROI −61.9% → −57.4%, sempre nessun edge).
+**Lezione: Elo + quota di mercato già codificano la forza al servizio; le serve-split
+esplicite sono ridondanti.** Le serve-stat NON sono la leva di accuracy. Il fix resta
+(codice corretto), l'ipotesi è respinta. La leva resta da trovare (E5/E6/E7).
 
 Vedi [[Modelli_e_Reti_Neurali]] per l'architettura, [[Feature_Engineering]] per il segnale.

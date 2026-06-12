@@ -13,7 +13,7 @@ and a local-LLM memory core.
 **[▶ Explore the live 3D knowledge graph](https://sandrohub013.github.io/UnaBetting/graph3d.html)** · **[📖 Docs — deep dive](https://sandrohub013.github.io/UnaBetting/docs.html)** · **[Website](https://sandrohub013.github.io/UnaBetting/)**
 
 <!--METRICS-->
-**Current honest numbers** (test 2025+, updated 2026-06-12): model **67.7%** vs market **67.7%** · log loss 0.601 · ROC 0.740 · odds-ensemble 69.8% on real-odds rows · honest backtest ROI **-62%** (still negative — no betting edge).
+**Current honest numbers** (test 2025+, updated 2026-06-12): model **67.4%** vs market **67.7%** · log loss 0.601 · ROC 0.740 · odds-ensemble 69.6% on real-odds rows · honest backtest ROI **-57%** (still negative — no betting edge).
 <!--/METRICS-->
 
 > ## ⚠️ Honest disclaimer (please actually read it)

@@ -8,6 +8,15 @@ import numpy as np
 from collections import defaultdict
 
 
+def _num(v):
+    """NaN/None-safe numeric coercion. CRITICAL: `np.nan or 0` returns np.nan
+    (NaN is truthy in Python), so the old `m.get(k, 0) or 0` pattern let a SINGLE
+    stat-less match in a rolling window poison the whole sum -> the entire _50
+    serve/return aggregate became NaN. With ~6% of matches lacking serve stats,
+    a 50-match window hit a NaN ~95% of the time. `v != v` is True only for NaN."""
+    return 0 if v is None or v != v else v
+
+
 class PlayerStatsEngine:
     """
     Calculates rolling player statistics for feature engineering.
@@ -28,14 +37,14 @@ class PlayerStatsEngine:
             return {}
 
         stats = {}
-        total_svpt = sum(m.get(f"{prefix}svpt", 0) or 0 for m in matches)
-        total_1stIn = sum(m.get(f"{prefix}1stIn", 0) or 0 for m in matches)
-        total_1stWon = sum(m.get(f"{prefix}1stWon", 0) or 0 for m in matches)
-        total_2ndWon = sum(m.get(f"{prefix}2ndWon", 0) or 0 for m in matches)
-        total_ace = sum(m.get(f"{prefix}ace", 0) or 0 for m in matches)
-        total_df = sum(m.get(f"{prefix}df", 0) or 0 for m in matches)
-        total_bpSaved = sum(m.get(f"{prefix}bpSaved", 0) or 0 for m in matches)
-        total_bpFaced = sum(m.get(f"{prefix}bpFaced", 0) or 0 for m in matches)
+        total_svpt = sum(_num(m.get(f"{prefix}svpt")) for m in matches)
+        total_1stIn = sum(_num(m.get(f"{prefix}1stIn")) for m in matches)
+        total_1stWon = sum(_num(m.get(f"{prefix}1stWon")) for m in matches)
+        total_2ndWon = sum(_num(m.get(f"{prefix}2ndWon")) for m in matches)
+        total_ace = sum(_num(m.get(f"{prefix}ace")) for m in matches)
+        total_df = sum(_num(m.get(f"{prefix}df")) for m in matches)
+        total_bpSaved = sum(_num(m.get(f"{prefix}bpSaved")) for m in matches)
+        total_bpFaced = sum(_num(m.get(f"{prefix}bpFaced")) for m in matches)
 
         stats["pct_1st_in"] = total_1stIn / total_svpt if total_svpt > 0 else np.nan
         stats["pct_1st_won"] = total_1stWon / total_1stIn if total_1stIn > 0 else np.nan
@@ -53,12 +62,12 @@ class PlayerStatsEngine:
             return {}
 
         stats = {}
-        total_opp_svpt = sum(m.get("opp_svpt", 0) or 0 for m in matches)
-        total_opp_1stWon = sum(m.get("opp_1stWon", 0) or 0 for m in matches)
-        total_opp_2ndWon = sum(m.get("opp_2ndWon", 0) or 0 for m in matches)
-        total_opp_bpFaced = sum(m.get("opp_bpFaced", 0) or 0 for m in matches)
-        total_opp_bpSaved = sum(m.get("opp_bpSaved", 0) or 0 for m in matches)
-        total_opp_SvGms = sum(m.get("opp_SvGms", 0) or 0 for m in matches)
+        total_opp_svpt = sum(_num(m.get("opp_svpt")) for m in matches)
+        total_opp_1stWon = sum(_num(m.get("opp_1stWon")) for m in matches)
+        total_opp_2ndWon = sum(_num(m.get("opp_2ndWon")) for m in matches)
+        total_opp_bpFaced = sum(_num(m.get("opp_bpFaced")) for m in matches)
+        total_opp_bpSaved = sum(_num(m.get("opp_bpSaved")) for m in matches)
+        total_opp_SvGms = sum(_num(m.get("opp_SvGms")) for m in matches)
         
         total_opp_pts_won = total_opp_1stWon + total_opp_2ndWon
         stats["return_pts_win_pct"] = (total_opp_svpt - total_opp_pts_won) / total_opp_svpt if total_opp_svpt > 0 else np.nan
@@ -125,9 +134,9 @@ class PlayerStatsEngine:
         stats["vs_lefty_win_pct"] = wins_vs_lefty / matches_vs_lefty if matches_vs_lefty > 0 else np.nan
 
         # Hold percentage: service games won / total service games
-        sv_gms = sum(m.get("SvGms", 0) or 0 for m in matches)
-        bp_faced = sum(m.get("bpFaced", 0) or 0 for m in matches)
-        bp_saved = sum(m.get("bpSaved", 0) or 0 for m in matches)
+        sv_gms = sum(_num(m.get("SvGms")) for m in matches)
+        bp_faced = sum(_num(m.get("bpFaced")) for m in matches)
+        bp_saved = sum(_num(m.get("bpSaved")) for m in matches)
         breaks_against = bp_faced - bp_saved
         holds = sv_gms - breaks_against if sv_gms > 0 else 0
         stats["hold_pct"] = holds / sv_gms if sv_gms > 0 else np.nan
