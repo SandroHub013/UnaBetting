@@ -22,10 +22,14 @@ only if it beats the baseline, then commits.
   test_imputation_median_is_train_only now pass (feature names updated to
   form_ewm/decay_minutes_14d/days_since_last; synthetic frame got winner_id/
   loser_id; medians unpack made robust).
-- [ ] **E0b — Fix test_shuffled_target_accuracy_is_chance.** Still fails on real
-  data with `KeyError: 'target'` (separate from E0). prepare_training_data's
-  return/columns changed; the test accesses y['target'] that no longer exists in
-  that shape. Update the test to the current shuffle-guard contract.
+- [x] **E0b — Fix test_shuffled_target_accuracy_is_chance.** DONE 2026-06-12.
+  Root cause: prepare_training_data returns a 13-tuple (X/P/y per split + scaler/
+  features/medians/player_mapping) and three tests still unpacked the old shape —
+  the shuffle test read P_train (player ids) as y and hit `KeyError: 'target'`;
+  test_no_nan_after_imputation silently checked the WRONG frames (y_train/P_val
+  instead of X_val/X_test) and passed vacuously. All three unpackings aligned to
+  the contract; the no-NaN test now genuinely covers X_val/X_test (passes).
+  Caveat: the two @slow tests still need the real features dataset to execute.
 - [ ] **E1 — Serve-stats coverage 2025-26.** `_50` rolling serve/return features are
   84% NaN on the test years (Sackmann lags current season) — the model flies blind
   exactly where it predicts. Ingest current-season match stats (Sackmann repo pull
