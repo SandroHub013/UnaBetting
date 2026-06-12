@@ -20,7 +20,7 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root (repo root in dev)
 DB_PATH = PROJECT_ROOT / "data" / "betanalytix.db"
 
 

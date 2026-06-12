@@ -1340,9 +1340,12 @@ async function checkUpdate(manual = false) {
 function showUpdateModal(d) {
   if ($('.upd-overlay')) return;
   const ov = el('div', 'upd-overlay');
+  const meta = d.mode === 'git'
+    ? `${d.current} → <b>${d.latest}</b> · +${d.behind} commit${d.behind > 1 ? 's' : ''} · ${dt(d.latest_date)}`
+    : `v${d.current} → <b>${d.latest}</b> · ${dt(d.latest_date)}`;
   ov.innerHTML = `<div class="upd-card">
     <h3>↻ ${t('upd_title')}</h3>
-    <div class="upd-meta">${d.current} → <b>${d.latest}</b> · +${d.behind} commit${d.behind > 1 ? 's' : ''} · ${dt(d.latest_date)}</div>
+    <div class="upd-meta">${meta}</div>
     <div class="upd-notes">${escHtml(d.notes || '')}</div>
     <div class="upd-status" id="upd-status"></div>
     <div class="upd-actions">
