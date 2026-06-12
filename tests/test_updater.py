@@ -16,6 +16,26 @@ import pytest
 import src.dashboard.data_api as data_api
 from src.dashboard.data_api import _extract_runtime_bundle
 
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
+
+# Throwaway signing keypair; the extractor's verification key is monkeypatched to this
+# public key (autouse), so bundles signed here verify exactly like production ones.
+_TEST_PRIV = ed25519.Ed25519PrivateKey.generate()
+_TEST_PUB_PEM = _TEST_PRIV.public_key().public_bytes(
+    serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+
+
+@pytest.fixture(autouse=True)
+def _use_test_pubkey(monkeypatch):
+    monkeypatch.setattr(data_api, "_UPDATER_PUBKEY", _TEST_PUB_PEM, raising=False)
+
+
+def _sign(manifest):
+    import base64
+    payload = json.dumps(manifest, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return base64.b64encode(_TEST_PRIV.sign(payload)).decode()
+
 
 def _make_bundle(path, files, manifest_files=None, with_manifest=True):
     """Build a zip at `path` with {member: bytes}; manifest defaults to correct hashes."""
@@ -28,8 +48,9 @@ def _make_bundle(path, files, manifest_files=None, with_manifest=True):
         for member, blob in files.items():
             zf.writestr(member, blob)
         if with_manifest:
-            zf.writestr("manifest.json", json.dumps(
-                {"name": "UnaBetting", "version": "9.9.9", "files": manifest_files}))
+            manifest = {"name": "UnaBetting", "version": "9.9.9", "files": manifest_files}
+            manifest["signature"] = _sign(manifest)
+            zf.writestr("manifest.json", json.dumps(manifest))
 
 
 def test_valid_bundle_extracts(tmp_path):
