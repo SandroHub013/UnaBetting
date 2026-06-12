@@ -122,6 +122,32 @@ def main() -> int:
                 {"path": rel, "bytes": size, "sha256": _sha256(src)}
             )
             zf.write(src, rel)
+            
+        import base64
+        import os
+        from cryptography.hazmat.primitives import serialization
+        
+        priv_key_path = ROOT / "keys" / "updater_private.pem"
+        priv_key_env = os.environ.get("UPDATER_PRIVATE_KEY")
+        
+        if priv_key_env:
+            priv_data = priv_key_env.encode("utf-8")
+        elif priv_key_path.exists():
+            priv_data = priv_key_path.read_bytes()
+        else:
+            print("[X] ERROR: Private key not found. Cannot sign the manifest.")
+            print("    Generate keys with: python scripts/generate_update_keys.py")
+            return 1
+            
+        try:
+            privkey = serialization.load_pem_private_key(priv_data, password=None)
+            payload = json.dumps(manifest, separators=(',', ':'), sort_keys=True).encode("utf-8")
+            sig = privkey.sign(payload)
+            manifest["signature"] = base64.b64encode(sig).decode("utf-8")
+        except Exception as e:
+            print(f"[X] ERROR: Failed to sign manifest: {e}")
+            return 1
+            
         zf.writestr("manifest.json", json.dumps(manifest, indent=2))
 
     # Drop the manifest next to the zip too (CI / updater read it without unzipping).

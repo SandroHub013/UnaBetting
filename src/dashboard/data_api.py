@@ -627,6 +627,16 @@ def _extract_runtime_bundle(zip_path, data_root):
     """
     import hashlib
     import zipfile
+    import base64
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.exceptions import InvalidSignature
+    
+    # Baked-in public key for runtime bundle verification
+    UPDATER_PUBKEY = b"""-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAx5CLlxfVh6r1rPNaBcJqQhr1zgNDcAEkXTIvIUXs1Mc=
+-----END PUBLIC KEY-----"""
+
     root = Path(data_root).resolve()
     try:
         zf = zipfile.ZipFile(zip_path)
@@ -634,11 +644,30 @@ def _extract_runtime_bundle(zip_path, data_root):
         raise ValueError("not a valid zip bundle") from None
     with zf:
         try:
-            manifest = json.loads(zf.read("manifest.json"))
+            raw_manifest = zf.read("manifest.json")
+            manifest = json.loads(raw_manifest)
         except KeyError:
             raise ValueError("bundle has no manifest.json — refusing to extract") from None
         except json.JSONDecodeError as e:
             raise ValueError(f"manifest.json is not valid JSON: {e}") from None
+            
+        sig_b64 = manifest.pop("signature", None)
+        if not sig_b64:
+            raise ValueError("unsigned bundle — refusing to extract")
+            
+        try:
+            pubkey = serialization.load_pem_public_key(UPDATER_PUBKEY)
+            if not isinstance(pubkey, ed25519.Ed25519PublicKey):
+                raise ValueError("invalid baked public key type")
+                
+            # Reconstruct the exact canonical JSON that was signed
+            payload = json.dumps(manifest, separators=(',', ':'), sort_keys=True).encode("utf-8")
+            pubkey.verify(base64.b64decode(sig_b64), payload)
+        except InvalidSignature:
+            raise ValueError("bundle signature verification failed — refusing to extract")
+        except Exception as e:
+            raise ValueError(f"error verifying signature: {e}")
+            
         try:
             expected = {f["path"]: (f["sha256"], int(f["bytes"]))
                         for f in manifest.get("files", [])}
