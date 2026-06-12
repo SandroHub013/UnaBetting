@@ -10,7 +10,7 @@ bet tracking, CLV measurement against sharp lines, and **UnaBetting** — a desk
 with a data cockpit, integrated terminals, a 3D knowledge graph, an agentic web browser,
 and a local-LLM memory core.
 
-**[▶ Explore the live 3D knowledge graph](https://sandrohub013.github.io/UnaBetting/graph3d.html)** · **[📖 Docs — deep dive](https://sandrohub013.github.io/UnaBetting/docs.html)** · **[Website](https://sandrohub013.github.io/UnaBetting/)**
+**[▶ Explore the live 3D knowledge graph](https://una-betting.vercel.app/graph3d.html)** · **[📖 Docs — deep dive](https://una-betting.vercel.app/docs.html)** · **[Website](https://una-betting.vercel.app/)**
 
 <!--METRICS-->
 **Current honest numbers** (test 2025+, updated 2026-06-12): model accuracy **67.4%** · log loss 0.601 · ROC 0.740 · odds-ensemble 69.6% on real-odds rows · honest backtest ROI **-29%** (negative — no betting edge).
