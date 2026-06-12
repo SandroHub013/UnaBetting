@@ -20,7 +20,7 @@ def load_resources(tour="atp"):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
         
-    cache_path = PROJECT_ROOT / "models" / "live_engines.pkl"
+    cache_path = PROJECT_ROOT / "models" / f"{tour}_live_engines.pkl"
     
     # Legacy-pickle shim: ensembles saved before 2026-06-10 were pickled while
     # train.py ran as __main__, so they reference "__main__.PreFittedEnsemble".
