@@ -1,0 +1,216 @@
+"""Security tests for the in-app updater's bundle extraction.
+
+The runtime bundle is downloaded from GitHub Releases and unpacked into the
+writable DATA_ROOT. These tests pin the defenses: zip-slip / absolute-path
+containment, sha256 manifest verification, all-or-nothing extraction, and the
+never-overwrite list for user data.
+"""
+import hashlib
+import io
+import json
+import urllib.request
+import zipfile
+
+import pytest
+
+import src.dashboard.data_api as data_api
+from src.dashboard.data_api import _extract_runtime_bundle
+
+
+def _make_bundle(path, files, manifest_files=None, with_manifest=True):
+    """Build a zip at `path` with {member: bytes}; manifest defaults to correct hashes."""
+    if manifest_files is None:
+        manifest_files = [
+            {"path": m, "bytes": len(b), "sha256": hashlib.sha256(b).hexdigest()}
+            for m, b in files.items()
+        ]
+    with zipfile.ZipFile(path, "w") as zf:
+        for member, blob in files.items():
+            zf.writestr(member, blob)
+        if with_manifest:
+            zf.writestr("manifest.json", json.dumps(
+                {"name": "UnaBetting", "version": "9.9.9", "files": manifest_files}))
+
+
+def test_valid_bundle_extracts(tmp_path):
+    bundle = tmp_path / "bundle.zip"
+    root = tmp_path / "data_root"
+    _make_bundle(bundle, {"models/atp_metrics.json": b'{"ok": 1}',
+                          "config/config.yaml": b"a: 1\n"})
+    n = _extract_runtime_bundle(bundle, root)
+    assert n == 2
+    assert (root / "models/atp_metrics.json").read_bytes() == b'{"ok": 1}'
+    assert (root / "config/config.yaml").read_bytes() == b"a: 1\n"
+
+
+def test_traversal_member_rejected(tmp_path):
+    bundle = tmp_path / "bundle.zip"
+    root = tmp_path / "data_root"
+    evil = b"evil"
+    _make_bundle(bundle, {"../outside.txt": evil})
+    with pytest.raises(ValueError, match="unsafe path"):
+        _extract_runtime_bundle(bundle, root)
+    assert not (tmp_path / "outside.txt").exists()
+
+
+def test_absolute_member_rejected(tmp_path):
+    bundle = tmp_path / "bundle.zip"
+    root = tmp_path / "data_root"
+    target = tmp_path / "abs_target.txt"
+    _make_bundle(bundle, {str(target): b"evil"})
+    with pytest.raises(ValueError, match="unsafe path"):
+        _extract_runtime_bundle(bundle, root)
+    assert not target.exists()
+
+
+def test_missing_manifest_rejected(tmp_path):
+    bundle = tmp_path / "bundle.zip"
+    _make_bundle(bundle, {"models/x.txt": b"x"}, with_manifest=False)
+    with pytest.raises(ValueError, match="manifest"):
+        _extract_runtime_bundle(bundle, tmp_path / "data_root")
+
+
+def test_not_a_zip_rejected(tmp_path):
+    bogus = tmp_path / "bundle.zip"
+    bogus.write_bytes(b"this is not a zip file")
+    with pytest.raises(ValueError, match="valid zip"):
+        _extract_runtime_bundle(bogus, tmp_path / "data_root")
+
+
+def test_malformed_manifest_entry_rejected(tmp_path):
+    """A manifest entry missing sha256/bytes is a ValueError, not a raw KeyError."""
+    bundle = tmp_path / "bundle.zip"
+    _make_bundle(bundle, {"models/x.txt": b"x"},
+                 manifest_files=[{"path": "models/x.txt"}])  # no sha256/bytes
+    with pytest.raises(ValueError, match="malformed manifest"):
+        _extract_runtime_bundle(bundle, tmp_path / "data_root")
+
+
+def test_manifest_lists_file_absent_from_bundle_rejected(tmp_path):
+    """Truncated bundle: manifest claims a file the zip doesn't contain -> reject
+    (else a partial/mixed-version install would slip through and bump VERSION)."""
+    bundle = tmp_path / "bundle.zip"
+    present = b"present"
+    _make_bundle(bundle, {"models/a.txt": present},
+                 manifest_files=[
+                     {"path": "models/a.txt", "bytes": len(present),
+                      "sha256": hashlib.sha256(present).hexdigest()},
+                     {"path": "models/missing.txt", "bytes": 3, "sha256": "00"},
+                 ])
+    with pytest.raises(ValueError, match="absent from bundle"):
+        _extract_runtime_bundle(bundle, tmp_path / "data_root")
+
+
+def test_empty_bundle_rejected(tmp_path):
+    """A manifest-only zip installs nothing -> reject (don't report a 0-file 'update')."""
+    bundle = tmp_path / "bundle.zip"
+    _make_bundle(bundle, {}, manifest_files=[])
+    with pytest.raises(ValueError, match="no installable files"):
+        _extract_runtime_bundle(bundle, tmp_path / "data_root")
+
+
+def test_size_mismatch_rejected(tmp_path):
+    bundle = tmp_path / "bundle.zip"
+    blob = b"hello"
+    _make_bundle(bundle, {"models/x.txt": blob},
+                 manifest_files=[{"path": "models/x.txt", "bytes": 999,
+                                  "sha256": hashlib.sha256(blob).hexdigest()}])
+    with pytest.raises(ValueError, match="size mismatch"):
+        _extract_runtime_bundle(bundle, tmp_path / "data_root")
+
+
+def test_file_not_in_manifest_rejected(tmp_path):
+    bundle = tmp_path / "bundle.zip"
+    _make_bundle(bundle, {"models/x.txt": b"x", "models/smuggled.txt": b"y"},
+                 manifest_files=[{"path": "models/x.txt", "bytes": 1,
+                                  "sha256": hashlib.sha256(b"x").hexdigest()}])
+    with pytest.raises(ValueError, match="not in manifest"):
+        _extract_runtime_bundle(bundle, tmp_path / "data_root")
+
+
+def test_hash_mismatch_rejected_and_nothing_written(tmp_path):
+    """Validate-all-then-write: a bad member late in the zip must not leave the
+    earlier (valid) members on disk."""
+    bundle = tmp_path / "bundle.zip"
+    root = tmp_path / "data_root"
+    good, bad = b"good", b"tampered"
+    _make_bundle(bundle, {"models/a.txt": good, "models/b.txt": bad},
+                 manifest_files=[
+                     {"path": "models/a.txt", "bytes": len(good),
+                      "sha256": hashlib.sha256(good).hexdigest()},
+                     {"path": "models/b.txt", "bytes": len(bad),  # size ok; hash wrong
+                      "sha256": hashlib.sha256(b"other").hexdigest()},
+                 ])
+    with pytest.raises(ValueError, match="sha256 mismatch"):
+        _extract_runtime_bundle(bundle, root)
+    assert not (root / "models/a.txt").exists(), "partial extraction occurred"
+
+
+def test_user_data_never_overwritten(tmp_path):
+    bundle = tmp_path / "bundle.zip"
+    root = tmp_path / "data_root"
+    (root / "data").mkdir(parents=True)
+    db = root / "data" / "betanalytix.db"
+    db.write_bytes(b"my bets")
+    _make_bundle(bundle, {"data/betanalytix.db": b"clobbered",
+                          "models/ok.txt": b"fine"})
+    n = _extract_runtime_bundle(bundle, root)
+    assert n == 1  # only models/ok.txt
+    assert db.read_bytes() == b"my bets"
+
+
+def _bundle_bytes(files):
+    buf = io.BytesIO()
+    _make_bundle(buf, files)
+    return buf.getvalue()
+
+
+def _patch_frozen_update(monkeypatch, tmp_path, bundle_bytes):
+    """Wire update_apply's FROZEN path to a fake release serving bundle_bytes."""
+    import src.runtime_paths as rp
+    monkeypatch.setattr(rp, "FROZEN", True, raising=False)
+    monkeypatch.setattr(rp, "DATA_ROOT", tmp_path, raising=False)
+    monkeypatch.setattr(rp, "app_version", lambda: "0.1.0", raising=False)
+    monkeypatch.setattr(data_api, "_latest_release", lambda: {
+        "tag_name": "v9.9.9",
+        "assets": [{"name": "UnaBetting-runtime-v9.9.9.zip",
+                    "browser_download_url": "https://example.invalid/b.zip"}],
+    })
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda *a, **k: io.BytesIO(bundle_bytes))
+
+
+def test_update_apply_happy_path_writes_version(tmp_path, monkeypatch):
+    _patch_frozen_update(monkeypatch, tmp_path,
+                         _bundle_bytes({"models/ok.txt": b"fine"}))
+    res = data_api.update_apply()
+    assert res["ok"] and res["updated"] and res["version"] == "v9.9.9"
+    assert (tmp_path / "models" / "ok.txt").read_bytes() == b"fine"
+    assert (tmp_path / "VERSION").read_text().strip() == "9.9.9"
+
+
+def test_update_apply_rejects_bad_bundle_without_writing_version(tmp_path, monkeypatch):
+    _patch_frozen_update(monkeypatch, tmp_path,
+                         _bundle_bytes({"../escape.txt": b"evil"}))
+    res = data_api.update_apply()
+    assert res.status_code == 502  # JSONResponse from _err
+    assert json.loads(bytes(res.body))["error"] == "bundle_rejected"
+    assert not (tmp_path / "VERSION").exists()
+    assert not (tmp_path.parent / "escape.txt").exists()
+
+
+def test_protected_match_is_case_and_separator_insensitive(tmp_path):
+    """Windows/macOS are case-insensitive: a bundle can't clobber the portfolio db
+    by varying case (`Betanalytix.db`) or separators (`data\\live\\...`)."""
+    bundle = tmp_path / "bundle.zip"
+    root = tmp_path / "data_root"
+    (root / "data").mkdir(parents=True)
+    db = root / "data" / "betanalytix.db"
+    db.write_bytes(b"my bets")
+    _make_bundle(bundle, {"data/Betanalytix.DB": b"clobbered",
+                          "data/live/predictions.json": b"x",
+                          "models/ok.txt": b"fine"})
+    n = _extract_runtime_bundle(bundle, root)
+    assert n == 1  # only models/ok.txt; the two protected variants are skipped
+    assert db.read_bytes() == b"my bets"
+    assert not (root / "data" / "live" / "predictions.json").exists()
