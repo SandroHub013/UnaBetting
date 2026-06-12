@@ -13,6 +13,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.venv/
+venv/
 
 # Data (too large for git)
 data/raw/
