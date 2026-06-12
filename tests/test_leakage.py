@@ -82,7 +82,9 @@ def test_no_nan_after_imputation():
     df = _synthetic_features()
     cfg = _config()
 
-    X_train, _, X_val, _, X_test, *_ = prepare_training_data(df, cfg, skip_selection=True)
+    # contract: X_train, P_train, y_train, X_val, P_val, y_val, X_test, P_test,
+    #           y_test, scaler, feature_names, medians, player_mapping
+    X_train, _, _, X_val, _, _, X_test, *_ = prepare_training_data(df, cfg, skip_selection=True)
 
     for name, X in [("train", X_train), ("val", X_val), ("test", X_test)]:
         assert not X.isna().any().any(), f"NaN present in {name} after imputation"
@@ -143,7 +145,7 @@ def test_serve_only_walkforward_roc_is_not_leaky():
     cfg = copy.deepcopy(cfg)
     cfg["model"]["test_start_year"] = 2024
     cfg["model"]["validation_years"] = []
-    Xtr, ytr, _, _, Xte, yte, *_ = prepare_training_data(df, cfg)
+    Xtr, _, ytr, _, _, _, Xte, _, yte, *_ = prepare_training_data(df, cfg)
 
     yor = df["tourney_date"].dt.year
     mk = Xte.index.map(yor) == 2024
@@ -182,7 +184,7 @@ def test_shuffled_target_accuracy_is_chance():
         pytest.skip(f"features not built: {features_path}")
 
     df = pd.read_csv(features_path, low_memory=False)
-    X_train, y_train, _, _, X_test, y_test, *_ = prepare_training_data(df, cfg)
+    X_train, _, y_train, _, _, _, X_test, _, y_test, *_ = prepare_training_data(df, cfg)
     y_tr = y_train["target"].to_numpy()
     y_te = y_test["target"].to_numpy()
 

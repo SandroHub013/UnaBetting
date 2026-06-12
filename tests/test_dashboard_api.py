@@ -119,6 +119,7 @@ def test_bet_rejects_bad_input(client):
 
 
 def test_file_api_rejects_binary_and_missing(client):
-    assert client.get("/api/file?path=models/atp_target_xgboost.pkl").status_code == 415
+    # git-tracked binary: exists in every clone, unlike the .pkl training artifacts
+    assert client.get("/api/file?path=models/atp_target_pytorch.pt").status_code == 415
     r = client.put("/api/file", json={"path": "nonexistent_dir/new.py", "content": "x"})
     assert r.status_code == 404

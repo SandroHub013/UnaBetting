@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import subprocess
+import sys
 import json
 from datetime import datetime
 from pathlib import Path
@@ -29,9 +30,36 @@ from textual.binding import Binding
 from textual import work
 from rich.text import Text
 from src.live.agent_llm import AgentLLM
-from src.ui.audio_engine import AudioEngine
-# from src.betting.portfolio import BetAnalytix
-# from src.betting.backtest import kelly_fraction as calc_kelly
+from src.betting.portfolio import BetAnalytix
+
+try:
+    from src.ui.audio_engine import AudioEngine
+except ImportError:  # pygame / pyttsx3 are optional extras
+    AudioEngine = None
+
+
+class _NullAudio:
+    """Silent stand-in when the optional audio deps (pygame, pyttsx3) are absent."""
+    tts_auto = False
+    tts_enabled = False
+    last_response = ""
+
+    def play_music(self):
+        pass
+
+    def play_sfx(self, name):
+        pass
+
+    def speak(self, text):
+        pass
+
+
+def calc_kelly(prob: float, odds: float) -> float:
+    """Kelly criterion f* = (b*p - q) / b for decimal odds; 0 when no edge."""
+    b = odds - 1.0
+    if b <= 0:
+        return 0.0
+    return max(0.0, (b * prob - (1.0 - prob)) / b)
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(CUR_DIR))
@@ -223,7 +251,13 @@ class BloombergTUI(App):
 
     def on_mount(self) -> None:
         self.agent_llm = AgentLLM()
-        self.audio = AudioEngine()
+        if AudioEngine is not None:
+            try:
+                self.audio = AudioEngine()
+            except Exception:  # audio is cosmetic — never block startup on it
+                self.audio = _NullAudio()
+        else:
+            self.audio = _NullAudio()
         self.audio.play_music()
         self.audio.play_sfx("startup")
 
@@ -464,9 +498,9 @@ class BloombergTUI(App):
         try:
             env = {**os.environ, "PYTHONUTF8": "1"}
             run_opts = dict(check=True, cwd=PROJECT_ROOT, env=env)
-            subprocess.run(["python", "-X", "utf8", "-m", "src.data.scraper"], **run_opts)
+            subprocess.run([sys.executable, "-X", "utf8", "-m", "src.data.scraper"], **run_opts)
             self.call_from_thread(self._update_progress, 45)
-            subprocess.run(["python", "-X", "utf8", "-m", "src.live.inference"], **run_opts)
+            subprocess.run([sys.executable, "-X", "utf8", "-m", "src.live.inference"], **run_opts)
             self.call_from_thread(self._update_progress, 95)
             self.call_from_thread(self.on_scan_complete, True)
         except Exception as e:
@@ -1150,7 +1184,7 @@ class BloombergTUI(App):
         try:
             env = {**os.environ, "PYTHONUTF8": "1"}
             subprocess.run(
-                ["python", "-X", "utf8", "-m", "src.betting.backtest"],
+                [sys.executable, "-X", "utf8", "-m", "src.models.backtest"],
                 check=True, cwd=PROJECT_ROOT, env=env,
             )
             self.call_from_thread(self.log_msg, "Backtest completed.", "system")

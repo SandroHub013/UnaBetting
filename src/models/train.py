@@ -20,9 +20,14 @@ from sklearn.metrics import (
 )
 from sklearn.calibration import CalibratedClassifierCV
 
-import torch
-from torch.utils.data import Dataset, DataLoader
-from src.models.pytorch_ensemble import TennisEmbeddingNet, TennisTransformerNet, train_tennis_model
+try:
+    import torch
+    from torch.utils.data import Dataset, DataLoader
+    from src.models.pytorch_ensemble import TennisEmbeddingNet, TennisTransformerNet, train_tennis_model
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+    Dataset = object  # TennisDataset is only instantiated when HAS_TORCH
 
 class PreFittedEnsemble:
     """Wrapper per evitare il re-training di tutti gli stimatori nell'Ensemble. 
@@ -508,7 +513,9 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
         results[f"{target_col}_{segment}_ensemble"] = _evaluate_model(ensemble, X_test, y_test, f"Ensemble {target_col} {segment}", is_regression)
 
     # --- PyTorch Embedding Net ---
-    if not is_regression and len(X_train) > 0:
+    if not is_regression and len(X_train) > 0 and not HAS_TORCH:
+        print(f"\n  [!] torch not installed — skipping PyTorch Embedding Net for {target_col} ({segment})")
+    if not is_regression and len(X_train) > 0 and HAS_TORCH:
         print(f"\n  [>] PyTorch Embedding Net for {target_col} ({segment})...")
         train_dataset = TennisDataset(P_train['p1_id'], P_train['p2_id'], X_train, y_train)
         val_dataset = TennisDataset(P_val['p1_id'], P_val['p2_id'], X_val, y_val)
