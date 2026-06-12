@@ -16,7 +16,11 @@ Run these checks on the pending diff/branch, in order:
    must remain local-only.
 5. **LLM tools** — any widening of the chat agent's tool list
    (`src/dashboard/chat.py`) needs explicit human sign-off.
-6. **Git hygiene** — additive public pushes only; never force-push.
+6. **Updater** — bundle extraction must keep going through
+   `_extract_runtime_bundle` (zip-slip containment + sha256 manifest check,
+   validate-all-then-write; tests in `tests/test_updater.py`); any change to
+   `/api/update/*` or `scripts/build_release_bundle.py` re-runs those tests.
+7. **Git hygiene** — additive public pushes only; never force-push.
 
 Report each finding as: file:line → severity → concrete fix. Sensitive findings
 go in a private report, never a public issue.

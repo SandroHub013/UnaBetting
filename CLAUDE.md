@@ -57,6 +57,9 @@ pip install -r requirements.txt
 - `src/dashboard` — FastAPI + pywebview app; `src/ui` — Textual TUI. Both read the
   same `betanalytix.db` and `models/atp_metrics.json`.
 - `scripts/loops/` — scheduled agent prompts; `EXPERIMENTS.md` — ML backlog & journal
+- `src/runtime_paths.py` — `BUNDLE_DIR` (read-only, ships with the app) vs `DATA_ROOT`
+  (writable; repo root in dev, per-OS app-data dir in packaged builds; override with
+  `UNABETTING_DATA_DIR`). Runtime modules resolve paths through `DATA_ROOT`.
 
 ## Conventions
 
@@ -76,4 +79,12 @@ pip install -r requirements.txt
 - File-serving endpoints go through `_safe_path` (`src/dashboard/data_api.py`).
 - Server binds 127.0.0.1 only; `/ws/run` is whitelist-only; widening the in-app LLM
   tool whitelist requires human review.
+- The in-app updater (`/api/update/apply`) extracts release bundles via
+  `_extract_runtime_bundle`: members must resolve inside `DATA_ROOT`, be listed in
+  the bundle's manifest with a matching size+sha256, and the whole bundle is
+  validated before any write — don't bypass it (tests in `tests/test_updater.py`).
+  The manifest gives **integrity, not authenticity** (it ships inside the same zip),
+  so trust rests on HTTPS from the project's own GitHub Releases. **Follow-up before
+  wide distribution:** sign the manifest and verify against a key baked into the
+  read-only `BUNDLE_DIR` — the bundle ships pickled models that `joblib.load` runs.
 - Public pushes are additive only — never force-push.
