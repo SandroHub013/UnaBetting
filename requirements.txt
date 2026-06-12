@@ -44,11 +44,19 @@ joblib>=1.3.0
 scipy>=1.11.0
 statsmodels>=0.14.0
 
+# Testing (CONTRIBUTING verify step)
+pytest>=7.0.0
+httpx>=0.24.0  # FastAPI TestClient
+
 # Scheduling (for live pipeline)
 schedule>=1.2.0
 
 # Mission Control dashboard
 fastapi
 uvicorn[standard]
-pywinpty
-pywin32
+pywinpty; sys_platform == "win32"
+pywin32; sys_platform == "win32"
+
+# Terminal UI (src/ui)
+textual
+# optional TUI audio extras (graceful no-op without them): pygame, pyttsx3, SpeechRecognition
