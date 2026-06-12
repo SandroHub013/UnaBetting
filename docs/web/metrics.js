@@ -1,1 +1,1 @@
-window.__METRICS={"acc": "67.7", "market": "67.7", "ll": "0.601", "roc": "0.740", "odds_acc": "69.8", "roi": "-62", "winrate": "46", "trained": "2026-06-12"};
+window.__METRICS={"acc": "67.4", "market": "67.7", "ll": "0.601", "roc": "0.740", "odds_acc": "69.6", "roi": "-57", "winrate": "45", "trained": "2026-06-12"};

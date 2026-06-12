@@ -41,6 +41,7 @@ l_form_ewm
 w_implied_prob
 l_implied_prob
 diff_implied_prob
+has_odds
 rank_diff
 rank_ratio
 age_diff
@@ -59,4 +60,3 @@ diff_break_rate_50
 diff_elo_x_form
 diff_age_x_fatigue
 abs_elo_prob_diff
-has_odds

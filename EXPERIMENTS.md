@@ -7,9 +7,11 @@ only if it beats the baseline, then commits.
 
 **Rules for the loop:**
 - One experiment per run. Smallest viable implementation.
-- Baseline to beat (2026-06-12, after E2+E3+E4): routed acc **67.66%** / LL **0.6010** /
-  ROC **0.7397** (test 2025+); odds-ensemble 69.85% on real-odds rows. Prior baseline
-  was 66.28% / 0.6080 / 0.7312 (2026-06-09).
+- Baseline to beat (2026-06-12, after E2+E3+E4, NaN-fix in E1): routed acc **~67.5%**
+  / LL **~0.601** / ROC **~0.740** (test 2025+); odds-ensemble ~69.7% on real-odds
+  rows. Treat the bar as a band ±0.7pt SE (≈4000 test matches) — a single run inside
+  it is NOT a gain. Latest run: 67.36 / 0.6006 / 0.7398. Prior 66.28 / 0.6080 / 0.7312
+  (2026-06-09).
 - Evaluation = `models/atp_metrics.json` after `python -m src.models.train` + honest
   backtest `python -m src.models.backtest`. Log every result in `reports/metrics_history.csv`.
 - If result worse: revert code, mark FAILED with the numbers, move on.
@@ -30,11 +32,18 @@ only if it beats the baseline, then commits.
   instead of X_val/X_test) and passed vacuously. All three unpackings aligned to
   the contract; the no-NaN test now genuinely covers X_val/X_test (passes).
   Caveat: the two @slow tests still need the real features dataset to execute.
-- [ ] **E1 — Serve-stats coverage 2025-26.** `_50` rolling serve/return features are
-  84% NaN on the test years (Sackmann lags current season) — the model flies blind
-  exactly where it predicts. Ingest current-season match stats (Sackmann repo pull
-  via `update_data.py`, or ATP site) and rebuild features. Expected: biggest single
-  gain; legit ceiling ~ROC 0.80 / acc ~70-72% per walk-forward 2026 fold.
+- [x] **E1 — Serve-stats coverage.** DONE + **FALSIFIED 2026-06-12.** The premise
+  ("Sackmann lags 2025, 84% NaN") was WRONG: raw serve stats are 94-98% present for
+  2021-2025 (only the in-progress 2026 is sparse). The real cause of the ~53% NaN on
+  the `_50` serve features was a **NaN-poison bug** in `player_stats.py`:
+  `sum(m.get(k,0) or 0 ...)` — `np.nan or 0` returns `np.nan` (NaN is truthy), so a
+  single stat-less match in a 50-match window poisoned the whole sum (~95% hit rate).
+  Fixed with a NaN-safe `_num()` coercion → `_50` NaN dropped 53% → **1.8%**.
+  **Result: accuracy NEUTRAL** (routed 67.66 → 67.36, within ±0.7pt SE; LL 0.6010 →
+  0.6006; ROC flat; backtest ROI −61.9% → −57.4%, still no edge). **Lesson: Elo +
+  market odds already encode serve strength; explicit serve splits are redundant —
+  serve coverage is NOT the accuracy lever.** Bug fix KEPT (correct code); hypothesis
+  rejected.
 - [x] **E2 — Walk-forward ensemble weighting.** DONE (PR #2). Softmax over -val-LL.
   Folded into the E4 retrain below.
 - [x] **E3 — Per-model calibration.** DONE. Sigmoid/isotonic per model. Folded into E4.
