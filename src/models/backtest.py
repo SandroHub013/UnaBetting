@@ -83,21 +83,25 @@ def predict_winner_prob(df, models_dir=None):
     scaler = joblib.load(scaler_path)
     medians = pd.Series(joblib.load(medians_path))
 
-    # Canonical preprocessing — reuse train.py's perspective randomizer instead of
-    # a hand-rolled copy, so the backtest sees byte-for-byte the same inputs the
-    # headline metrics were measured on (randomize @ seed 42 -> train medians -> scaler).
+    # Preprocessing reuses train.py's canonical randomizer (train medians -> scaler),
+    # not a hand-rolled copy. We score each match in BOTH orientations and average so
+    # the result is deterministic and free of the model's perspective asymmetry.
     from src.models.train import _randomize_perspective
-    X = df[features].copy()
-    # Raw rows are winner-POV (p1 == winner), so the pre-flip target is 1 everywhere;
-    # the randomizer flips ~50% of rows and the target with them.
-    y = pd.DataFrame({"target": np.ones(len(X), dtype=int)}, index=X.index)
-    X, y = _randomize_perspective(X, y, seed=SEED)
-    flip = y["target"].values == 0  # rows where p1 became the loser after the flip
+    base = df[features].copy()
+    n = len(base)
+    y_dummy = pd.DataFrame({"target": np.ones(n, dtype=int)}, index=base.index)
 
-    X = X.fillna(medians.reindex(features))
-    X = pd.DataFrame(scaler.transform(X), columns=features, index=X.index)
-    p1 = model.predict_proba(X)[:, 1]
-    return np.where(flip, 1.0 - p1, p1)  # prob of the ACTUAL winner
+    def _prep(X):
+        X = X.fillna(medians.reindex(features))
+        return pd.DataFrame(scaler.transform(X), columns=features, index=X.index)
+
+    # POV 1 — winner perspective (no flip): P(p1 == winner wins)
+    p_win = model.predict_proba(_prep(base.copy()))[:, 1]
+    # POV 2 — loser perspective (flip ALL rows): P(p1 == loser wins) -> winner = 1 - that
+    flipped, _ = _randomize_perspective(base.copy(), y_dummy,
+                                        flip_mask=np.ones(n, dtype=bool))
+    p_lose = model.predict_proba(_prep(flipped))[:, 1]
+    return (p_win + (1.0 - p_lose)) / 2.0  # orientation-invariant P(actual winner)
 
 
 def run_backtest():
