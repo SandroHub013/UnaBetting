@@ -3,18 +3,30 @@ import os
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from src.runtime_paths import BUNDLE_DIR, DATA_ROOT, FROZEN
+
+# Writable, persistent data lives under DATA_ROOT (repo root in dev; the per-OS
+# app-data dir in a packaged build). Read-only shipped resources (static assets,
+# the bundled default config) live under BUNDLE_DIR. In a source checkout both are
+# the repo root, so dev behaviour is unchanged.
+PROJECT_ROOT = DATA_ROOT
 
 HOST = "127.0.0.1"   # local only, by design — never bind 0.0.0.0
 PORT = 8765
 APP_NAME = "UnaBetting"
 WINDOW_TITLE = "UnaBetting"
 
-DB_PATH = PROJECT_ROOT / "data" / "betanalytix.db"
-ODDS_HISTORY = PROJECT_ROOT / "data" / "live" / "odds_history.csv"
-SIGNALS_LOG = PROJECT_ROOT / "data" / "live" / "signals_log.csv"
-CONFIG_YAML = PROJECT_ROOT / "config" / "config.yaml"
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+DB_PATH = DATA_ROOT / "data" / "betanalytix.db"
+ODDS_HISTORY = DATA_ROOT / "data" / "live" / "odds_history.csv"
+SIGNALS_LOG = DATA_ROOT / "data" / "live" / "signals_log.csv"
+# Prefer a user-updated config in DATA_ROOT; fall back to the bundled default.
+CONFIG_YAML = (DATA_ROOT / "config" / "config.yaml")
+if not CONFIG_YAML.exists() and (BUNDLE_DIR / "config" / "config.yaml").exists():
+    CONFIG_YAML = BUNDLE_DIR / "config" / "config.yaml"
+# Static UI assets are read-only and always shipped with the code.
+STATIC_DIR = (BUNDLE_DIR / "src" / "dashboard" / "static")
+if not STATIC_DIR.exists():
+    STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 # Pipeline runner: ONLY these commands can be launched from the UI buttons.
 # Free-form execution goes through the real terminals, not through this map.
