@@ -45,6 +45,9 @@ joblib>=1.3.0
 scipy>=1.11.0
 statsmodels>=0.14.0
 
+# Security (Updater signing)
+cryptography>=41.0.0
+
 # Testing (CONTRIBUTING verify step)
 pytest>=7.0.0
 httpx>=0.24.0  # FastAPI TestClient
