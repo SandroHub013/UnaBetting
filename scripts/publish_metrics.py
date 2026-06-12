@@ -14,7 +14,6 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MARKET = 0.677  # Bet365 favourite baseline (the bar to beat)
 
 
 def _pct(x, d=1):
@@ -38,7 +37,7 @@ def main():
     winrate = (bt.get("win_rate") or 0) * 100 if bt.get("win_rate") is not None else None
 
     metrics = {
-        "acc": _pct(acc), "market": _pct(MARKET), "ll": f"{ll:.3f}" if ll else "—",
+        "acc": _pct(acc), "ll": f"{ll:.3f}" if ll else "—",
         "roc": f"{roc:.3f}" if roc else "—", "odds_acc": _pct(odds_acc),
         "roi": (f"{roi:.0f}" if roi is not None else "—"),
         "winrate": (f"{winrate:.0f}" if winrate is not None else "—"),
@@ -53,10 +52,10 @@ def main():
     block = (
         "<!--METRICS-->\n"
         f"**Current honest numbers** (test 2025+, updated {metrics['trained']}): "
-        f"model **{metrics['acc']}%** vs market **{metrics['market']}%** · "
+        f"model accuracy **{metrics['acc']}%** · "
         f"log loss {metrics['ll']} · ROC {metrics['roc']} · "
         f"odds-ensemble {metrics['odds_acc']}% on real-odds rows · "
-        f"honest backtest ROI **{metrics['roi']}%** (still negative — no betting edge).\n"
+        f"honest backtest ROI **{metrics['roi']}%** (negative — no betting edge).\n"
         "<!--/METRICS-->"
     )
     readme = ROOT / "README.md"

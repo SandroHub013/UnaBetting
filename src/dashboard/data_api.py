@@ -388,7 +388,7 @@ def graph():
 def model():
     """Model health for the dashboard: current honest metrics + training history."""
     import json as _json
-    out = {"current": None, "history": [], "market_baseline": 0.677}
+    out = {"current": None, "history": []}
     mpath = config.PROJECT_ROOT / "models" / "atp_metrics.json"
     if mpath.exists():
         try:
