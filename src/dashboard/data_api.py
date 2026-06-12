@@ -609,6 +609,13 @@ def _is_protected(rel_posix_lower):
             or any(rel_posix_lower.startswith(p) for p in _PROTECTED_PREFIXES))
 
 
+#: Ed25519 public key that signs release bundles. Module-level so tests can inject a
+#: test keypair via monkeypatch; production keeps this baked-in key.
+_UPDATER_PUBKEY = b"""-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAx5CLlxfVh6r1rPNaBcJqQhr1zgNDcAEkXTIvIUXs1Mc=
+-----END PUBLIC KEY-----"""
+
+
 def _extract_runtime_bundle(zip_path, data_root):
     """Extract a runtime bundle into data_root. Returns the number of files written.
 
@@ -631,11 +638,10 @@ def _extract_runtime_bundle(zip_path, data_root):
     from cryptography.hazmat.primitives.asymmetric import ed25519
     from cryptography.hazmat.primitives import serialization
     from cryptography.exceptions import InvalidSignature
-    
-    # Baked-in public key for runtime bundle verification
-    UPDATER_PUBKEY = b"""-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAx5CLlxfVh6r1rPNaBcJqQhr1zgNDcAEkXTIvIUXs1Mc=
------END PUBLIC KEY-----"""
+
+    # Verification key read at call time from the module global, so tests can inject a
+    # test keypair (production uses the baked-in key below).
+    UPDATER_PUBKEY = _UPDATER_PUBKEY
 
     root = Path(data_root).resolve()
     try:
