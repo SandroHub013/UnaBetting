@@ -584,7 +584,7 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
     return models, results
 
 
-def train_models(tour="atp", target_col="target"):
+def train_models(tour="atp", target_col="target", save_dir=None, test_year=None, val_years=None):
     """
     Train all configured models for a specific target (target, game_diff, total_games).
     Uses train/validation/test split:
@@ -593,6 +593,11 @@ def train_models(tour="atp", target_col="target"):
       - Evaluate on test set
     """
     config = load_config()
+    if test_year is not None:
+        config["model"]["test_start_year"] = test_year
+    if val_years is not None:
+        config["model"]["validation_years"] = val_years
+        
     print(f"\n{'=' * 60}")
     print(f"  MODEL TRAINING - {tour.upper()}")
     print(f"{'=' * 60}")
@@ -602,8 +607,8 @@ def train_models(tour="atp", target_col="target"):
     if not features_path.exists():
         print(f"  [X] Features non trovate: {features_path}")
         print(f"  --> Esegui prima: python -m src.features.build_features")
-        return
-
+        return None, None
+        
     df = pd.read_csv(features_path, low_memory=False)
 
     # Prepare and Randomize data (now returns train + val + test)
@@ -684,7 +689,7 @@ def train_models(tour="atp", target_col="target"):
             all_results[f"{target_col}_routed_ensemble"] = {"accuracy": acc, "log_loss": ll, "brier": brier, "roc_auc": roc, "ece": ece}
 
     # Save models (calibrated versions)
-    models_dir = PROJECT_ROOT / config["paths"]["models"]
+    models_dir = Path(save_dir) if save_dir else PROJECT_ROOT / config["paths"]["models"]
     models_dir.mkdir(parents=True, exist_ok=True)
 
     for name, model in all_models.items():
