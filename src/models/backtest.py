@@ -14,6 +14,7 @@ Fixes vs the previous version:
 - excludes rows whose implied probs are the 0.5/0.5 no-odds sentinel fill
 - stake cap + Quarter Kelly; B365 is fixed-odds so no exchange commission
 """
+import sys
 from pathlib import Path
 
 import joblib
@@ -31,7 +32,12 @@ SEED = 123
 
 
 def load_inference_inputs():
-    df = pd.read_csv(ROOT / "data/features/atp_features.csv", low_memory=False)
+    features_path = ROOT / "data/features/atp_features.csv"
+    if not features_path.exists():
+        sys.exit(f"[X] Features not found: {features_path.relative_to(ROOT)}\n"
+                 "    Build the pipeline first: python -m src.data.download && "
+                 "python -m src.data.clean && python -m src.features.build_features")
+    df = pd.read_csv(features_path, low_memory=False)
     df["tourney_date"] = pd.to_datetime(df["tourney_date"], errors="coerce")
     df = df[df["tourney_date"].dt.year >= 2025].sort_values("tourney_date")
 
@@ -53,11 +59,18 @@ def predict_winner_prob(df):
     # E4 (2026-06-12): the odds-ensemble (market features, real-odds rows) is the
     # current headline model; falls back to the legacy single xgboost if absent.
     _odds = ROOT / "models/atp_target_odds_ensemble.pkl"
-    model_data = joblib.load(_odds if _odds.exists()
-                             else ROOT / "models/atp_target_xgboost.pkl")
+    model_path = _odds if _odds.exists() else ROOT / "models/atp_target_xgboost.pkl"
+    scaler_path = ROOT / "models/atp_scaler.pkl"
+    medians_path = ROOT / "models/atp_medians.pkl"
+    missing = [p.relative_to(ROOT) for p in (model_path, scaler_path, medians_path)
+               if not p.exists()]
+    if missing:
+        sys.exit("[X] Trained models not found: " + ", ".join(map(str, missing)) + "\n"
+                 "    Train first: python -m src.models.train")
+    model_data = joblib.load(model_path)
     model, features = model_data["model"], model_data["feature_cols"]
-    scaler = joblib.load(ROOT / "models/atp_scaler.pkl")
-    medians = pd.Series(joblib.load(ROOT / "models/atp_medians.pkl"))
+    scaler = joblib.load(scaler_path)
+    medians = pd.Series(joblib.load(medians_path))
 
     X = df[features].copy()
     rng = np.random.RandomState(SEED)
