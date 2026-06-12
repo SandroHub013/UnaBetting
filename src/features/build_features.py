@@ -478,4 +478,5 @@ def _prepare_feature_matrix(df):
 
 if __name__ == "__main__":
     atp_features = build_all_features(tour="atp")
+    wta_features = build_all_features(tour="wta")
     print("\n✅ Feature engineering completato!")

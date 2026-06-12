@@ -90,7 +90,7 @@ def load_config():
         return yaml.safe_load(f)
 
 
-def prepare_training_data(features_df, config, skip_selection=False):
+def prepare_training_data(features_df, config, skip_selection=False, tour="atp"):
     """
     Prepare train / validation / test sets using temporal split.
     - Train: years < validation_years (e.g. < 2023)
@@ -122,7 +122,10 @@ def prepare_training_data(features_df, config, skip_selection=False):
 
     # --- Feature Selection (Optimization) ---
     if not skip_selection:
-        selection_path = PROJECT_ROOT / "config" / "selected_features_atp.txt"
+        selection_path = PROJECT_ROOT / "config" / f"selected_features_{tour}.txt"
+        if not selection_path.exists():
+            selection_path = PROJECT_ROOT / "config" / "selected_features_atp.txt"
+        
         if selection_path.exists():
             with open(selection_path, "r") as f:
                 selected = [line.strip() for line in f if line.strip()]
@@ -303,18 +306,21 @@ def _assert_no_unpaired_perspective(columns):
         )
 
 
-def _randomize_perspective(X, y, seed=42):
+def _randomize_perspective(X, y, seed=42, flip_mask=None):
     """
     Randomly swap player 1 and player 2 to avoid the model learning
     that player 1 always wins. Flips ~50% of rows.
     Uses a fixed seed for reproducibility — model, scaler, and medians
     must all come from the same randomization.
+    Pass an explicit boolean ``flip_mask`` to flip specific rows (e.g. all rows for
+    an orientation-invariant inference); otherwise the mask is drawn from ``seed``.
     """
     _assert_no_unpaired_perspective(X.columns)
 
     n = len(X)
-    rng = np.random.RandomState(seed)
-    flip_mask = rng.random(n) > 0.5
+    if flip_mask is None:
+        rng = np.random.RandomState(seed)
+        flip_mask = rng.random(n) > 0.5
 
     X_flipped = X.copy()
     y_flipped = y.copy()
@@ -601,7 +607,7 @@ def train_models(tour="atp", target_col="target"):
     df = pd.read_csv(features_path, low_memory=False)
 
     # Prepare and Randomize data (now returns train + val + test)
-    X_train, P_train, y_train_all, X_val, P_val, y_val_all, X_test, P_test, y_test_all, scaler, feature_names, medians, player_mapping = prepare_training_data(df, config)
+    X_train, P_train, y_train_all, X_val, P_val, y_val_all, X_test, P_test, y_test_all, scaler, feature_names, medians, player_mapping = prepare_training_data(df, config, tour=tour)
 
     y_train = y_train_all[target_col]
     y_val = y_val_all[target_col]
@@ -773,8 +779,9 @@ def _evaluate_model(model, X_test, y_test, name, is_regression=False):
 
 
 if __name__ == "__main__":
-    # Train all three models
-    for target in ["target", "game_diff", "total_games"]:
-        train_models(tour="atp", target_col=target)
+    # Train all three models for both tours
+    for tour in ["atp", "wta"]:
+        for target in ["target", "game_diff", "total_games"]:
+            train_models(tour=tour, target_col=target)
     
     print("\n  [OK] Multi-Market Training completato!")

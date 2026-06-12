@@ -10,14 +10,14 @@ from src.features.sota_features import map_cpi
 
 from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root (repo root in dev)
 
-def load_resources():
+def load_resources(tour="atp"):
     config_path = PROJECT_ROOT / "config" / "config.yaml"
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
         
-    scaler_path = PROJECT_ROOT / config["paths"]["models"] / "atp_scaler.pkl"
-    features_meta_path = PROJECT_ROOT / config["paths"]["models"] / "atp_features.txt"
-    medians_path = PROJECT_ROOT / config["paths"]["models"] / "atp_medians.pkl"
+    scaler_path = PROJECT_ROOT / config["paths"]["models"] / f"{tour}_scaler.pkl"
+    features_meta_path = PROJECT_ROOT / config["paths"]["models"] / f"{tour}_features.txt"
+    medians_path = PROJECT_ROOT / config["paths"]["models"] / f"{tour}_medians.pkl"
     
     scaler = joblib.load(scaler_path)
     medians = joblib.load(medians_path) if medians_path.exists() else {}
@@ -37,11 +37,11 @@ def get_player_id(name, df):
         return match.iloc[0]['loser_id']
     return None
 
-def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p1=None, odds_p2=None):
-    config, scaler, feature_cols, medians = load_resources()
+def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p1=None, odds_p2=None, tour="atp"):
+    config, scaler, feature_cols, medians = load_resources(tour=tour)
     
     # Load historical data to populate the engine
-    unified_path = PROJECT_ROOT / "data" / "processed" / "atp_unified.csv"
+    unified_path = PROJECT_ROOT / "data" / "processed" / f"{tour}_unified.csv"
     df = pd.read_csv(unified_path, low_memory=False)
     
     # CRITICAL: Parse dates
@@ -134,14 +134,16 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
         if col in X_live.columns and pd.isna(X_live.at[0, col]):
             X_live.at[0, col] = medians.get(col, 0.5 if 'rate' in col or 'pct' in col or 'prob' in col else 0)
     
-    # Load model
-    model_path = PROJECT_ROOT / config["paths"]["models"] / f"atp_target_{segment}_ensemble.pkl"
-    if not model_path.exists():
-        print(f"❌ Errore: Modello {segment} non trovato in {model_path}")
-        return
-        
-    model_data = joblib.load(model_path)
-    model = model_data["model"] if isinstance(model_data, dict) and "model" in model_data else model_data
+    models = {}
+    
+    for target in ["target", "game_diff", "total_games"]:
+        model_path = PROJECT_ROOT / config["paths"]["models"] / f"{tour}_{target}_{segment}_ensemble.pkl"
+        if not model_path.exists():
+            print(f"⚠️ Modello ensemble per {target} ({segment}) non trovato! in {model_path}")
+            return
+            
+        model_data = joblib.load(model_path)
+        models[target] = model_data["model"] if isinstance(model_data, dict) and "model" in model_data else model_data
     
     # Scale and Predict
     X_scaled = scaler.transform(X_live)
