@@ -15,7 +15,7 @@ from src.features.sota_features import map_cpi
 
 from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root (repo root in dev)
 
-def load_resources():
+def load_resources(tour="atp"):
     config_path = PROJECT_ROOT / "config" / "config.yaml"
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -42,13 +42,13 @@ def load_resources():
         return obj, None
 
     # Load Multi-Models (XGBoost for H2H: best accuracy 78.8%, ROC AUC 0.885)
-    model_h2h, fc_h2h = _load_model_artifact(PROJECT_ROOT / "models" / "atp_target_xgboost.pkl")
-    model_spread, _ = _load_model_artifact(PROJECT_ROOT / "models" / "atp_game_diff_xgboost.pkl")
-    model_totals, _ = _load_model_artifact(PROJECT_ROOT / "models" / "atp_total_games_ensemble.pkl")
+    model_h2h, fc_h2h = _load_model_artifact(PROJECT_ROOT / "models" / f"{tour}_target_xgboost.pkl")
+    model_spread, _ = _load_model_artifact(PROJECT_ROOT / "models" / f"{tour}_game_diff_xgboost.pkl")
+    model_totals, _ = _load_model_artifact(PROJECT_ROOT / "models" / f"{tour}_total_games_ensemble.pkl")
 
-    scaler = joblib.load(PROJECT_ROOT / "models" / "atp_scaler.pkl")
-    features_meta_path = PROJECT_ROOT / "models" / "atp_features.txt"
-    medians_path = PROJECT_ROOT / "models" / "atp_medians.pkl"
+    scaler = joblib.load(PROJECT_ROOT / "models" / f"{tour}_scaler.pkl")
+    features_meta_path = PROJECT_ROOT / "models" / f"{tour}_features.txt"
+    medians_path = PROJECT_ROOT / "models" / f"{tour}_medians.pkl"
 
     # Load all
     state = joblib.load(cache_path)
