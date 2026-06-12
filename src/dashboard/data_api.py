@@ -645,6 +645,16 @@ def _extract_runtime_bundle(zip_path, data_root):
         except (KeyError, TypeError, ValueError):
             raise ValueError("malformed manifest entry") from None
 
+        # Containment first: reject any zip-slip / absolute-path member BEFORE the
+        # manifest checks, so an unsafe path is caught deterministically on every OS
+        # (Windows normalizes backslash/absolute names, which would otherwise trip the
+        # manifest-absent check first) and even if it were also listed in the manifest.
+        for m in zf.namelist():
+            if m.endswith("/") or m == "manifest.json":
+                continue
+            if not (root / m).resolve().is_relative_to(root):
+                raise ValueError(f"unsafe path in bundle: {m}")
+
         members = set(zf.namelist())
         absent = sorted(p for p in expected if p not in members)
         if absent:
