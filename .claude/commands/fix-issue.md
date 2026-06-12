@@ -2,11 +2,18 @@
 description: Analyzes and resolves a specific bug or console error provided by the user.
 ---
 
-# Command: /project:fix-issue
+# Command: /fix-issue
 
-When investigating a bug or an anomaly, follow this structured troubleshooting procedure:
+When investigating a bug or an anomaly in this repo:
 
-1. **Context Analysis:** Ask for full stack traces or logs if they are not provided. Do not guess the root cause without evidence.
-2. **Root Cause Identification:** Trace the execution path to isolate the faulty module, function, or configuration.
-3. **Impact Assessment:** Consider edge cases and how the proposed fix might impact other parts of the system.
-4. **Actionable Fix:** Produce a clear explanation of the problem and provide the exact code changes required to resolve the issue. If tests are missing, suggest adding them to prevent regressions.
+1. **Reproduce first:** run the failing path with the project venv
+   (`.venv/bin/python -m …`). Missing-data crashes are common on fresh clones —
+   check `data/features/`, `models/*.pkl`, and `data/raw/TML-Database/` before
+   assuming a code bug.
+2. **Root cause, not symptom:** trace the execution path to the faulty module;
+   don't guess without a stack trace or log.
+3. **Impact:** consider both platforms (Windows desktop app, Linux/macOS
+   `--browser`/`--server-only`) and whether the fix touches the leak-free rules
+   in CLAUDE.md.
+4. **Fix + regression test:** land the smallest correct change with a test in
+   `tests/` that fails before and passes after. Run the full suite.
