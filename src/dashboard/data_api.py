@@ -2,6 +2,7 @@
 import json
 import shutil
 import sqlite3
+from pathlib import Path
 
 import yaml
 from fastapi import APIRouter, Request
@@ -591,7 +592,101 @@ def update_check():
 
 # Bundle members under these roots are app artifacts and may be overwritten; the
 # user's portfolio db and settings are NEVER in the bundle, so they stay untouched.
-_NEVER_OVERWRITE = ("betanalytix.db", "settings.json", "data/live/")
+#: Hard ceiling on the downloaded bundle (the slim runtime bundle is ~42 MB). Guards
+#: against a runaway/oversized release asset filling the disk during download.
+_MAX_BUNDLE_BYTES = 500 * 1024 * 1024
+
+#: User data a bundle must never touch. Matched on the normalized (posix, lower-case)
+#: path AFTER zip-slip containment, so neither case nor separator tricks (Windows/macOS
+#: are case-insensitive; `data\live\x` etc.) can sneak a write onto these.
+_PROTECTED_NAMES = ("betanalytix.db", "settings.json")
+_PROTECTED_PREFIXES = ("data/live/",)
+
+
+def _is_protected(rel_posix_lower):
+    name = rel_posix_lower.rsplit("/", 1)[-1]
+    return (name in _PROTECTED_NAMES
+            or any(rel_posix_lower.startswith(p) for p in _PROTECTED_PREFIXES))
+
+
+def _extract_runtime_bundle(zip_path, data_root):
+    """Extract a runtime bundle into data_root. Returns the number of files written.
+
+    INTEGRITY, NOT AUTHENTICITY: manifest.json lives inside the same zip it attests,
+    so the sha256 checks only catch accidental corruption / truncation, NOT a
+    tampered or malicious bundle (an attacker who alters files just rewrites the
+    hashes). The bundle is trusted because it is fetched over HTTPS from the
+    project's own GitHub Releases — see the signing follow-up in CLAUDE.md.
+
+    Every member is validated BEFORE anything is written (a rejected bundle writes
+    nothing): it must resolve inside data_root (zip-slip / absolute-path guard), be
+    listed in the manifest with a matching size and sha256, and the manifest must not
+    list files absent from the zip. Protected user paths (_is_protected) are skipped.
+    Schema produced by scripts/build_release_bundle.py. Raises ValueError on any
+    violation.
+    """
+    import hashlib
+    import zipfile
+    root = Path(data_root).resolve()
+    try:
+        zf = zipfile.ZipFile(zip_path)
+    except zipfile.BadZipFile:
+        raise ValueError("not a valid zip bundle") from None
+    with zf:
+        try:
+            manifest = json.loads(zf.read("manifest.json"))
+        except KeyError:
+            raise ValueError("bundle has no manifest.json — refusing to extract") from None
+        except json.JSONDecodeError as e:
+            raise ValueError(f"manifest.json is not valid JSON: {e}") from None
+        try:
+            expected = {f["path"]: (f["sha256"], int(f["bytes"]))
+                        for f in manifest.get("files", [])}
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("malformed manifest entry") from None
+
+        # Containment first: reject any zip-slip / absolute-path member BEFORE the
+        # manifest checks, so an unsafe path is caught deterministically on every OS
+        # (Windows normalizes backslash/absolute names, which would otherwise trip the
+        # manifest-absent check first) and even if it were also listed in the manifest.
+        for m in zf.namelist():
+            if m.endswith("/") or m == "manifest.json":
+                continue
+            if not (root / m).resolve().is_relative_to(root):
+                raise ValueError(f"unsafe path in bundle: {m}")
+
+        members = set(zf.namelist())
+        absent = sorted(p for p in expected if p not in members)
+        if absent:
+            raise ValueError(f"manifest lists files absent from bundle: {absent[:5]}")
+
+        to_write = []  # validate-all-then-write: (dst, blob)
+        for m in zf.namelist():
+            if m.endswith("/") or m == "manifest.json":
+                continue
+            dst = (root / m).resolve()
+            if not dst.is_relative_to(root):
+                raise ValueError(f"unsafe path in bundle: {m}")
+            if _is_protected(dst.relative_to(root).as_posix().lower()):
+                continue
+            entry = expected.get(m)
+            if entry is None:
+                raise ValueError(f"file not in manifest: {m}")
+            sha, size = entry
+            blob = zf.read(m)
+            if len(blob) != size:
+                raise ValueError(f"size mismatch: {m}")
+            if hashlib.sha256(blob).hexdigest() != sha:
+                raise ValueError(f"sha256 mismatch: {m}")
+            to_write.append((dst, blob))
+
+        if not to_write:
+            raise ValueError("bundle contains no installable files")
+
+        for dst, blob in to_write:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes(blob)
+    return len(to_write)
 
 
 @router.post("/update/apply")
@@ -603,7 +698,6 @@ def update_apply():
     if FROZEN:
         import tempfile
         import urllib.request
-        import zipfile
         try:
             rel = _latest_release()
             tag = rel.get("tag_name", "")
@@ -617,26 +711,26 @@ def update_apply():
                         "output": "New app version needs the installer (no in-place "
                                   "bundle). Download it from the Releases page.",
                         "installer_required": True}
-            tmp = Path(tempfile.gettempdir()) / bundle["name"]
-            req = urllib.request.Request(bundle["browser_download_url"],
-                                         headers={"User-Agent": "UnaBetting-updater"})
-            with urllib.request.urlopen(req, timeout=120) as r, tmp.open("wb") as f:
-                while chunk := r.read(1 << 20):
-                    f.write(chunk)
-            n = 0
-            with zipfile.ZipFile(tmp) as zf:
-                for m in zf.namelist():
-                    if m.endswith("/") or m == "manifest.json":
-                        continue
-                    if any(bad in m for bad in _NEVER_OVERWRITE):
-                        continue
-                    dst = DATA_ROOT / m
-                    dst.parent.mkdir(parents=True, exist_ok=True)
-                    with zf.open(m) as src, dst.open("wb") as out:
-                        out.write(src.read())
-                    n += 1
+            url = bundle["browser_download_url"]
+            if not url.startswith("https://"):
+                return _err(502, "bundle_rejected", "download URL is not https")
+            # Path(...).name: never trust the asset name as a path component.
+            tmp = Path(tempfile.gettempdir()) / Path(bundle["name"]).name
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "UnaBetting-updater"})
+                got = 0
+                with urllib.request.urlopen(req, timeout=120) as r, tmp.open("wb") as f:
+                    while chunk := r.read(1 << 20):
+                        got += len(chunk)
+                        if got > _MAX_BUNDLE_BYTES:
+                            raise ValueError("bundle exceeds size limit")
+                        f.write(chunk)
+                n = _extract_runtime_bundle(tmp, DATA_ROOT)
+            except ValueError as e:
+                return _err(502, "bundle_rejected", e)
+            finally:
+                tmp.unlink(missing_ok=True)
             (DATA_ROOT / "VERSION").write_text(tag.lstrip("v") + "\n", encoding="utf-8")
-            tmp.unlink(missing_ok=True)
             return {"ok": True, "updated": True, "version": tag, "files": n,
                     "restart_required": True,
                     "output": f"Updated to {tag} ({n} files). Restart to apply."}
