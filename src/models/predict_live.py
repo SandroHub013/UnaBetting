@@ -8,7 +8,7 @@ from src.features.player_stats import PlayerStatsEngine
 from src.features.elo import EloRating
 from src.features.sota_features import map_cpi
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root (repo root in dev)
 
 def load_resources():
     config_path = PROJECT_ROOT / "config" / "config.yaml"

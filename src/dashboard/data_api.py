@@ -520,9 +520,57 @@ def _update_remote():
     return "origin"
 
 
+def _ver_tuple(s):
+    """'v1.2.3' / '1.2.3' -> (1,2,3); non-numeric parts drop to 0."""
+    import re
+    nums = re.findall(r"\d+", (s or "").strip())
+    return tuple(int(n) for n in nums[:3]) + (0,) * (3 - len(nums[:3]))
+
+
+def _http_json(url, timeout=15):
+    import json as _j
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "UnaBetting-updater",
+                                               "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return _j.loads(r.read().decode("utf-8"))
+
+
+def _latest_release():
+    return _http_json(f"https://api.github.com/repos/{config.PUBLIC_REPO}/releases/latest")
+
+
+def _os_installer_tag():
+    """Asset-name infix for this platform's installer (matches release.yml)."""
+    import sys as _s
+    return ("windows" if _s.platform.startswith("win")
+            else "macos" if _s.platform == "darwin" else "linux")
+
+
 @router.get("/update/check")
 def update_check():
-    """Is a newer version available on the public repo? (strictly-behind, ff-able)."""
+    """Packaged builds compare the local VERSION against the latest GitHub Release;
+    a source checkout falls back to the git fast-forward check (for contributors)."""
+    from src.runtime_paths import FROZEN, app_version
+    if FROZEN:
+        try:
+            rel = _latest_release()
+            tag = rel.get("tag_name", "")
+            cur = app_version()
+            assets = rel.get("assets", [])
+            bundle = next((a for a in assets if a["name"].startswith("UnaBetting-runtime-")), None)
+            installer = next((a for a in assets if _os_installer_tag() in a["name"]
+                              and not a["name"].startswith("UnaBetting-runtime-")), None)
+            available = _ver_tuple(tag) > _ver_tuple(cur)
+            return {"mode": "release", "current": cur, "latest": tag,
+                    "available": available,
+                    "notes": (rel.get("body") or "")[:1500],
+                    "latest_date": rel.get("published_at"),
+                    "has_bundle": bool(bundle),
+                    "installer_url": installer["browser_download_url"] if installer else None}
+        except Exception as e:
+            return _err(502, "update_check_failed", e)
+    # dev / source checkout: git fast-forward check
     try:
         cur = _git(["rev-parse", "--short", "HEAD"]).stdout.strip()
         remote, branch = _update_remote(), config.UPDATE_BRANCH
@@ -534,17 +582,67 @@ def update_check():
         latest = _git(["rev-parse", "--short", ref]).stdout.strip()
         msg = _git(["log", "-1", "--format=%s", ref]).stdout.strip()
         ldate = _git(["log", "-1", "--format=%cI", ref]).stdout.strip()
-        # only offer when strictly behind and cleanly fast-forwardable
-        return {"current": cur, "latest": latest, "behind": behind, "ahead": ahead,
-                "available": behind > 0 and ahead == 0, "notes": msg, "latest_date": ldate}
+        return {"mode": "git", "current": cur, "latest": latest, "behind": behind,
+                "ahead": ahead, "available": behind > 0 and ahead == 0,
+                "notes": msg, "latest_date": ldate}
     except Exception as e:
         return _err(502, "update_check_failed", e)
 
 
+# Bundle members under these roots are app artifacts and may be overwritten; the
+# user's portfolio db and settings are NEVER in the bundle, so they stay untouched.
+_NEVER_OVERWRITE = ("betanalytix.db", "settings.json", "data/live/")
+
+
 @router.post("/update/apply")
 def update_apply():
-    """Fast-forward pull from the public repo. Local settings (.env, data/, models/,
-    gitignored files, browser localStorage) are untouched. Refuses if not ff-able."""
+    """Packaged: download the latest runtime bundle and extract it into DATA_ROOT
+    (models + reference data + config), preserving the user's portfolio db and
+    settings. Source checkout: git fast-forward pull."""
+    from src.runtime_paths import FROZEN, DATA_ROOT, app_version
+    if FROZEN:
+        import tempfile
+        import urllib.request
+        import zipfile
+        try:
+            rel = _latest_release()
+            tag = rel.get("tag_name", "")
+            if _ver_tuple(tag) <= _ver_tuple(app_version()):
+                return {"ok": True, "updated": False, "version": app_version(),
+                        "output": "Already up to date."}
+            bundle = next((a for a in rel.get("assets", [])
+                           if a["name"].startswith("UnaBetting-runtime-")), None)
+            if not bundle:
+                return {"ok": False, "updated": False,
+                        "output": "New app version needs the installer (no in-place "
+                                  "bundle). Download it from the Releases page.",
+                        "installer_required": True}
+            tmp = Path(tempfile.gettempdir()) / bundle["name"]
+            req = urllib.request.Request(bundle["browser_download_url"],
+                                         headers={"User-Agent": "UnaBetting-updater"})
+            with urllib.request.urlopen(req, timeout=120) as r, tmp.open("wb") as f:
+                while chunk := r.read(1 << 20):
+                    f.write(chunk)
+            n = 0
+            with zipfile.ZipFile(tmp) as zf:
+                for m in zf.namelist():
+                    if m.endswith("/") or m == "manifest.json":
+                        continue
+                    if any(bad in m for bad in _NEVER_OVERWRITE):
+                        continue
+                    dst = DATA_ROOT / m
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(m) as src, dst.open("wb") as out:
+                        out.write(src.read())
+                    n += 1
+            (DATA_ROOT / "VERSION").write_text(tag.lstrip("v") + "\n", encoding="utf-8")
+            tmp.unlink(missing_ok=True)
+            return {"ok": True, "updated": True, "version": tag, "files": n,
+                    "restart_required": True,
+                    "output": f"Updated to {tag} ({n} files). Restart to apply."}
+        except Exception as e:
+            return _err(500, "update_failed", e)
+    # dev / source checkout: git ff-only pull
     try:
         remote, branch = _update_remote(), config.UPDATE_BRANCH
         r = _git(["pull", "--ff-only", remote, branch], timeout=180)

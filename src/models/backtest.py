@@ -21,7 +21,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
+from src.runtime_paths import DATA_ROOT as ROOT  # writable+seeded root (repo root in dev)
 
 KELLY_FRACTION = 0.25
 MIN_EDGE = 0.03

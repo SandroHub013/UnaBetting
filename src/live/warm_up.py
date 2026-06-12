@@ -5,7 +5,7 @@ from pathlib import Path
 from src.features.player_stats import PlayerStatsEngine
 from src.features.elo import EloRating
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root (repo root in dev)
 
 def warm_up():
     print("🎾 Pre-calcolando i motori ELO e Statistiche per l'analisi LIVE...")

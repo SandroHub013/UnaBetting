@@ -16,7 +16,8 @@ src/data/scraper.py --snapshot).
 import os
 import pandas as pd
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.runtime_paths import DATA_ROOT  # writable+seeded root (repo root in dev)
+PROJECT_ROOT = str(DATA_ROOT)
 
 # Books with a track record of stale / palpable-error / will-be-voided lines.
 LOOSE_BOOKS = {"onexbet"}
