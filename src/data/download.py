@@ -91,6 +91,19 @@ def download_sackmann_repos(config):
     return results
 
 
+def download_tml_database(config):
+    """Download the TML-Database repository for ATP data."""
+    print("\n" + "=" * 60)
+    print("📦 DOWNLOAD TML-DATABASE (ATP)")
+    print("=" * 60)
+
+    raw_dir = PROJECT_ROOT / config["paths"]["raw_data"]
+    url = "https://github.com/Tennismylife/TML-Database.git"
+    
+    success = clone_or_pull_repo(url, raw_dir)
+    return success
+
+
 def download_tennis_data_co_uk(config):
     """
     Download historical betting odds from tennis-data.co.uk.
@@ -204,7 +217,10 @@ def download_all():
     # 2. Download Sackmann repos
     sackmann_results = download_sackmann_repos(config)
 
-    # 3. Download tennis-data.co.uk odds
+    # 3. Download TML-Database (ATP)
+    tml_success = download_tml_database(config)
+
+    # 4. Download tennis-data.co.uk odds
     odds_downloaded, odds_errors = download_tennis_data_co_uk(config)
 
     # Summary
@@ -216,6 +232,10 @@ def download_all():
     for name, success in sackmann_results.items():
         status = "✓" if success else "✗"
         print(f"  {status} {name}")
+        
+    tml_status = "✓" if tml_success else "✗"
+    print(f"\nTML-Database (ATP):")
+    print(f"  {tml_status} TML-Database")
 
     print(f"\nQuote tennis-data.co.uk: {odds_downloaded} file scaricati")
 

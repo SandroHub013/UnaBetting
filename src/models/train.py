@@ -785,3 +785,7 @@ if __name__ == "__main__":
             train_models(tour=tour, target_col=target)
     
     print("\n  [OK] Multi-Market Training completato!")
+    
+    # Generate live engines required for release bundle and inference
+    from src.live.warm_up import warm_up
+    warm_up()
