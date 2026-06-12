@@ -56,15 +56,24 @@ def load_inference_inputs():
     return df
 
 
-def predict_winner_prob(df):
-    """Return P(actual winner wins) per match, via perspective-neutral inference."""
+def predict_winner_prob(df, models_dir=None):
+    """Return P(actual winner wins) per match — ORIENTATION-INVARIANT.
+
+    The model is not perfectly perspective-symmetric, so a single random flip made
+    the result (and the betting PnL) depend on the seed. We instead score each match
+    in BOTH orientations and average: winner-POV gives P(winner wins); loser-POV gives
+    P(loser wins), so 1 − that is also P(winner wins). The mean is deterministic,
+    seed-free, and a fairer read of the model's true belief. Preprocessing reuses
+    train.py's canonical randomizer (train medians -> scaler), not a hand-rolled copy.
+    """
+    base_dir = Path(models_dir) if models_dir else ROOT / "models"
     # E4 (2026-06-12): the odds-ensemble (market features, real-odds rows) is the
     # current headline model; falls back to the legacy single xgboost if absent.
-    _odds = ROOT / "models/atp_target_odds_ensemble.pkl"
-    model_path = _odds if _odds.exists() else ROOT / "models/atp_target_xgboost.pkl"
-    scaler_path = ROOT / "models/atp_scaler.pkl"
-    medians_path = ROOT / "models/atp_medians.pkl"
-    missing = [p.relative_to(ROOT) for p in (model_path, scaler_path, medians_path)
+    _odds = base_dir / "atp_target_odds_ensemble.pkl"
+    model_path = _odds if _odds.exists() else base_dir / "atp_target_xgboost.pkl"
+    scaler_path = base_dir / "atp_scaler.pkl"
+    medians_path = base_dir / "atp_medians.pkl"
+    missing = [p.relative_to(base_dir) for p in (model_path, scaler_path, medians_path)
                if not p.exists()]
     if missing:
         sys.exit("[X] Trained models not found: " + ", ".join(map(str, missing)) + "\n"
@@ -171,5 +180,124 @@ def run_backtest():
     print(f"[+] saved {out_p.relative_to(ROOT)}")
 
 
+def run_walk_forward():
+    print("=" * 60)
+    print("  WALK-FORWARD BACKTEST (Rolling Training)")
+    print("=" * 60)
+    
+    # Load all real-odds features
+    features_path = ROOT / "data/features/atp_features.csv"
+    if not features_path.exists():
+        sys.exit("[X] Features not found")
+    df = pd.read_csv(features_path, low_memory=False)
+    df["tourney_date"] = pd.to_datetime(df["tourney_date"], errors="coerce")
+    
+    odds_w = pd.to_numeric(df["B365W"], errors="coerce").fillna(pd.to_numeric(df.get("PSW"), errors="coerce")).fillna(pd.to_numeric(df.get("AvgW"), errors="coerce"))
+    odds_l = pd.to_numeric(df["B365L"], errors="coerce").fillna(pd.to_numeric(df.get("PSL"), errors="coerce")).fillna(pd.to_numeric(df.get("AvgL"), errors="coerce"))
+    has_odds = odds_w.notna() & odds_l.notna() & (odds_w > 1.0) & (odds_l > 1.0)
+    
+    df_eval = df[has_odds].copy()
+    df_eval["odds_w"], df_eval["odds_l"] = odds_w[has_odds], odds_l[has_odds]
+    
+    from src.models.train import train_models
+    import tempfile
+    
+    eval_years = [2023, 2024, 2025]
+    total_wins = 0
+    total_losses = 0
+    rois = []
+    
+    # Track metrics separately for "agrees with market" vs "disagrees"
+    # Market favourite is the one with lower odds.
+    agree_pnl = 0.0
+    agree_bets = 0
+    disagree_pnl = 0.0
+    disagree_bets = 0
+    
+    for year in eval_years:
+        print(f"\n---> Training up to {year-1}, betting {year}...")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # We skip saving validation years, just train up to `year`
+            train_models(tour="atp", target_col="target", save_dir=tmp_dir, test_year=year, val_years=[])
+            
+            df_year = df_eval[df_eval["tourney_date"].dt.year == year].copy()
+            if len(df_year) == 0:
+                print(f"No matches with odds in {year}.")
+                continue
+                
+            df_year["p_winner"] = predict_winner_prob(df_year, models_dir=tmp_dir)
+            
+            bankroll = STARTING_BANKROLL
+            wins = losses = 0
+            
+            for _, row in df_year.iterrows():
+                cands = [(row["p_winner"], row["odds_w"], True, True), # (prob, odds, is_win, is_fav)
+                         (1 - row["p_winner"], row["odds_l"], False, False)]
+                         
+                is_p1_fav = row["odds_w"] < row["odds_l"]
+                cands[0] = (cands[0][0], cands[0][1], cands[0][2], is_p1_fav)
+                cands[1] = (cands[1][0], cands[1][1], cands[1][2], not is_p1_fav)
+                
+                best = None
+                for p, odds, is_win, is_fav in cands:
+                    if odds < MIN_ODDS:
+                        continue
+                    edge = p - 1.0 / odds
+                    if edge > MIN_EDGE and (best is None or edge > best[4]):
+                        best = (p, odds, is_win, is_fav, edge)
+                        
+                if best is None:
+                    continue
+                p, odds, is_win, is_fav, edge = best
+                b = odds - 1.0
+                kelly = (p * b - (1 - p)) / b
+                if kelly <= 0:
+                    continue
+                stake = bankroll * min(kelly * KELLY_FRACTION, MAX_STAKE_PCT)
+                
+                net_profit = stake * b if is_win else -stake
+                
+                if is_win:
+                    bankroll += stake * b
+                    wins += 1
+                else:
+                    bankroll -= stake
+                    losses += 1
+                    
+                if is_fav:
+                    agree_pnl += net_profit
+                    agree_bets += 1
+                else:
+                    disagree_pnl += net_profit
+                    disagree_bets += 1
+            
+            n = wins + losses
+            profit = bankroll - STARTING_BANKROLL
+            roi = profit / STARTING_BANKROLL
+            rois.append(roi)
+            total_wins += wins
+            total_losses += losses
+            print(f"    Bets: {n} | Won: {wins} | Lost: {losses} | ROI: {roi:.1%}")
+
+    print("\n" + "=" * 60)
+    print("  WALK-FORWARD SUMMARY")
+    print("=" * 60)
+    print(f"Total bets placed: {total_wins + total_losses}")
+    print(f"Overall Won / Lost: {total_wins} / {total_losses}")
+    if rois:
+        print(f"ROI Distribution (per season): {np.mean(rois):.1%} ± {np.std(rois):.1%}")
+    print("\nEdge Decomposition:")
+    print(f"  Bets agreeing with market (backing fav): {agree_bets} | Net PnL: EUR {agree_pnl:.2f}")
+    print(f"  Bets disagreeing with market (backing dog): {disagree_bets} | Net PnL: EUR {disagree_pnl:.2f}")
+    print("=" * 60)
+
+
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--walk-forward", action="store_true", help="Run the rolling walk-forward backtest")
+    args = parser.parse_args()
+    
     run_backtest()
+    if args.walk_forward:
+        run_walk_forward()
