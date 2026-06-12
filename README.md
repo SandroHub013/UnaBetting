@@ -66,12 +66,54 @@ src/
 └── dashboard/   Mission Control (FastAPI + pywebview + xterm.js)
 ```
 
+## Project Layout
+
+```
+UnaBetting/
+├── .github/
+│   ├── workflows/          # 7 CI/CD workflows (anti-leak, lint, smoke, security, nightly, docs, release)
+│   ├── actions/            # Custom action: setup-python-env
+│   ├── ISSUE_TEMPLATE/     # bug, leak_incident, experiment_proposal
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── CODEOWNERS
+│   └── dependabot.yml
+├── docs/
+│   ├── obsidian/           # Knowledge base (leak history, architecture, features, models)
+│   ├── specs/              # Formal design docs + ADRs
+│   ├── roadmap/            # Quarterly roadmaps + milestones
+│   └── operations/         # Runbooks (nightly, weekly, on-call, disaster-recovery)
+├── scripts/
+│   ├── audit/              # check_module_order, check_secrets, check_dependencies, check_doc_freshness
+│   ├── ci/                 # run_anti_leak_tests, run_dashboard_smoke, collect_coverage
+│   └── ops/                # retrain, snapshot_odds, build_features, verify_release
+├── src/
+│   ├── data/               # download, clean, scraper (the-odds-api)
+│   ├── features/           # ELO, player_stats, clutch, build_features
+│   ├── models/             # train (anti-leak), backtest, cross_validate, pytorch_ensemble
+│   ├── betting/            # signals (value vs sharp + CLV), portfolio (bet tracker)
+│   ├── live/               # inference, agentic research, news adjustment
+│   └── dashboard/          # Mission Control (FastAPI + pywebview + xterm.js)
+├── config/                 # config.yaml, best_params.yaml, selected_features_atp.txt
+├── tests/                  # Anti-leak + new tests (kelly, portfolio, config, module_order)
+├── pyproject.toml          # Modern packaging (PEP 621)
+└── requirements.txt
+```
+
 ## Contribuire
 
 Leggi [CONTRIBUTING.md](CONTRIBUTING.md). Il backlog di esperimenti con priorità è in
 [EXPERIMENTS.md](EXPERIMENTS.md) — la regola del progetto: **ogni claim di accuracy va
 dimostrato leak-free** (test temporale, prospettiva randomizzata, mediane train-only),
 altrimenti è un bug, non un risultato.
+
+## Documentazione
+
+- **Roadmap & Milestones:** [docs/roadmap/README.md](docs/roadmap/README.md)
+- **Specs & ADR:** [docs/specs/README.md](docs/specs/README.md)
+- **Operations Playbooks:** [docs/operations/README.md](docs/operations/README.md)
+- **Onesty Methodology:** [docs/obsidian/Backtest_e_Metriche_Oneste.md](docs/obsidian/Backtest_e_Metriche_Oneste.md)
+- **Experiments Backlog:** [EXPERIMENTS.md](EXPERIMENTS.md)
+- **Alpha Findings:** [ALPHA_FINDINGS.md](ALPHA_FINDINGS.md)
 
 ## Licenza
 

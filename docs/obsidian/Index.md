@@ -15,6 +15,11 @@ Questo vault contiene la documentazione di sistema (Knowledge Graph) per l'archi
 - [[Modelli_e_Reti_Neurali]] - Dal Gradient Boosting ai Layer di PyTorch.
 - [[Backtest_e_Metriche_Oneste]] - Numeri leak-free, storia dei falsi positivi, regole di inferenza.
 
+## 🔗 Documentazione estesa (repo root)
+- **Roadmap & Milestones:** `../roadmap/README.md`
+- **Specs & ADR:** `../specs/README.md`
+- **Operations Playbooks:** `../operations/README.md`
+
 ## 🎯 Obiettivo Attuale
 Il progetto è stato "ripulito" da tutto il rumore esterno (Betting, Arbitraggio, Criterio di Kelly) per focalizzarsi esclusivamente sulla componente di **pura analisi statistica e previsione**. 
 L'obiettivo è estrarre il massimo *information gain* dai dati tabulari tramite alberi decisionali e integrare modelli di Deep Learning per catturare interazioni complesse tra stili di gioco (Player Embeddings).

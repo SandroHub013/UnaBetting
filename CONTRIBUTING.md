@@ -41,3 +41,17 @@ un file di dati personali, fermati e controlla.
 
 Python: segui il codice esistente (type hints leggeri, docstring corte, commenti solo
 dove il codice non parla da solo). Frontend: vanilla JS, niente build step.
+
+## Documentazione di riferimento
+
+- **Specs & ADR:** [docs/specs/README.md](../docs/specs/README.md) — convenzione spec, 6 ADR
+- **Roadmap:** [docs/roadmap/README.md](../docs/roadmap/README.md) — quarterly goals, milestones
+- **Operations:** [docs/operations/README.md](../docs/operations/README.md) — runbooks
+- **Onesty Charter:** [docs/obsidian/Backtest_e_Metriche_Oneste.md](../docs/obsidian/Backtest_e_Metriche_Oneste.md) — leak history + regole
+- **Experiments:** [EXPERIMENTS.md](../EXPERIMENTS.md) — backlog E1-E7 con priorità
+- **Agent Rules:** [.claude/rules/](../.claude/rules/) — branch-policy, onesty-charter, sub-agent-orchestration
+
+## Branch Policy
+
+**Tutto il lavoro avviene su `nikomatt69-main`.** Il default branch `main` è off-limits.
+Vedi [.claude/rules/branch-policy.md](../.claude/rules/branch-policy.md) per i dettagli.
