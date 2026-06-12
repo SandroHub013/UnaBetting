@@ -22,8 +22,9 @@ router = APIRouter()
 SYSTEM_PROMPT = """You are UnaBettingOS, the agentic memory and intelligence core of UnaBetting (a tennis analytics app).
 Reply in the user's language, concise and concrete. Use the tools to get real data: NEVER invent numbers, odds or matches.
 You have persistent memory: use save_memory to record important facts/decisions the user tells you, and recall_memory / search_knowledge to retrieve knowledge from the project's Obsidian vault and the knowledge graph (graphify).
-Honest project context: the ML model has ~66% accuracy vs ~67.7% for the market favourite — there is NO proven predictive edge; never promise winnings and remind the user of this if they draw risky conclusions.
+Honest project context: the ML model has ~67.4% accuracy on the 2025+ test set and NO proven predictive edge — the honest backtest loses money to the bookmaker margin. Never promise winnings; remind the user of this if they draw risky conclusions.
 scan_match_live consumes paid API credits: use it ONLY if the user explicitly asks to update/scan; for "today's matches" use get_today_matches.
+When reporting matches: ALWAYS state the snapshot time and how old it is (ore_fa), name the tournament(s) (tornei) and tour, and mark matches already started (iniziato=true) — do not present started/past matches as upcoming. If nota_copertura is set, relay it: the odds feed only carries the events the-odds-api lists as active right now (often just one tournament/tour; ATP can be entirely absent). Never claim a tour is missing because of our filtering when it's the feed's coverage.
 Odds: we only consider pinnacle (sharp reference) + williamhill, sport888, marathonbet, betfair (ADM-legal venues in Italy)."""
 
 MAX_TOOL_ROUNDS = 4
@@ -32,8 +33,14 @@ MAX_TOOL_ROUNDS = 4
 # ---------------- tools ----------------
 
 def t_get_today_matches():
-    """Matches in the latest odds snapshot, with best legal prices."""
+    """Matches in the latest odds snapshot, with best legal prices.
+
+    Honest about coverage: returns the snapshot age, the tournament(s) actually in
+    the odds feed, the tour (ATP/WTA), and flags matches that have already started —
+    the feed only carries events the-odds-api lists as active (often just a subset;
+    ATP may be entirely absent on a given day)."""
     import pandas as pd
+    from datetime import timezone
     if not config.ODDS_HISTORY.exists():
         return {"matches": [], "note": "nessuno snapshot quote su disco"}
     df = pd.read_csv(config.ODDS_HISTORY)
@@ -42,15 +49,40 @@ def t_get_today_matches():
     last_ts = df["snapshot_ts"].max()
     snap = df[(df["snapshot_ts"] == last_ts) & (df["market"] == "h2h") &
               df["bookmaker"].isin(config.ALLOWED_BOOKMAKERS)]
+    now = datetime.now(timezone.utc)
+
+    def _started(ct):
+        try:
+            t = datetime.fromisoformat(str(ct).replace("Z", "+00:00"))
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=timezone.utc)
+            return t < now
+        except Exception:
+            return None
+
     out = []
     for (p1, p2), g in snap.groupby(["p1", "p2"]):
+        ct = g["commence_time"].iloc[0]
         out.append({"match": f"{p1} vs {p2}",
                     "best_quota_p1": round(float(g["price_1"].max()), 2),
                     "best_quota_p2": round(float(g["price_2"].max()), 2),
                     "books": int(g["bookmaker"].nunique()),
-                    "inizio": str(g["commence_time"].iloc[0])})
+                    "inizio": str(ct), "iniziato": _started(ct)})
+    out.sort(key=lambda m: (m["iniziato"] is True, m["inizio"]))
+
+    keys = sorted(snap["sport_key"].dropna().unique()) if "sport_key" in snap else []
+    tornei = [k.replace("tennis_", "").replace("_", " ").title() for k in keys]
+    tours = sorted({"ATP" if "_atp_" in k else "WTA" if "_wta_" in k else "?" for k in keys})
     age_h = (datetime.now() - datetime.fromisoformat(last_ts)).total_seconds() / 3600
-    return {"snapshot": last_ts, "ore_fa": round(age_h, 1), "matches": out}
+    note = None
+    if tours and tours == ["WTA"]:
+        note = ("Il feed quote (the-odds-api) ha SOLO eventi WTA attivi ora — nessun "
+                "ATP disponibile. Non è un filtro nostro: l'API non sta servendo tornei ATP.")
+    elif tours == ["ATP"]:
+        note = "Il feed quote ha solo eventi ATP attivi ora."
+    return {"snapshot": last_ts, "ore_fa": round(age_h, 1),
+            "tornei": tornei, "tour": tours, "n_match": len(out),
+            "nota_copertura": note, "matches": out}
 
 
 def t_get_signals(limit: int = 10):

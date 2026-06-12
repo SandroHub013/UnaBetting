@@ -387,7 +387,7 @@ const PANELS = {
       <div class="section-bar">${t('sec_model')} <small>${c.best_model || '—'} · test 2025+</small></div>
       <div class="blk-row">
         ${blk(t('accuracy'), c.accuracy ? (c.accuracy * 100).toFixed(1) + '%' : '—', 'grass', t('sub_honest'))}
-        ${blk(t('vs_market'), (mo.market_baseline * 100).toFixed(1) + '%', 'clay', t('sub_market'))}
+        ${blk('Odds-ens', c.odds_ensemble_accuracy ? (c.odds_ensemble_accuracy * 100).toFixed(1) + '%' : '—', 'clay', 'real-odds rows')}
         ${blk('Log loss', c.log_loss ? c.log_loss.toFixed(3) : '—', 'ink')}
         ${blk('ROC AUC', c.roc_auc ? c.roc_auc.toFixed(3) : '—', '')}
         ${blk(t('last_train'), c.trained_at ? dt(c.trained_at) : '—', '', t('sub_train'))}
@@ -1161,8 +1161,7 @@ function chatTemplates(data) {
     html += `<div class="chat-kpis">
       <div class="chat-kpi"><div class="k">Accuracy</div><div class="v">${(c.accuracy * 100).toFixed(1)}%</div></div>
       <div class="chat-kpi"><div class="k">Log loss</div><div class="v">${c.log_loss.toFixed(3)}</div></div>
-      <div class="chat-kpi"><div class="k">ROC AUC</div><div class="v">${c.roc_auc.toFixed(3)}</div></div>
-      <div class="chat-kpi"><div class="k">vs Mercato</div><div class="v">${(mm.market_baseline * 100).toFixed(1)}%</div></div></div>`;
+      <div class="chat-kpi"><div class="k">ROC AUC</div><div class="v">${c.roc_auc.toFixed(3)}</div></div></div>`;
   }
   const bk = data.get_bankroll;
   if (bk && (bk.bankroll !== undefined)) {

@@ -115,15 +115,15 @@ footer{border-top:1px solid var(--line);padding:40px 4vw;font-family:var(--mono)
     <p class="lede">A complete walk-through of the pipeline, the methodology that keeps it honest, the app, and the loops that run it — with no hidden numbers.</p>
 
     <div class="quicklinks">
-      <a class="ql" href="#honest"><div class="i">⚖️</div><h4>The honest result</h4><p>66.3% vs the market's 67.7% — and why we say so.</p></a>
+      <a class="ql" href="#honest"><div class="i">⚖️</div><h4>The honest result</h4><p>~67% accuracy, no betting edge — and why we say so.</p></a>
       <a class="ql" href="#leak"><div class="i">🔎</div><h4>The leak hunt</h4><p>Three self-caught data leaks, documented.</p></a>
       <a class="ql" href="#os"><div class="i">✦</div><h4>UnaBettingOS</h4><p>A local-LLM agent wired to your data.</p></a>
       <a class="ql" href="#loops"><div class="i">↻</div><h4>Self-evolving loops</h4><p>Agents that retrain, review and merge.</p></a>
     </div>
 
     <h2 id="overview">Overview</h2>
-    <p>UnaBetting is an open-source tennis analytics project with two halves: a <strong>leak-free machine-learning pipeline</strong> (ATP/WTA) and a <strong>desktop app</strong> that orchestrates it. The project's defining choice is honesty — it measures and publishes exactly how far the model is from the market instead of hiding behind a cherry-picked metric.</p>
-    <div class="callout warn"><strong>It does not beat the market.</strong> The model reaches ~66.3% out-of-sample; the Bet365 favourite reaches ~67.7%. UnaBetting is a research and discipline tool, not betting advice. 18+, gamble responsibly.</div>
+    <p>UnaBetting is an open-source tennis analytics project with two halves: a <strong>leak-free machine-learning pipeline</strong> (ATP/WTA) and a <strong>desktop app</strong> that orchestrates it. The project's defining choice is honesty — it publishes the real out-of-sample numbers, including the ones that prove it has no betting edge, instead of hiding behind a cherry-picked metric.</p>
+    <div class="callout warn"><strong>No betting edge.</strong> The model reaches ~67% accuracy out-of-sample, but the honest backtest loses money to the bookmaker margin. UnaBetting is a research and discipline tool, not betting advice. 18+, gamble responsibly.</div>
 
     <h2 id="quickstart">Quick start</h2>
     <pre><span class="c"># clone &amp; install</span>
@@ -157,14 +157,13 @@ python -m src.dashboard</pre>
     <p>Every headline number is produced under three non-negotiable rules — temporal split, randomized perspective, train-only medians. Here is where things actually stand:</p>
     <table class="tbl">
       <tr><th>Metric</th><th>Value</th></tr>
-      <tr><td>Model accuracy (ensemble, test 2025+)</td><td class="neg" id="d-acc">66.3%</td></tr>
-      <tr><td>Odds-ensemble (real-odds rows)</td><td id="d-odds">69.8%</td></tr>
-      <tr><td>Market favourite (Bet365)</td><td class="pos" id="d-market">67.7%</td></tr>
+      <tr><td>Model accuracy (ensemble, test 2025+)</td><td id="d-acc">67.4%</td></tr>
+      <tr><td>Odds-ensemble (real-odds rows)</td><td id="d-odds">69.6%</td></tr>
       <tr><td>Log loss</td><td id="d-ll">0.601</td></tr>
       <tr><td>ROC AUC</td><td id="d-roc">0.740</td></tr>
       <tr><td>Honest backtest ROI</td><td class="neg" id="d-roi">negative</td></tr>
     </table>
-    <p>The market is more accurate than the model. We publish this on purpose: it's the difference between research and marketing.</p>
+    <p>Decent accuracy, but the honest backtest still loses to the bookmaker margin — there is no betting edge. We publish this on purpose: it's the difference between research and marketing.</p>
 
     <h2 id="leak">The leak hunt</h2>
     <p>This project's real history is a chain of self-caught data leaks. Each one made the model look brilliant; each one was a bug.</p>
@@ -221,7 +220,7 @@ python -m src.dashboard</pre>
 <script>
 // Single source of truth: publish_metrics.py writes metrics.js (window.__METRICS).
 (function(){const M=window.__METRICS;if(!M)return;const set=(id,v)=>{const e=document.getElementById(id);if(e&&v&&v!=='—')e.textContent=v;};
-  set('d-acc',M.acc+'%');set('d-odds',M.odds_acc+'%');set('d-market',M.market+'%');
+  set('d-acc',M.acc+'%');set('d-odds',M.odds_acc+'%');
   set('d-ll',M.ll);set('d-roc',M.roc);
   if(M.roi&&M.roi!=='—')set('d-roi',M.roi+'% (win rate '+M.winrate+'%)');
 })();

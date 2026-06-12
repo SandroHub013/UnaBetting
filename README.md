@@ -13,16 +13,16 @@ and a local-LLM memory core.
 **[▶ Explore the live 3D knowledge graph](https://sandrohub013.github.io/UnaBetting/graph3d.html)** · **[📖 Docs — deep dive](https://sandrohub013.github.io/UnaBetting/docs.html)** · **[Website](https://sandrohub013.github.io/UnaBetting/)**
 
 <!--METRICS-->
-**Current honest numbers** (test 2025+, updated 2026-06-12): model **67.4%** vs market **67.7%** · log loss 0.601 · ROC 0.740 · odds-ensemble 69.6% on real-odds rows · honest backtest ROI **-57%** (still negative — no betting edge).
+**Current honest numbers** (test 2025+, updated 2026-06-12): model accuracy **67.4%** · log loss 0.601 · ROC 0.740 · odds-ensemble 69.6% on real-odds rows · honest backtest ROI **-57%** (negative — no betting edge).
 <!--/METRICS-->
 
 > ## ⚠️ Honest disclaimer (please actually read it)
-> This project's ML model reaches **~66.3% accuracy** on the out-of-sample 2025+ test set.
-> The market favourite (Bet365) sits at **~67.7%**: **the model does NOT beat the market**,
-> and honest backtests lose money. This is a tool for **research, tracking and
-> methodological discipline** (CLV, leak detection, bankroll management) — **not** a
-> money machine. If you bet: only with licensed operators (in Italy: an ADM concession),
-> only money you can afford to lose, 18+. Gambling can be addictive.
+> This project's ML model reaches **~67% accuracy** on the out-of-sample 2025+ test set,
+> but **has no proven predictive edge**: the honest backtest **loses money** to the
+> bookmaker margin. This is a tool for **research, tracking and methodological
+> discipline** (CLV, leak detection, bankroll management) — **not** a money machine.
+> If you bet: only with licensed operators (in Italy: an ADM concession), only money
+> you can afford to lose, 18+. Gambling can be addictive.
 
 ## What's inside
 
