@@ -56,3 +56,7 @@ fastapi
 uvicorn[standard]
 pywinpty; sys_platform == "win32"
 pywin32; sys_platform == "win32"
+
+# Terminal UI (src/ui)
+textual
+# optional TUI audio extras (graceful no-op without them): pygame, pyttsx3, SpeechRecognition
