@@ -7,7 +7,7 @@ PROJECT_ROOT = Path("g:/tennis betting")
 
 def debug_tien_sinner():
     # Load resources
-    cache_path = PROJECT_ROOT / "models" / "live_engines.pkl"
+    cache_path = PROJECT_ROOT / "models" / "atp_live_engines.pkl"
     state = joblib.load(cache_path)
     elo_engine = state['elo']
     stats_engine = state['stats']
