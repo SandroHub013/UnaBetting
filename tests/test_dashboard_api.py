@@ -123,3 +123,11 @@ def test_file_api_rejects_binary_and_missing(client):
     assert client.get("/api/file?path=models/atp_target_pytorch.pt").status_code == 415
     r = client.put("/api/file", json={"path": "nonexistent_dir/new.py", "content": "x"})
     assert r.status_code == 404
+
+
+def test_file_api_rejects_create_in_existing_dir(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(dash_config, "PROJECT_ROOT", tmp_path)
+    r = client.put("/api/file", json={"path": "new.py", "content": "x"})
+    assert r.status_code == 404
+    assert "create" in r.json()["detail"]
+    assert not (tmp_path / "new.py").exists()
