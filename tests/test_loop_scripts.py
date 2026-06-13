@@ -1,8 +1,10 @@
 """Loop runner scripts should stay portable across machines."""
+import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+WINDOWS_ABSOLUTE_PATH = re.compile(r"[A-Za-z]:\\")
 
 
 def _script(name: str) -> str:
@@ -14,6 +16,7 @@ def test_loop_runner_scripts_do_not_pin_user_specific_paths():
         text = _script(script)
         assert "G:\\tennis betting" not in text
         assert "C:\\Users\\Utente" not in text
+        assert not WINDOWS_ABSOLUTE_PATH.search(text)
 
 
 def test_loop_runner_scripts_resolve_repo_from_script_location():
