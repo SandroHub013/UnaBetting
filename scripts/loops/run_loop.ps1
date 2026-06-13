@@ -10,9 +10,9 @@ param(
     [string]$Model = ''   # override; senza, usa la mappa qui sotto
 )
 
-# modello per difficoltà: REVIEW+MERGE = capace (Fable 5); SVILUPPO = economico.
+# modello per difficoltà: REVIEW+MERGE = capace (Opus 4.8); SVILUPPO = economico.
 $modelMap = @{
-    'pr_review'           = 'fable'    # review e merge PR pubbliche: Fable 5, ogni 4h
+    'pr_review'           = 'opus'     # review e merge PR pubbliche (era fable, dismesso), ogni 4h
     'code_review'         = 'opus'     # review profonda di modelli/sistema, ogni 3gg
     'weekly_evolution'    = 'sonnet'   # sviluppo/esperimenti: agente più economico
     'nightly_maintenance' = 'sonnet'   # routine operativa
