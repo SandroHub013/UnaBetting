@@ -1,7 +1,10 @@
 """Minimal dashboard API tests (spec checklist): REST endpoints return valid
 JSON against a temp DB; non-whitelisted runner commands are rejected."""
 import json
+import shutil
 import sqlite3
+import subprocess
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -52,6 +55,35 @@ def test_overview_returns_metrics(client):
     assert d["won"] == 1
     assert d["bankroll"] == 1004.5
     assert d["win_rate"] == 100.0
+
+
+def test_dashboard_sets_script_restrictions(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    policy = r.headers["content-security-policy"]
+    script_policy = next(p for p in policy.split(";") if p.strip().startswith("script-src"))
+    assert "'unsafe-inline'" not in script_policy
+    assert "'unsafe-eval'" not in script_policy
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["referrer-policy"] == "no-referrer"
+
+    graph = client.get("/static/graph3d.html")
+    assert graph.status_code == 200
+    assert "<script>" not in graph.text
+    assert 'src="/static/graph3d.js"' in graph.text
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is not installed")
+def test_dashboard_html_helper_escapes_untrusted_cells():
+    helper = Path(__file__).parents[1] / "src" / "dashboard" / "static" / "safe_html.js"
+    script = (
+        f"const h = require({json.dumps(str(helper))});"
+        "const payload = `<img src=x onerror=\"globalThis.pwned=1\">'`;"
+        "if (h.tableCell(payload) !== "
+        "'&lt;img src=x onerror=&quot;globalThis.pwned=1&quot;&gt;&#39;') process.exit(1);"
+        "if (h.tableCell('<button>safe</button>', true) !== '<button>safe</button>') process.exit(2);"
+    )
+    subprocess.run(["node", "-e", script], check=True)
 
 
 def test_bets_and_decisions_return_lists(client):
