@@ -12,6 +12,30 @@ app.include_router(runner.router)
 app.include_router(terminal.router)
 app.include_router(chat.router)
 
+_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+    "img-src 'self' data: blob:; "
+    "media-src 'self' blob:; "
+    "font-src 'self' data:; "
+    "connect-src 'self' ws: wss:; "
+    "frame-src 'self'; "
+    "frame-ancestors 'self'; "
+    "object-src 'none'; "
+    "base-uri 'none'; "
+    "form-action 'self'"
+)
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = _CONTENT_SECURITY_POLICY
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
 
 @app.get("/")
 def index():
