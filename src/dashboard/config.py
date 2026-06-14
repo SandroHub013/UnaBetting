@@ -63,8 +63,6 @@ VIBE_AGENTS = {
     "hermes": "hermes",
     "agy": "agy",
 }
-# project path as seen from WSL (terminal cwd -> tmux working dir)
-WSL_PROJECT_DIR = "/mnt/g/tennis betting"
 
 # Only bookmakers shown/considered in the app (sharp reference + ADM-legal
 # venues). Keep in sync with src.betting.signals.ALLOWED_BOOKS and config.yaml.
