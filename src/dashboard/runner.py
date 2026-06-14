@@ -13,7 +13,7 @@ import os
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from . import config
+from . import config, security
 
 router = APIRouter()
 
@@ -38,9 +38,7 @@ async def _stream(proc, ws):
 
 @router.websocket("/ws/run")
 async def ws_run(ws: WebSocket):
-    token = config.auth_token()
-    if token and ws.query_params.get("token") != token:
-        await ws.close(code=4401)
+    if not await security.authorize_websocket(ws):
         return
     await ws.accept()
     proc = None

@@ -13,7 +13,7 @@ import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from . import config
+from . import config, security
 
 router = APIRouter()
 
@@ -35,9 +35,7 @@ def _terminal_command(shell: str, agent: str = "") -> str | list[str] | None:
 
 @router.websocket("/ws/term")
 async def ws_term(ws: WebSocket, shell: str = "powershell", agent: str = ""):
-    token = config.auth_token()
-    if token and ws.query_params.get("token") != token:
-        await ws.close(code=4401)
+    if not await security.authorize_websocket(ws):
         return
     await ws.accept()
 

@@ -89,6 +89,7 @@ def test_dashboard_sets_script_restrictions(client):
     assert "'unsafe-eval'" not in script_policy
     assert r.headers["x-content-type-options"] == "nosniff"
     assert r.headers["referrer-policy"] == "no-referrer"
+    assert r.headers["cross-origin-resource-policy"] == "same-origin"
 
     graph = client.get("/static/graph3d.html")
     assert graph.status_code == 200
@@ -154,6 +155,43 @@ def test_websocket_session_token_authenticates_dashboard_clients(client, monkeyp
 
     with client.websocket_connect("/ws/term?shell=missing&token=test+secret%2F%26") as ws:
         assert "missing" in ws.receive_text()
+
+
+def test_dashboard_rejects_cross_origin_browser_requests(client):
+    foreign = {"origin": "https://attacker.example"}
+
+    session = client.get("/api/session", headers=foreign)
+    assert session.status_code == 403
+    assert session.json()["error"] == "forbidden"
+    assert client.get(
+        "/api/session", headers={"sec-fetch-site": "cross-site"}
+    ).status_code == 403
+
+    bet = client.post(
+        "/api/bet",
+        headers=foreign,
+        json={"match_str": "X vs Y", "side_name": "X", "odds": 2.0, "stake": 10},
+    )
+    assert bet.status_code == 403
+    assert len(client.get("/api/bets").json()) == 1
+
+    for path in ("/ws/run", "/ws/chat", "/ws/term?shell=missing"):
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect(path, headers=foreign):
+                pass
+        assert exc.value.code == 4403
+
+
+def test_dashboard_allows_its_loopback_browser_origin(client):
+    local = {
+        "origin": f"http://localhost:{dash_config.PORT}",
+        "sec-fetch-site": "same-origin",
+    }
+    assert client.get("/api/session", headers=local).status_code == 200
+
+    with client.websocket_connect("/ws/run", headers=local) as ws:
+        ws.send_text(json.dumps({"cmd": "not-allowed"}))
+        assert json.loads(ws.receive_text())["type"] == "error"
 
 
 def test_dashboard_frontend_uses_authenticated_websocket_urls():
