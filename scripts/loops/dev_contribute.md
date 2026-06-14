@@ -31,7 +31,12 @@ checklist on top of it; when in doubt, do less.
    pick a task from (1) or (2) instead.
 
 ## Steps
-1. `git fetch origin && git checkout -b <type>/<short-desc> origin/main`
+1. Create a fresh branch from current `origin/main` without shell-specific chaining:
+   ```bash
+   git fetch origin
+   git switch --detach origin/main
+   git switch --create <type>/<short-desc>
+   ```
    (`<type>` = fix | feat | docs | test | refactor | chore).
 2. Make the smallest change that solves the one concern.
 3. `python -m pytest tests/ -q` — MUST be green (the 2 `@slow` skips without the real
