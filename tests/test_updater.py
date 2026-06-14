@@ -37,7 +37,7 @@ def _sign(manifest):
     return base64.b64encode(_TEST_PRIV.sign(payload)).decode()
 
 
-def _make_bundle(path, files, manifest_files=None, with_manifest=True):
+def _make_bundle(path, files, manifest_files=None, with_manifest=True, signed=True):
     """Build a zip at `path` with {member: bytes}; manifest defaults to correct hashes."""
     if manifest_files is None:
         manifest_files = [
@@ -49,7 +49,8 @@ def _make_bundle(path, files, manifest_files=None, with_manifest=True):
             zf.writestr(member, blob)
         if with_manifest:
             manifest = {"name": "UnaBetting", "version": "9.9.9", "files": manifest_files}
-            manifest["signature"] = _sign(manifest)
+            if signed:
+                manifest["signature"] = _sign(manifest)
             zf.writestr("manifest.json", json.dumps(manifest))
 
 
@@ -105,6 +106,15 @@ def test_malformed_manifest_entry_rejected(tmp_path):
                  manifest_files=[{"path": "models/x.txt"}])  # no sha256/bytes
     with pytest.raises(ValueError, match="malformed manifest"):
         _extract_runtime_bundle(bundle, tmp_path / "data_root")
+
+
+def test_unsigned_manifest_rejected(tmp_path):
+    """A manifest without an Ed25519 signature is rejected before extraction."""
+    bundle = tmp_path / "bundle.zip"
+    _make_bundle(bundle, {"models/x.txt": b"x"}, signed=False)
+    with pytest.raises(ValueError, match="unsigned bundle"):
+        _extract_runtime_bundle(bundle, tmp_path / "data_root")
+    assert not (tmp_path / "data_root" / "models" / "x.txt").exists()
 
 
 def test_manifest_lists_file_absent_from_bundle_rejected(tmp_path):
