@@ -54,6 +54,27 @@ def test_overview_returns_metrics(client):
     assert d["win_rate"] == 100.0
 
 
+def test_overview_uses_most_recent_resolution_for_bankroll(client):
+    with sqlite3.connect(dash_config.DB_PATH) as conn:
+        conn.execute(
+            "INSERT INTO bets (id, timestamp, status, bankroll_after, resolved_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("placed-later", "2026-06-03T09:00:00", "lost", 990.0,
+             "2026-06-03T10:00:00"),
+        )
+        conn.execute(
+            "INSERT INTO bets (id, timestamp, status, bankroll_after, resolved_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("resolved-later", "2026-06-02T09:00:00", "won", 1010.0,
+             "2026-06-04T10:00:00"),
+        )
+
+    r = client.get("/api/overview")
+
+    assert r.status_code == 200
+    assert r.json()["bankroll"] == 1010.0
+
+
 def test_bets_and_decisions_return_lists(client):
     assert isinstance(client.get("/api/bets").json(), list)
     assert client.get("/api/bets?status=won").json()[0]["id"] == "b1"
