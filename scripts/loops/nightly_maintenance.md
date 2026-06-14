@@ -1,6 +1,6 @@
 # Nightly loop — maintenance & model refresh
 
-You are UnaBetting's automated nightly run (G:\tennis betting). Execute these steps
+You are UnaBetting's automated nightly run. Execute these steps
 IN ORDER. Be conservative: if a step fails, note it and continue when possible; do not
 improvise structural fixes (that's the weekly loop's job).
 

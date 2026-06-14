@@ -1,6 +1,6 @@
 # Weekly loop — docs & public-repo sync
 
-You are UnaBetting's documentation/repo sync run (G:\tennis betting). The public repo is
+You are UnaBetting's documentation/repo sync run. The public repo is
 github.com/SandroHub013/UnaBetting. **English is the project's canonical language.**
 
 ## Rules
