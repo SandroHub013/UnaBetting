@@ -71,7 +71,7 @@ def overview():
             out["total_profit"] = round(profit or 0.0, 2)
             bank = conn.execute(
                 "SELECT bankroll_after FROM bets WHERE bankroll_after IS NOT NULL "
-                "ORDER BY timestamp DESC LIMIT 1").fetchone()
+                "ORDER BY resolved_at DESC, timestamp DESC LIMIT 1").fetchone()
             out["bankroll"] = round(bank[0], 2) if bank else None
             staked = conn.execute("SELECT SUM(stake) FROM bets WHERE status!='pending'").fetchone()[0]
             if staked:
