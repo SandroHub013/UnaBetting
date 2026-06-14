@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.dashboard import config as dash_config
+from src.dashboard.data_api import _safe_path
 from src.dashboard.server import app
 
 
@@ -81,11 +82,19 @@ def test_config_put_rejects_invalid_yaml(client):
     assert r.json()["error"] == "invalid_yaml"
 
 
-def test_file_api_rejects_path_traversal(client):
+def test_file_api_rejects_path_traversal(client, tmp_path):
     assert client.get("/api/file?path=../secrets.txt").status_code == 403
+    assert client.get(r"/api/file?path=..\secrets.txt").status_code == 403
     assert client.get("/api/tree?path=..").status_code == 403
+    assert client.get(f"/api/file?path={tmp_path.as_posix()}").status_code == 403
     r = client.put("/api/file", json={"path": "../evil.py", "content": "x"})
     assert r.status_code == 403
+
+
+def test_safe_path_rejects_null_byte(tmp_path, monkeypatch):
+    monkeypatch.setattr(dash_config, "PROJECT_ROOT", tmp_path)
+    with pytest.raises(PermissionError):
+        _safe_path("README.md\x00.txt")
 
 
 def test_file_api_reads_project_file(client):
