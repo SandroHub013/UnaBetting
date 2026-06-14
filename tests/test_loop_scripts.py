@@ -53,3 +53,9 @@ def test_dev_loop_scripts_reset_main_with_git_switch():
         text = _loop_file(script)
         assert "git checkout" not in text
         assert "git switch" in text
+
+
+def test_windows_dev_loop_preserves_opencode_exit_code():
+    text = _loop_file("run_dev_loop_win.ps1")
+    assert "$opencodeExit = $LASTEXITCODE" in text
+    assert "exit $opencodeExit" in text
