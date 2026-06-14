@@ -47,11 +47,19 @@ COMMAND_WHITELIST = {
     "signals":   [PYTHON, "-X", "utf8", "-m", "src.betting.signals"],
 }
 
-# Interactive terminals (pywinpty). Key = ?shell= query param.
-SHELLS = {
-    "powershell": "powershell.exe -NoLogo",
-    "wsl": "wsl.exe",
-}
+# Interactive terminals. Windows uses pywinpty/ConPTY; POSIX uses the user's
+# configured shell through the standard-library pty module.
+if sys.platform == "win32":
+    DEFAULT_SHELL = "powershell"
+    SHELLS = {
+        "powershell": "powershell.exe -NoLogo",
+        "wsl": "wsl.exe",
+    }
+else:
+    DEFAULT_SHELL = "shell"
+    SHELLS = {
+        "shell": [os.environ.get("SHELL") or "/bin/sh"],
+    }
 
 # Vibe-coding agents: launched inside a persistent tmux session on WSL
 # (tmux new -A reattaches, so closing the tab never kills the agent).
