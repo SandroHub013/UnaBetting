@@ -12,6 +12,7 @@ import urllib.request
 import zipfile
 
 import pytest
+import yaml
 
 import src.dashboard.data_api as data_api
 from src.dashboard.data_api import _extract_runtime_bundle
@@ -54,6 +55,10 @@ def _make_bundle(path, files, manifest_files=None, with_manifest=True, signed=Tr
             zf.writestr("manifest.json", json.dumps(manifest))
 
 
+def _yaml_bytes(value):
+    return yaml.safe_dump(value, sort_keys=False).encode("utf-8")
+
+
 def test_valid_bundle_extracts(tmp_path):
     bundle = tmp_path / "bundle.zip"
     root = tmp_path / "data_root"
@@ -63,6 +68,87 @@ def test_valid_bundle_extracts(tmp_path):
     assert n == 2
     assert (root / "models/atp_metrics.json").read_bytes() == b'{"ok": 1}'
     assert (root / "config/config.yaml").read_bytes() == b"a: 1\n"
+    assert (root / "config/.runtime-default.yaml").read_bytes() == b"a: 1\n"
+
+
+def test_config_updates_preserve_overrides_and_advance_defaults(tmp_path):
+    root = tmp_path / "data_root"
+    config_dir = root / "config"
+    config_dir.mkdir(parents=True)
+    old_defaults = {
+        "model": {"threshold": 10, "family": "baseline"},
+        "betting": {"min_edge": 0.03},
+    }
+    current = {
+        "model": {"threshold": 10, "family": "custom-family"},
+        "betting": {"min_edge": 0.07},
+        "user_only": {"enabled": True},
+    }
+    baseline = tmp_path / "bundled-default.yaml"
+    baseline.write_bytes(_yaml_bytes(old_defaults))
+    current_blob = _yaml_bytes(current)
+    (config_dir / "config.yaml").write_bytes(current_blob)
+
+    v2_defaults = {
+        "model": {"threshold": 20, "family": "v2-default", "calibrated": True},
+        "betting": {"min_edge": 0.04},
+        "new_section": {"enabled": True},
+    }
+    v2_blob = _yaml_bytes(v2_defaults)
+    v2_bundle = tmp_path / "v2.zip"
+    _make_bundle(v2_bundle, {
+        "models/version.txt": b"v2",
+        "config/config.yaml": v2_blob,
+    })
+
+    assert _extract_runtime_bundle(v2_bundle, root, baseline_config=baseline) == 2
+    merged_v2 = yaml.safe_load((config_dir / "config.yaml").read_text(encoding="utf-8"))
+    assert merged_v2 == {
+        "model": {"threshold": 20, "family": "custom-family", "calibrated": True},
+        "betting": {"min_edge": 0.07},
+        "new_section": {"enabled": True},
+        "user_only": {"enabled": True},
+    }
+    assert (config_dir / "config.yaml.bak").read_bytes() == current_blob
+    assert (config_dir / ".runtime-default.yaml").read_bytes() == v2_blob
+
+    v3_defaults = {
+        "model": {"threshold": 30, "family": "v3-default", "calibrated": False},
+        "betting": {"min_edge": 0.05},
+    }
+    v3_blob = _yaml_bytes(v3_defaults)
+    v3_bundle = tmp_path / "v3.zip"
+    _make_bundle(v3_bundle, {"config/config.yaml": v3_blob})
+
+    assert _extract_runtime_bundle(v3_bundle, root, baseline_config=baseline) == 1
+    merged_v3 = yaml.safe_load((config_dir / "config.yaml").read_text(encoding="utf-8"))
+    assert merged_v3 == {
+        "model": {"threshold": 30, "family": "custom-family", "calibrated": False},
+        "betting": {"min_edge": 0.07},
+        "user_only": {"enabled": True},
+    }
+    assert (config_dir / ".runtime-default.yaml").read_bytes() == v3_blob
+
+
+def test_invalid_current_config_rejects_bundle_before_any_write(tmp_path):
+    root = tmp_path / "data_root"
+    config_dir = root / "config"
+    config_dir.mkdir(parents=True)
+    current = b"model: [unclosed\n"
+    (config_dir / "config.yaml").write_bytes(current)
+    bundle = tmp_path / "bundle.zip"
+    _make_bundle(bundle, {
+        "models/new.pkl": b"model",
+        "config/config.yaml": b"model:\n  threshold: 20\n",
+    })
+
+    with pytest.raises(ValueError, match="current config"):
+        _extract_runtime_bundle(bundle, root)
+
+    assert (config_dir / "config.yaml").read_bytes() == current
+    assert not (config_dir / "config.yaml.bak").exists()
+    assert not (config_dir / ".runtime-default.yaml").exists()
+    assert not (root / "models/new.pkl").exists()
 
 
 def test_traversal_member_rejected(tmp_path):

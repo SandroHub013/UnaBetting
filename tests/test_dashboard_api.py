@@ -1,10 +1,14 @@
 """Minimal dashboard API tests (spec checklist): REST endpoints return valid
 JSON against a temp DB; non-whitelisted runner commands are rejected."""
 import json
+import shutil
 import sqlite3
+import subprocess
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from src.dashboard import config as dash_config
 from src.dashboard.data_api import _safe_path
@@ -13,6 +17,7 @@ from src.dashboard.server import app
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
+    monkeypatch.delenv("DASHBOARD_TOKEN", raising=False)
     db = tmp_path / "betanalytix.db"
     conn = sqlite3.connect(db)
     conn.executescript("""
@@ -75,6 +80,35 @@ def test_overview_uses_most_recent_resolution_for_bankroll(client):
     assert r.json()["bankroll"] == 1010.0
 
 
+def test_dashboard_sets_script_restrictions(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    policy = r.headers["content-security-policy"]
+    script_policy = next(p for p in policy.split(";") if p.strip().startswith("script-src"))
+    assert "'unsafe-inline'" not in script_policy
+    assert "'unsafe-eval'" not in script_policy
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["referrer-policy"] == "no-referrer"
+
+    graph = client.get("/static/graph3d.html")
+    assert graph.status_code == 200
+    assert "<script>" not in graph.text
+    assert 'src="/static/graph3d.js"' in graph.text
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is not installed")
+def test_dashboard_html_helper_escapes_untrusted_cells():
+    helper = Path(__file__).parents[1] / "src" / "dashboard" / "static" / "safe_html.js"
+    script = (
+        f"const h = require({json.dumps(str(helper))});"
+        "const payload = `<img src=x onerror=\"globalThis.pwned=1\">'`;"
+        "if (h.tableCell(payload) !== "
+        "'&lt;img src=x onerror=&quot;globalThis.pwned=1&quot;&gt;&#39;') process.exit(1);"
+        "if (h.tableCell('<button>safe</button>', true) !== '<button>safe</button>') process.exit(2);"
+    )
+    subprocess.run(["node", "-e", script], check=True)
+
+
 def test_bets_and_decisions_return_lists(client):
     assert isinstance(client.get("/api/bets").json(), list)
     assert client.get("/api/bets?status=won").json()[0]["id"] == "b1"
@@ -95,6 +129,38 @@ def test_runner_rejects_non_whitelisted(client):
         msg = json.loads(ws.receive_text())
         assert msg["type"] == "error"
         assert "whitelist" in msg["detail"]
+
+
+def test_websocket_session_token_authenticates_dashboard_clients(client, monkeypatch):
+    monkeypatch.setenv("DASHBOARD_TOKEN", "test secret/&")
+
+    session = client.get("/api/session")
+    assert session.status_code == 200
+    assert session.json() == {"websocket_token": "test secret/&"}
+    assert session.headers["cache-control"] == "no-store"
+
+    for path in ("/ws/run", "/ws/chat", "/ws/term?shell=missing"):
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect(path):
+                pass
+        assert exc.value.code == 4401
+
+    with client.websocket_connect("/ws/run?token=test+secret%2F%26") as ws:
+        ws.send_text(json.dumps({"cmd": "not-allowed"}))
+        assert json.loads(ws.receive_text())["type"] == "error"
+
+    with client.websocket_connect("/ws/chat?token=test+secret%2F%26"):
+        pass
+
+    with client.websocket_connect("/ws/term?shell=missing&token=test+secret%2F%26") as ws:
+        assert "missing" in ws.receive_text()
+
+
+def test_dashboard_frontend_uses_authenticated_websocket_urls():
+    source = (dash_config.STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    for path in ("/ws/run", "/ws/chat", "/ws/term"):
+        assert f"websocketUrl('{path}'" in source
+    assert "new WebSocket(`ws://${location.host}" not in source
 
 
 def test_config_put_rejects_invalid_yaml(client):

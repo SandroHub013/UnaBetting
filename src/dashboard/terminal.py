@@ -18,6 +18,21 @@ from . import config
 router = APIRouter()
 
 
+def _terminal_command(shell: str, agent: str = "") -> str | list[str] | None:
+    """Build a whitelisted terminal command without interpolating clone paths."""
+    if agent:
+        cmd = config.VIBE_AGENTS.get(agent)
+        if not cmd:
+            return None
+        session = f"vibe-{agent}"
+        return [
+            "wsl.exe", "--cd", str(config.PROJECT_ROOT.resolve()), "-e", "bash", "-lc",
+            f"tmux new-session -A -s {session} {cmd}",
+        ]
+
+    return config.SHELLS.get(shell)
+
+
 @router.websocket("/ws/term")
 async def ws_term(ws: WebSocket, shell: str = "powershell", agent: str = ""):
     token = config.auth_token()
@@ -26,26 +41,19 @@ async def ws_term(ws: WebSocket, shell: str = "powershell", agent: str = ""):
         return
     await ws.accept()
 
-    if agent:
-        # vibe coding: whitelisted agent inside a persistent tmux session on WSL.
-        # argv as a LIST: a quoted cmdline string gets mangled by spawn parsing.
-        cmd = config.VIBE_AGENTS.get(agent)
-        if not cmd:
-            await ws.send_text(f"\r\n[dashboard] agente '{agent}' non in whitelist "
-                               f"(disponibili: {', '.join(config.VIBE_AGENTS)})\r\n")
-            await ws.close()
-            return
-        session = f"vibe-{agent}"
-        wsl_dir = config.WSL_PROJECT_DIR.replace("'", "'\\''")
-        cmdline = ["wsl.exe", "-e", "bash", "-lc",
-                   f"cd '{wsl_dir}' 2>/dev/null; tmux new-session -A -s {session} {cmd}"]
-    else:
-        cmdline = config.SHELLS.get(shell)
-        if not cmdline:
-            await ws.send_text(f"\r\n[dashboard] shell '{shell}' non supportata "
-                               f"(disponibili: {', '.join(config.SHELLS)})\r\n")
-            await ws.close()
-            return
+    # argv as a list keeps clone paths with spaces intact. WSL resolves the
+    # Windows project root, so every clone opens in its own working tree.
+    cmdline = _terminal_command(shell, agent)
+    if not cmdline:
+        if agent:
+            detail = (f"agente '{agent}' non in whitelist "
+                      f"(disponibili: {', '.join(config.VIBE_AGENTS)})")
+        else:
+            detail = (f"shell '{shell}' non supportata "
+                      f"(disponibili: {', '.join(config.SHELLS)})")
+        await ws.send_text(f"\r\n[dashboard] {detail}\r\n")
+        await ws.close()
+        return
 
     try:
         from winpty import PtyProcess

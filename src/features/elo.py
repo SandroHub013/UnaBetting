@@ -8,6 +8,11 @@ import numpy as np
 import re
 from collections import defaultdict
 
+
+def _empty_serve_stats():
+    """Picklable default factory for EloRating.player_stats (lambdas don't pickle)."""
+    return {"svpt": 0, "ace": 0, "ret_pt": 0, "ret_won": 0}
+
 def parse_score_games(score):
     """Parse a tennis score string and return (winner_games, loser_games)."""
     if not isinstance(score, str) or "W/O" in score or "RET" in score or "DEF" in score:
@@ -66,9 +71,9 @@ class EloRating:
         self.vs_server_ratings = {}
         self.vs_returner_ratings = {}
         
-        # Player stats to classify style dynamically
-        from collections import defaultdict
-        self.player_stats = defaultdict(lambda: {"svpt": 0, "ace": 0, "ret_pt": 0, "ret_won": 0})
+        # Player stats to classify style dynamically. Use a module-level factory (not a
+        # lambda) so the engine stays picklable — warm_up.py dumps it into the live cache.
+        self.player_stats = defaultdict(_empty_serve_stats)
 
         # Match count per player (for adjusting K-factor for newcomers)
         self.match_count = {}

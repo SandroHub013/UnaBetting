@@ -106,6 +106,9 @@ python -m src.dashboard               # UnaBetting (native window on Windows;
 The in-app chat (UnaBettingOS) needs [Ollama](https://ollama.com) with a tool-calling model
 (default: `qwen3.5:9b`, configurable via the `CHAT_MODEL` env var).
 
+Set `DASHBOARD_TOKEN` before launch to require the same session token on the pipeline,
+terminal, and chat WebSocket connections. The bundled frontend forwards it automatically.
+
 ## Model features (excerpt)
 
 - **Advanced ELO** — overall + per surface + "style ELO" (vs big servers / returners), adaptive K, time decay

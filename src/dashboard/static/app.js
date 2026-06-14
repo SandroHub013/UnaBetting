@@ -172,10 +172,16 @@ let LANG = localStorage.getItem('mc-lang') || 'en';
 const t = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
 
 const $ = (s) => document.querySelector(s);
+const escHtml = SafeHtml.escape;
 const el = (tag, cls, html) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   if (html !== undefined) e.innerHTML = html;
+  return e;
+};
+const textEl = (tag, cls, text) => {
+  const e = el(tag, cls);
+  e.textContent = text;
   return e;
 };
 const fmt = (v, d = 2) => (v === null || v === undefined) ? '—' : Number(v).toFixed(d);
@@ -187,6 +193,29 @@ async function getJSON(url) {
   return data;
 }
 
+let wsTokenPromise = null;
+
+async function websocketUrl(path, params = {}) {
+  if (!wsTokenPromise) {
+    wsTokenPromise = getJSON('/api/session')
+      .then(data => String(data.websocket_token || ''))
+      .catch(err => {
+        wsTokenPromise = null;
+        throw err;
+      });
+  }
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = new URL(path, `${scheme}//${location.host}`);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, value);
+    }
+  });
+  const token = await wsTokenPromise;
+  if (token) url.searchParams.set('token', token);
+  return url.toString();
+}
+
 /* ================= TAB SYSTEM ================= */
 const tabs = {};
 let activeTab = null;
@@ -196,7 +225,11 @@ function openTab(id, title, build, opts = {}) {
   const pane = el('div', 'pane');
   $('#content').appendChild(pane);
   const tabEl = el('div', 'tab');
-  tabEl.innerHTML = `<span class="ttl">${title}</span><span class="x">✕</span>`;
+  const tabTitle = el('span', 'ttl');
+  tabTitle.textContent = title;
+  const tabClose = el('span', 'x');
+  tabClose.textContent = '✕';
+  tabEl.append(tabTitle, tabClose);
   $('#tabbar').appendChild(tabEl);
   const t = { id, title, paneEl: pane, tabEl, ...opts };
   tabs[id] = t;
@@ -235,7 +268,13 @@ function setDirty(id, dirty) {
   const t = tabs[id];
   if (!t) return;
   t.dirty = dirty;
-  t.tabEl.querySelector('.ttl').innerHTML = (dirty ? '<span class="dirty">●</span> ' : '') + t.title;
+  const title = t.tabEl.querySelector('.ttl');
+  title.textContent = t.title;
+  if (dirty) {
+    const marker = el('span', 'dirty');
+    marker.textContent = '●';
+    title.prepend(marker, ' ');
+  }
 }
 
 /* ================= SORTABLE / FILTERABLE TABLE ================= */
@@ -289,13 +328,13 @@ function makeTable(container, cols, rows, opts = {}) {
     const head = '<tr>' + cols.map(c => {
       const sorted = state.sortKey === c.key;
       const arrow = sorted ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
-      return `<th data-key="${c.key}" class="${sorted ? 'sorted' : ''}">${c.label}${arrow}</th>`;
+      return `<th data-key="${escHtml(c.key)}" class="${sorted ? 'sorted' : ''}">${escHtml(c.label)}${arrow}</th>`;
     }).join('') + '</tr>';
     const body = data.map(r => '<tr>' + cols.map(c => {
       let v = r[c.key];
       if (c.fmt) v = c.fmt(v, r);
       const cls = opts.cellClass ? (opts.cellClass(c.key, r) || '') : '';
-      return `<td class="${cls}">${v === null || v === undefined ? '—' : v}</td>`;
+      return `<td class="${escHtml(cls)}">${SafeHtml.tableCell(v, c.html === true)}</td>`;
     }).join('') + '</tr>').join('');
     table.innerHTML = head + body;
   }
@@ -313,7 +352,7 @@ function makeTable(container, cols, rows, opts = {}) {
 }
 
 function makeCheck(label, test) {
-  const lab = el('label', 'tbl-check', `<input type="checkbox"> ${label}`);
+  const lab = el('label', 'tbl-check', `<input type="checkbox"> ${escHtml(label)}`);
   const box = lab.querySelector('input');
   const ctl = { el: lab, test: null };
   box.onchange = () => { ctl.test = box.checked ? test : null; if (ctl.onChange) ctl.onChange(); };
@@ -322,7 +361,12 @@ function makeCheck(label, test) {
 
 function makeSelect(options, testFactory) {
   const sel = el('select', 'tbl-select');
-  sel.innerHTML = options.map(([v, lbl]) => `<option value="${v}">${lbl}</option>`).join('');
+  options.forEach(([value, label]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    sel.appendChild(option);
+  });
   const ctl = { el: sel, test: null };
   sel.onchange = () => { ctl.test = sel.value ? testFactory(sel.value) : null; if (ctl.onChange) ctl.onChange(); };
   return ctl;
@@ -426,7 +470,12 @@ const PANELS = {
     const matches = (odds.matches || []).slice(0, 8);
     if (!matches.length) tl.innerHTML = `<div class="sb-note">${t('nosnap')}</div>`;
     matches.forEach(async m => {
-      const row = el('div', 'today-row', `<span class="t-m">${m}</span><span class="t-o">…</span>`);
+      const row = el('div', 'today-row');
+      const matchName = el('span', 't-m');
+      matchName.textContent = m;
+      const prices = el('span', 't-o');
+      prices.textContent = '…';
+      row.append(matchName, prices);
       tl.appendChild(row);
       try {
         const dd = await getJSON('/api/odds?match=' + encodeURIComponent(m));
@@ -546,9 +595,10 @@ const PANELS = {
       { key: 'profit', label: t('profit_eur'), fmt: v => v === null ? '—' : fmt(v) },
       { key: 'bankroll_after', label: t('bankroll_after'), fmt: v => v === null ? '—' : fmt(v) },
       { key: 'id', label: t('outcome'), fmt: (v, r) => r.status === 'pending'
-          ? `<button class="row-act win" data-id="${v}" data-do="won">${t('bet_won')}</button>
-             <button class="row-act lose" data-id="${v}" data-do="lost">${t('bet_lost')}</button>`
-          : `<button class="row-act" data-id="${v}" data-do="undo">${t('undo')}</button>` },
+          ? `<button class="row-act win" data-id="${escHtml(v)}" data-do="won">${escHtml(t('bet_won'))}</button>
+             <button class="row-act lose" data-id="${escHtml(v)}" data-do="lost">${escHtml(t('bet_lost'))}</button>`
+          : `<button class="row-act" data-id="${escHtml(v)}" data-do="undo">${escHtml(t('undo'))}</button>`,
+        html: true },
     ], rows, {
       sortKey: 'timestamp', sortDir: -1,
       controls: [makeSelect([['', t('allstatus')], ['pending', t('st_pending')], ['won', t('st_won')], ['lost', t('st_lost')]],
@@ -572,7 +622,7 @@ const PANELS = {
   clv: { title: 'CLV', render: async (pane) => {
     const d = await getJSON('/api/clv');
     pane.innerHTML = `<div class="pane-pad" style="height:100%">
-      <div class="panel-note">${d.note || ''}${d.mean_clv !== null ? ' · CLV medio: ' + (d.mean_clv * 100).toFixed(2) + '%' : ''}</div>
+      <div class="panel-note">${escHtml(d.note || '')}${d.mean_clv !== null ? ' · CLV medio: ' + (d.mean_clv * 100).toFixed(2) + '%' : ''}</div>
       <canvas id="clv-chart" width="960" height="240"></canvas>
       <div class="tbl-host"></div></div>`;
     const vals = (d.rows || []).filter(r => r.clv !== null && r.clv !== undefined).map(r => r.clv);
@@ -592,10 +642,18 @@ const PANELS = {
     const d = await getJSON('/api/odds');
     pane.innerHTML = `<div class="pane-pad" style="height:100%">
       <div class="toolbar"><select class="match-sel"></select>
-        <span class="panel-note">${d.snapshot_ts ? t('snap_l') + ' ' + d.snapshot_ts : t('nosnap')}</span></div>
+        <span class="panel-note">${d.snapshot_ts ? escHtml(t('snap_l') + ' ' + d.snapshot_ts) : escHtml(t('nosnap'))}</span></div>
       <div class="tbl-host"></div></div>`;
     const sel = pane.querySelector('.match-sel');
-    sel.innerHTML = `<option value="">${t('choosematch')}</option>` + (d.matches || []).map(m => `<option>${m}</option>`).join('');
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = t('choosematch');
+    sel.appendChild(placeholder);
+    (d.matches || []).forEach(match => {
+      const option = document.createElement('option');
+      option.textContent = match;
+      sel.appendChild(option);
+    });
     sel.onchange = async () => {
       if (!sel.value) return;
       const dd = await getJSON('/api/odds?match=' + encodeURIComponent(sel.value));
@@ -633,7 +691,7 @@ function openPanel(name) {
   const title = I18N[LANG][PANEL_TKEY[name]] || p.title;
   openTab('panel:' + name, title, async (pane) => {
     try { await p.render(pane); }
-    catch (err) { pane.innerHTML = `<div class="pane-pad"><div class="banner">ERRORE: ${err.message}</div></div>`; }
+    catch (err) { pane.innerHTML = `<div class="pane-pad"><div class="banner">ERRORE: ${escHtml(err.message)}</div></div>`; }
   });
 }
 
@@ -653,11 +711,11 @@ function openMedia(path) {
   const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
   const src = '/api/media?path=' + encodeURIComponent(path);
   let inner;
-  if (IMG_EXT.includes(ext)) inner = `<img src="${src}" alt="${name}">`;
+  if (IMG_EXT.includes(ext)) inner = `<img src="${src}" alt="${escHtml(name)}">`;
   else if (VID_EXT.includes(ext)) inner = `<video src="${src}" controls autoplay></video>`;
   else if (AUD_EXT.includes(ext)) inner = `<audio src="${src}" controls autoplay></audio>`;
   else if (ext === 'pdf') inner = `<iframe src="${src}" style="width:100%;height:100%;border:none"></iframe>`;
-  else inner = `<div class="panel-note">anteprima non disponibile per .${ext}</div>`;
+  else inner = `<div class="panel-note">anteprima non disponibile per .${escHtml(ext)}</div>`;
   openTab(id, name, (pane) => {
     pane.innerHTML = `<div class="media-host">${inner}</div>`;
   });
@@ -676,7 +734,7 @@ async function openFile(path, readonly = false) {
   openTab(id, name, (pane, t) => {
     pane.innerHTML = `<div class="editor-host">
       <div class="editor-toolbar">
-        <span>${path}${readonly ? ' · sola lettura' : ''}</span>
+        <span>${escHtml(path)}${readonly ? ' · sola lettura' : ''}</span>
         ${readonly ? '' : '<button class="btn primary save">Salva (Ctrl+S)</button>'}
         <span class="status"></span>
       </div>
@@ -800,11 +858,11 @@ const ACTS = {
       const logs = await getJSON('/api/loops');
       if (!logs.length) body.appendChild(el('div', 'sb-note', t('loops_none')));
       logs.slice(0, 25).forEach(l => {
-        const b = el('button', 'sb-item', '≡ ' + l.name);
+        const b = textEl('button', 'sb-item', '≡ ' + l.name);
         b.onclick = () => openFile(l.path, true);
         body.appendChild(b);
       });
-    } catch (err) { body.appendChild(el('div', 'sb-note', 'errore: ' + err.message)); }
+    } catch (err) { body.appendChild(textEl('div', 'sb-note', 'errore: ' + err.message)); }
   }},
   docs: { title: 'Documentazione', render: async (body) => {
     body.appendChild(el('div', 'sb-section', t('s_root')));
@@ -816,11 +874,11 @@ const ACTS = {
     body.appendChild(el('div', 'sb-section', 'Obsidian'));
     try {
       (await getJSON('/api/tree?path=docs/obsidian')).filter(i => !i.dir).forEach(i => {
-        const b = el('button', 'sb-item', '¶ ' + i.name);
+        const b = textEl('button', 'sb-item', '¶ ' + i.name);
         b.onclick = () => openFile(i.path);
         body.appendChild(b);
       });
-    } catch (err) { body.appendChild(el('div', 'sb-note', 'errore: ' + err.message)); }
+    } catch (err) { body.appendChild(textEl('div', 'sb-note', 'errore: ' + err.message)); }
   }},
   config: { title: 'Config', render: (body) => {
     const b = el('button', 'sb-item', '⚙ config/config.yaml');
@@ -840,23 +898,27 @@ function buildTree(path) {
     items.forEach(item => {
       if (item.dir) {
         const dir = el('div', 'tree-dir');
-        const btn = el('button', 'sb-item', `<span class="tw">▸</span>🗀 ${item.name}`);
+        const btn = el('button', 'sb-item');
+        const twist = el('span', 'tw');
+        twist.textContent = '▸';
+        btn.append(twist, `🗀 ${item.name}`);
         const children = el('div', 'tree-children');
         children.style.paddingLeft = '14px';
         let loaded = false;
         btn.onclick = () => {
           dir.classList.toggle('open');
-          btn.querySelector('.tw').textContent = dir.classList.contains('open') ? '▾' : '▸';
+          twist.textContent = dir.classList.contains('open') ? '▾' : '▸';
           if (!loaded) { children.appendChild(buildTree(item.path)); loaded = true; }
         };
         dir.appendChild(btn); dir.appendChild(children); wrap.appendChild(dir);
       } else {
-        const btn = el('button', 'sb-item', `<span class="tw"></span>· ${item.name}`);
+        const btn = el('button', 'sb-item');
+        btn.append(el('span', 'tw'), `· ${item.name}`);
         btn.onclick = () => openFile(item.path);
         wrap.appendChild(btn);
       }
     });
-  }).catch(err => wrap.appendChild(el('div', 'sb-note', 'errore: ' + err.message)));
+  }).catch(err => wrap.appendChild(textEl('div', 'sb-note', 'errore: ' + err.message)));
   return wrap;
 }
 
@@ -899,13 +961,19 @@ function pipelinePane() {
   });
 }
 
-function runCommand(cmd) {
+async function runCommand(cmd) {
   pipelinePane();
   activateTab('panel:pipeline');
   const out = $('#pl-out'), status = $('#pl-status');
   const send = () => runWs.send(JSON.stringify({ cmd }));
   if (!runWs || runWs.readyState !== 1) {
-    runWs = new WebSocket(`ws://${location.host}/ws/run`);
+    try {
+      runWs = new WebSocket(await websocketUrl('/ws/run'));
+    } catch (err) {
+      status.textContent = t('errw');
+      out.textContent += '[ERROR] ' + err.message + '\n';
+      return;
+    }
     runWs.onopen = send;
     runWs.onerror = () => { status.textContent = t('errw'); };
     runWs.onmessage = (ev) => {
@@ -999,7 +1067,17 @@ $('#term-toggle').onclick = () => {
   });
 })();
 
-function newTerminal(shell, opts = {}) {
+async function newTerminal(shell, opts = {}) {
+  let endpoint;
+  try {
+    endpoint = await websocketUrl('/ws/term', {
+      shell,
+      agent: opts.agent,
+    });
+  } catch (err) {
+    toast(err.message, true);
+    return;
+  }
   $('#termpanel').classList.remove('collapsed');
   const id = 't' + (++termCount);
   const label = opts.agent ? `⚡ ${opts.label || opts.agent}` : `${shell} #${termCount}`;
@@ -1018,8 +1096,7 @@ function newTerminal(shell, opts = {}) {
   term.loadAddon(fit);
   term.open(pane.firstChild);
 
-  const ws = new WebSocket(`ws://${location.host}/ws/term?shell=${shell}` +
-                           (opts.agent ? `&agent=${encodeURIComponent(opts.agent)}` : ''));
+  const ws = new WebSocket(endpoint);
   ws.onmessage = (ev) => term.write(ev.data);
   ws.onclose = () => term.write('\r\n[connessione chiusa' +
     (opts.agent ? ` — la sessione tmux vibe-${opts.agent} resta viva in WSL` : '') + ']\r\n');
@@ -1138,8 +1215,6 @@ function openChat() {
   activateTab('panel:chat');
 }
 
-const escHtml = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
 /* template strutturati per i risultati dei tool (card animate) */
 function chatTemplates(data) {
   let html = '';
@@ -1147,7 +1222,7 @@ function chatTemplates(data) {
   if (tm && tm.matches && tm.matches.length) {
     html += '<div class="chat-cards">' + tm.matches.slice(0, 10).map(m =>
       `<div class="chat-card"><span class="cc-main">🎾 ${escHtml(m.match)}</span>
-       <span class="cc-badge">${m.best_quota_p1} / ${m.best_quota_p2}</span></div>`).join('') + '</div>';
+       <span class="cc-badge">${escHtml(m.best_quota_p1)} / ${escHtml(m.best_quota_p2)}</span></div>`).join('') + '</div>';
   }
   const sg = data.get_signals;
   if (Array.isArray(sg) && sg.length) {
@@ -1168,8 +1243,8 @@ function chatTemplates(data) {
     html += `<div class="chat-kpis">
       <div class="chat-kpi"><div class="k">Bankroll</div><div class="v">${bk.bankroll !== null ? '€' + Number(bk.bankroll).toFixed(0) : '—'}</div></div>
       <div class="chat-kpi"><div class="k">Profit</div><div class="v">€${Number(bk.total_profit || 0).toFixed(1)}</div></div>
-      <div class="chat-kpi"><div class="k">Pending</div><div class="v">${bk.bets_open}</div></div>
-      <div class="chat-kpi"><div class="k">Decisioni</div><div class="v">${bk.decisions}</div></div></div>`;
+      <div class="chat-kpi"><div class="k">Pending</div><div class="v">${escHtml(bk.bets_open)}</div></div>
+      <div class="chat-kpi"><div class="k">Decisioni</div><div class="v">${escHtml(bk.decisions)}</div></div></div>`;
   }
   return html;
 }
@@ -1192,10 +1267,11 @@ function chatMsg(cls, text, data) {
   return m;
 }
 
-function ensureChatWs() {
+async function ensureChatWs() {
   if (chatWs && chatWs.readyState === 1) return Promise.resolve();
+  const endpoint = await websocketUrl('/ws/chat');
   return new Promise((resolve, reject) => {
-    chatWs = new WebSocket(`ws://${location.host}/ws/chat`);
+    chatWs = new WebSocket(endpoint);
     chatWs.onopen = resolve;
     chatWs.onerror = () => reject(new Error('connessione chat fallita'));
     let pending = null;
@@ -1239,7 +1315,7 @@ const loadedPanels = {};
 
 /* ================= TOAST ================= */
 function toast(msg, isErr = false) {
-  const t = el('div', 'toast' + (isErr ? ' err' : ''), msg);
+  const t = textEl('div', 'toast' + (isErr ? ' err' : ''), msg);
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3500);
@@ -1340,8 +1416,8 @@ function showUpdateModal(d) {
   if ($('.upd-overlay')) return;
   const ov = el('div', 'upd-overlay');
   const meta = d.mode === 'git'
-    ? `${d.current} → <b>${d.latest}</b> · +${d.behind} commit${d.behind > 1 ? 's' : ''} · ${dt(d.latest_date)}`
-    : `v${d.current} → <b>${d.latest}</b> · ${dt(d.latest_date)}`;
+    ? `${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · +${escHtml(d.behind)} commit${d.behind > 1 ? 's' : ''} · ${escHtml(dt(d.latest_date))}`
+    : `v${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · ${escHtml(dt(d.latest_date))}`;
   ov.innerHTML = `<div class="upd-card">
     <h3>↻ ${t('upd_title')}</h3>
     <div class="upd-meta">${meta}</div>
