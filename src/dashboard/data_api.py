@@ -104,6 +104,23 @@ def _write_config_atomically(path, content):
         tmp.unlink(missing_ok=True)
 
 
+def _save_config_content(content):
+    """Validate and persist config content for every dashboard write path."""
+    if not isinstance(content, str) or not content.strip():
+        return _err(400, "bad_request", "campo 'content' mancante o vuoto")
+    try:
+        _validate_config(yaml.safe_load(content))
+    except yaml.YAMLError as e:
+        return _err(400, "invalid_yaml", e)
+    except ValueError as e:
+        return _err(400, "invalid_config", e)
+    try:
+        backup = _write_config_atomically(config.CONFIG_YAML, content)
+        return {"saved": True, "backup": str(backup)}
+    except OSError as e:
+        return _err(500, "config_write_error", e)
+
+
 @router.get("/session")
 def session():
     """Return browser-only session data needed by the static dashboard client."""
@@ -382,6 +399,8 @@ async def put_file(request: Request):
         return _err(400, "bad_request", e)
     if not p.is_file():
         return _err(404, "not_found", "il file deve già esistere (niente create da editor)")
+    if p.resolve() == config.CONFIG_YAML.resolve():
+        return _save_config_content(content)
     try:
         p.write_text(content, encoding="utf-8")
         return {"saved": True, "path": rel}
@@ -1097,17 +1116,6 @@ async def put_config(request: Request):
     try:
         body = await request.json()
         content = body.get("content")
-        if not isinstance(content, str) or not content.strip():
-            return _err(400, "bad_request", "campo 'content' mancante o vuoto")
-        _validate_config(yaml.safe_load(content))
-    except yaml.YAMLError as e:
-        return _err(400, "invalid_yaml", e)
-    except ValueError as e:
-        return _err(400, "invalid_config", e)
     except Exception as e:
         return _err(400, "bad_request", e)
-    try:
-        backup = _write_config_atomically(config.CONFIG_YAML, content)
-        return {"saved": True, "backup": str(backup)}
-    except OSError as e:
-        return _err(500, "config_write_error", e)
+    return _save_config_content(content)

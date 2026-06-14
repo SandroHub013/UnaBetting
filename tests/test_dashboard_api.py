@@ -289,6 +289,46 @@ def test_config_put_preserves_original_when_atomic_replace_fails(monkeypatch, tm
     assert not list(tmp_path.glob(".config.yaml.*.tmp"))
 
 
+def test_file_put_cannot_bypass_config_validation(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config" / "config.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+
+    r = TestClient(app).put(
+        "/api/file",
+        json={"path": "config/../config/config.yaml", "content": "broken: [yaml"},
+    )
+
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_yaml"
+    assert config_path.read_text(encoding="utf-8") == original
+    assert not config_path.with_suffix(".yaml.bak").exists()
+
+
+def test_file_put_uses_atomic_config_save(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config" / "config.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+    edited = yaml.safe_load(original)
+    edited["betting"]["initial_bankroll"] = 1250
+    content = yaml.safe_dump(edited, sort_keys=False)
+
+    r = TestClient(app).put(
+        "/api/file", json={"path": "config/config.yaml", "content": content})
+
+    assert r.status_code == 200
+    assert r.json()["saved"] is True
+    assert config_path.read_text(encoding="utf-8") == content
+    assert config_path.with_suffix(".yaml.bak").read_text(encoding="utf-8") == original
+    assert not list(config_path.parent.glob(".config.yaml.*.tmp"))
+
+
 def test_file_api_rejects_path_traversal(client, tmp_path):
     assert client.get("/api/file?path=../secrets.txt").status_code == 403
     assert client.get(r"/api/file?path=..\secrets.txt").status_code == 403
