@@ -3,7 +3,7 @@
 #
 # One invocation = one contribution attempt (one PR). Schedule it on an interval
 # (cron on your VPS, or WSL); the Opus PR-review loop reviews & merges what it opens.
-#   crontab:  */30 * * * *  /mnt/g/tennis\ betting/scripts/loops/run_dev_loop.sh
+#   crontab:  */30 * * * *  /path/to/UnaBetting/scripts/loops/run_dev_loop.sh
 #
 # Requires: opencode on PATH, gh authenticated, OPENROUTER_API_KEY exported
 # (or in the repo .env). Model is the free tier: nex-agi/nex-n2-pro:free via OpenRouter.
