@@ -1,9 +1,9 @@
 """FastAPI app: static frontend + REST data API + WebSocket runner/terminals."""
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import chat, config, data_api, runner, terminal
+from . import chat, config, data_api, runner, security, terminal
 
 app = FastAPI(title="Tennis Mission Control", docs_url=None, redoc_url=None)
 
@@ -30,10 +30,18 @@ _CONTENT_SECURITY_POLICY = (
 
 @app.middleware("http")
 async def security_headers(request, call_next):
-    response = await call_next(request)
+    if (request.url.path.startswith("/api/")
+            and security.browser_request_is_cross_origin(request.headers)):
+        response = JSONResponse(
+            {"error": "forbidden", "detail": "cross-origin dashboard request rejected"},
+            status_code=403,
+        )
+    else:
+        response = await call_next(request)
     response.headers["Content-Security-Policy"] = _CONTENT_SECURITY_POLICY
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     return response
 
 
