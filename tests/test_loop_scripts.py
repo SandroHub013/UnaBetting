@@ -53,3 +53,22 @@ def test_dev_loop_scripts_reset_main_with_git_switch():
         text = _loop_file(script)
         assert "git checkout" not in text
         assert "git switch" in text
+
+
+def test_dev_contribute_loop_enforces_safe_public_pr_workflow():
+    text = _loop_file("dev_contribute.md")
+    assert "NEVER push to `main`" in text
+    assert "never `--force`" in text
+    assert "never merge" in text
+    assert "git fetch origin" in text
+    assert "git switch --detach origin/main" in text
+    assert "git switch --create <type>/<short-desc>" in text
+    assert "gh pr create --base main" in text
+
+
+def test_dev_contribute_loop_uses_one_non_ml_concern_by_default():
+    text = _loop_file("dev_contribute.md")
+    assert "ONE concern per PR" in text
+    assert "a **non-ML** improvement" in text
+    assert "Don't touch `src/betting/`" in text
+    assert "If you can't measure it" in text
