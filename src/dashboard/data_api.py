@@ -6,6 +6,7 @@ import os
 import shutil
 import socket
 import sqlite3
+import tempfile
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -35,6 +36,72 @@ class _UnsafeBrowseURL(ValueError):
 
 def _err(status, error, detail=""):
     return JSONResponse({"error": error, "detail": str(detail)}, status_code=status)
+
+
+_REQUIRED_CONFIG_FIELDS = {
+    ("data", "sackmann"): dict,
+    ("data", "tennis_data_co_uk", "base_url"): str,
+    ("data", "tennis_data_co_uk", "atp_start_year"): int,
+    ("data", "tennis_data_co_uk", "wta_start_year"): int,
+    ("data", "odds_api", "regions"): str,
+    ("data", "odds_api", "markets"): str,
+    ("paths", "raw_data"): str,
+    ("paths", "processed_data"): str,
+    ("paths", "features"): str,
+    ("paths", "models"): str,
+    ("paths", "reports"): str,
+    ("features", "elo", "k_factor"): (int, float),
+    ("features", "elo", "k_factor_grand_slam"): (int, float),
+    ("features", "elo", "initial_rating"): (int, float),
+    ("features", "elo", "surface_weight"): (int, float),
+    ("model", "test_start_year"): int,
+    ("model", "validation_years"): list,
+    ("model", "xgboost"): dict,
+    ("model", "lightgbm"): dict,
+    ("model", "neural_network"): dict,
+    ("agent", "openrouter", "model"): str,
+    ("agent", "openrouter", "system_prompt"): str,
+}
+
+
+def _validate_config(value):
+    """Reject valid YAML that cannot satisfy the project's config contract."""
+    if not isinstance(value, dict):
+        raise ValueError("config root must be a YAML mapping")
+
+    for path, expected_type in _REQUIRED_CONFIG_FIELDS.items():
+        current = value
+        dotted = ".".join(path)
+        for key in path:
+            if not isinstance(current, dict) or key not in current:
+                raise ValueError(f"missing required config field: {dotted}")
+            current = current[key]
+        if isinstance(current, bool) or not isinstance(current, expected_type):
+            names = (expected_type.__name__ if isinstance(expected_type, type)
+                     else " or ".join(t.__name__ for t in expected_type))
+            raise ValueError(f"config field {dotted} must be {names}")
+        if isinstance(current, str) and not current.strip():
+            raise ValueError(f"config field {dotted} must not be empty")
+    return value
+
+
+def _write_config_atomically(path, content):
+    """Write a validated config without exposing a truncated active file."""
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        shutil.copystat(path, tmp)
+        backup = path.with_suffix(".yaml.bak")
+        shutil.copy2(path, backup)
+        os.replace(tmp, path)
+        return backup
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 @router.get("/session")
@@ -1032,15 +1099,15 @@ async def put_config(request: Request):
         content = body.get("content")
         if not isinstance(content, str) or not content.strip():
             return _err(400, "bad_request", "campo 'content' mancante o vuoto")
-        yaml.safe_load(content)  # reject invalid YAML before touching the file
+        _validate_config(yaml.safe_load(content))
     except yaml.YAMLError as e:
         return _err(400, "invalid_yaml", e)
+    except ValueError as e:
+        return _err(400, "invalid_config", e)
     except Exception as e:
         return _err(400, "bad_request", e)
     try:
-        backup = config.CONFIG_YAML.with_suffix(".yaml.bak")
-        shutil.copy2(config.CONFIG_YAML, backup)
-        config.CONFIG_YAML.write_text(content, encoding="utf-8")
+        backup = _write_config_atomically(config.CONFIG_YAML, content)
         return {"saved": True, "backup": str(backup)}
     except OSError as e:
         return _err(500, "config_write_error", e)
