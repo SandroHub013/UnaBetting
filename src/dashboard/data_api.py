@@ -28,6 +28,15 @@ def _err(status, error, detail=""):
     return JSONResponse({"error": error, "detail": str(detail)}, status_code=status)
 
 
+@router.get("/session")
+def session():
+    """Return browser-only session data needed by the static dashboard client."""
+    return JSONResponse(
+        {"websocket_token": config.auth_token()},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 def _ro_conn():
     """Read-only sqlite connection; raises if the DB file is missing."""
     uri = f"file:{config.DB_PATH.as_posix()}?mode=ro"
