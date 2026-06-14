@@ -1,5 +1,6 @@
 """REST API: read-only data cockpit + config editor (the only writing endpoint)."""
 import json
+import os
 import shutil
 import sqlite3
 from pathlib import Path
@@ -224,9 +225,17 @@ def odds(match: str = ""):
 
 def _safe_path(rel: str):
     """Resolve a path relative to the project root; reject traversal outside it."""
-    p = (config.PROJECT_ROOT / rel).resolve()
-    root = str(config.PROJECT_ROOT.resolve())
-    if not (str(p) == root or str(p).startswith(root + "\\") or str(p).startswith(root + "/")):
+    if not isinstance(rel, str) or "\x00" in rel:
+        raise PermissionError("path fuori dal progetto")
+    root = config.PROJECT_ROOT.resolve()
+    p = (root / rel).resolve()
+    root_str = os.fspath(root)
+    p_str = os.fspath(p)
+    try:
+        common = os.path.commonpath([root_str, p_str])
+    except ValueError as e:
+        raise PermissionError("path fuori dal progetto") from e
+    if os.path.normcase(common) != os.path.normcase(root_str):
         raise PermissionError(f"path fuori dal progetto: {rel}")
     return p
 
