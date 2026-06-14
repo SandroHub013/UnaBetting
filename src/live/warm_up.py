@@ -32,7 +32,7 @@ def warm_up():
         
         # 3. Initialize engines
         elo_engine = EloRating()
-        stats_engine = PlayerStatsEngine(windows=(10, 20, 50))
+        stats_engine = PlayerStatsEngine()  # windows (10/20/50) are fixed inside the engine
         
         # 4. Process all historical matches
         print(f"  ⏳ Elaborazione di {len(df):,} match storici...")

@@ -55,7 +55,7 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
     
     # Initialize engines with historical data
     elo_engine = EloRating()
-    stats_engine = PlayerStatsEngine(windows=(10, 20, 50))
+    stats_engine = PlayerStatsEngine()  # windows (10/20/50) are fixed inside the engine
     
     # This is a bit slow for a live script, in a real prod app we'd save the state
     print("  ⏳ Popolamento motori statistici (può richiedere un minuto)...")
