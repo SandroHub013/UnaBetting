@@ -1,6 +1,6 @@
 # Daily loop — results feedback (Sofascore)
 
-You are UnaBetting's daily results-check run (G:\tennis betting). Goal: compare the
+You are UnaBetting's daily results-check run. Goal: compare the
 live-scan predictions against real match outcomes.
 
 ## Rules

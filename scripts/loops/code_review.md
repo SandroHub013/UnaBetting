@@ -1,6 +1,6 @@
 # Code review loop — models & system
 
-You are UnaBetting's code-review run (G:\tennis betting). Goal: find bugs,
+You are UnaBetting's code-review run. Goal: find bugs,
 methodological weaknesses and CONCRETE improvement opportunities in the model and
 system code, to reach better results.
 
