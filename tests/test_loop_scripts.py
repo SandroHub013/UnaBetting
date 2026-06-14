@@ -25,3 +25,10 @@ def test_loop_runner_scripts_resolve_repo_from_script_location():
         assert "$scriptRoot" in text
         assert "Resolve-Path" in text
         assert "Join-Path $scriptRoot '..\\.." in text
+
+
+def test_dev_loop_scripts_reset_main_with_git_switch():
+    for script in ("run_dev_loop_win.ps1", "run_dev_loop.sh"):
+        text = _script(script)
+        assert "git checkout" not in text
+        assert "git switch" in text

@@ -22,7 +22,7 @@ LOG="$LOGDIR/dev_contribute_$(date +%Y%m%d_%H%M%S).log"
 
 # Always start from a clean, up-to-date main so each run picks fresh work.
 git fetch origin --quiet
-git checkout --quiet main 2>/dev/null || git checkout --quiet -b main origin/main
+git switch --quiet main 2>/dev/null || git switch --quiet --create main origin/main
 git reset --hard --quiet origin/main
 
 PROMPT="Read and execute the instructions in scripts/loops/dev_contribute.md. \
