@@ -193,6 +193,29 @@ async function getJSON(url) {
   return data;
 }
 
+let wsTokenPromise = null;
+
+async function websocketUrl(path, params = {}) {
+  if (!wsTokenPromise) {
+    wsTokenPromise = getJSON('/api/session')
+      .then(data => String(data.websocket_token || ''))
+      .catch(err => {
+        wsTokenPromise = null;
+        throw err;
+      });
+  }
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = new URL(path, `${scheme}//${location.host}`);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, value);
+    }
+  });
+  const token = await wsTokenPromise;
+  if (token) url.searchParams.set('token', token);
+  return url.toString();
+}
+
 /* ================= TAB SYSTEM ================= */
 const tabs = {};
 let activeTab = null;
@@ -938,13 +961,19 @@ function pipelinePane() {
   });
 }
 
-function runCommand(cmd) {
+async function runCommand(cmd) {
   pipelinePane();
   activateTab('panel:pipeline');
   const out = $('#pl-out'), status = $('#pl-status');
   const send = () => runWs.send(JSON.stringify({ cmd }));
   if (!runWs || runWs.readyState !== 1) {
-    runWs = new WebSocket(`ws://${location.host}/ws/run`);
+    try {
+      runWs = new WebSocket(await websocketUrl('/ws/run'));
+    } catch (err) {
+      status.textContent = t('errw');
+      out.textContent += '[ERROR] ' + err.message + '\n';
+      return;
+    }
     runWs.onopen = send;
     runWs.onerror = () => { status.textContent = t('errw'); };
     runWs.onmessage = (ev) => {
@@ -1038,7 +1067,17 @@ $('#term-toggle').onclick = () => {
   });
 })();
 
-function newTerminal(shell, opts = {}) {
+async function newTerminal(shell, opts = {}) {
+  let endpoint;
+  try {
+    endpoint = await websocketUrl('/ws/term', {
+      shell,
+      agent: opts.agent,
+    });
+  } catch (err) {
+    toast(err.message, true);
+    return;
+  }
   $('#termpanel').classList.remove('collapsed');
   const id = 't' + (++termCount);
   const label = opts.agent ? `⚡ ${opts.label || opts.agent}` : `${shell} #${termCount}`;
@@ -1057,8 +1096,7 @@ function newTerminal(shell, opts = {}) {
   term.loadAddon(fit);
   term.open(pane.firstChild);
 
-  const ws = new WebSocket(`ws://${location.host}/ws/term?shell=${shell}` +
-                           (opts.agent ? `&agent=${encodeURIComponent(opts.agent)}` : ''));
+  const ws = new WebSocket(endpoint);
   ws.onmessage = (ev) => term.write(ev.data);
   ws.onclose = () => term.write('\r\n[connessione chiusa' +
     (opts.agent ? ` — la sessione tmux vibe-${opts.agent} resta viva in WSL` : '') + ']\r\n');
@@ -1229,10 +1267,11 @@ function chatMsg(cls, text, data) {
   return m;
 }
 
-function ensureChatWs() {
+async function ensureChatWs() {
   if (chatWs && chatWs.readyState === 1) return Promise.resolve();
+  const endpoint = await websocketUrl('/ws/chat');
   return new Promise((resolve, reject) => {
-    chatWs = new WebSocket(`ws://${location.host}/ws/chat`);
+    chatWs = new WebSocket(endpoint);
     chatWs.onopen = resolve;
     chatWs.onerror = () => reject(new Error('connessione chat fallita'));
     let pending = null;

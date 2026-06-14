@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from src.dashboard import config as dash_config
 from src.dashboard.data_api import _safe_path
@@ -16,6 +17,7 @@ from src.dashboard.server import app
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
+    monkeypatch.delenv("DASHBOARD_TOKEN", raising=False)
     db = tmp_path / "betanalytix.db"
     conn = sqlite3.connect(db)
     conn.executescript("""
@@ -106,6 +108,38 @@ def test_runner_rejects_non_whitelisted(client):
         msg = json.loads(ws.receive_text())
         assert msg["type"] == "error"
         assert "whitelist" in msg["detail"]
+
+
+def test_websocket_session_token_authenticates_dashboard_clients(client, monkeypatch):
+    monkeypatch.setenv("DASHBOARD_TOKEN", "test secret/&")
+
+    session = client.get("/api/session")
+    assert session.status_code == 200
+    assert session.json() == {"websocket_token": "test secret/&"}
+    assert session.headers["cache-control"] == "no-store"
+
+    for path in ("/ws/run", "/ws/chat", "/ws/term?shell=missing"):
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect(path):
+                pass
+        assert exc.value.code == 4401
+
+    with client.websocket_connect("/ws/run?token=test+secret%2F%26") as ws:
+        ws.send_text(json.dumps({"cmd": "not-allowed"}))
+        assert json.loads(ws.receive_text())["type"] == "error"
+
+    with client.websocket_connect("/ws/chat?token=test+secret%2F%26"):
+        pass
+
+    with client.websocket_connect("/ws/term?shell=missing&token=test+secret%2F%26") as ws:
+        assert "missing" in ws.receive_text()
+
+
+def test_dashboard_frontend_uses_authenticated_websocket_urls():
+    source = (dash_config.STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    for path in ("/ws/run", "/ws/chat", "/ws/term"):
+        assert f"websocketUrl('{path}'" in source
+    assert "new WebSocket(`ws://${location.host}" not in source
 
 
 def test_config_put_rejects_invalid_yaml(client):
