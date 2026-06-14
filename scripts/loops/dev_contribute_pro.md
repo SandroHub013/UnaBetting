@@ -12,20 +12,30 @@ moves the product or its rigor. Priority order:
 
 1. **An open GitHub issue** (`gh issue list --state open`) — take the highest-value one,
    comment that you're on it.
-2. **A real product/quality improvement**, e.g.:
-   - a genuine **app feature or UX/bug fix** in `src/dashboard/` (cockpit, editor,
-     terminals, chat, media, browser, graph, themes, i18n completeness);
-   - a real **bug** you can reproduce and fix anywhere in `src/`;
-   - **data/feature/eval robustness** that closes a correctness gap.
-3. **An ML experiment from `EXPERIMENTS.md`** (E5 surface-ELO K, E6 fatigue v2, E7 WTA
-   parity, etc.) — only if you can implement AND measure it. Then you MUST obey the
-   leak-free rules (temporal split, perspective randomization + pairs, train-only
-   medians, tilt probe) and put **before/after numbers** (acc, log loss, ROC from a real
-   `train` + `backtest`) in the PR. If you can't measure it (no dataset), pick from 1–2.
+2. **A real product improvement — including a NEW feature.** You may propose and build a
+   *new* feature, not only fix bugs, as long as it clearly fits the product (a tennis
+   analytics app + honest-ML cockpit) and earns its place: a useful cockpit panel/chart,
+   a missing app/UX capability, an i18n/theme gap, a CLV/signals or data improvement.
+   Propose, don't overhaul: ONE self-contained feature per PR, with tests and a short
+   rationale of the value. Never wire half a feature or add scope you can't justify.
+3. **An ML experiment from `EXPERIMENTS.md`** (E5 surface-ELO K, E6 fatigue v2, E7 WTA,
+   ensemble/calibration tuning…). The trained models and the feature matrix ARE present
+   in this checkout now (`models/`, `data/features/`, `data/processed/`), so you CAN run
+   `python -m src.models.train` + `python -m src.models.backtest` and **measure**. Obey
+   the leak-free rules (temporal split, perspective randomization + pairs, train-only
+   medians, tilt probe) and put **before/after numbers** (acc, log loss, ROC, backtest
+   ROI) in the PR.
 
-**Banned this run:** another PR whose only purpose is the loop runner scripts / their
-tests. If the only thing you can think of is loop-script plumbing, instead improve the
-app, fix a real bug, or implement a backlog item.
+**Diversify:** about a dozen recent PRs have all touched `src/dashboard/`. Unless you
+find a genuinely high-value dashboard item, prefer a DIFFERENT area this run (live
+inference, features/ELO, CLV/signals, data ingestion, docs, or an ML experiment).
+
+**Banned this run:** a PR whose only purpose is the loop runner scripts / their tests.
+
+**Verify behaviourally — you now can.** If you touch `src/live`, `src/features`, or
+`src/models`, actually RUN the affected path (`python -m src.live.inference` for the live
+scan and/or `python -m src.models.backtest`) and confirm it still works — not just pytest.
+This catches runtime breakage that the unit tests miss.
 
 ## Hard guardrails (never violate)
 - NEVER push to `main`, never `--force`, never merge. Branch + PR only.
