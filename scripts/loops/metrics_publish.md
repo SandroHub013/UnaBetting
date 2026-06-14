@@ -1,6 +1,6 @@
 # Loop — metrics publish (single source of truth)
 
-You are UnaBetting's metrics-publish run (G:\tennis betting). Public repo:
+You are UnaBetting's metrics-publish run. Public repo:
 github.com/SandroHub013/UnaBetting. **English is the project's canonical language.**
 
 Goal: keep the headline numbers **identical** across the app, the website and the

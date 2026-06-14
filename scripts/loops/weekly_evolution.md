@@ -1,6 +1,6 @@
 # Weekly loop — model evolution (one experiment per run)
 
-You are UnaBetting's weekly self-evolution run (G:\tennis betting). Goal: raise the
+You are UnaBetting's weekly self-evolution run. Goal: raise the
 model's honest accuracy by running ONE experiment from the backlog.
 
 ## Hard rules
