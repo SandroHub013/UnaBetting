@@ -8,7 +8,7 @@ import socket
 import sqlite3
 import tempfile
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
 
 import yaml
@@ -329,6 +329,9 @@ def _safe_path(rel: str):
     """Resolve a path relative to the project root; reject traversal outside it."""
     if not isinstance(rel, str) or "\x00" in rel:
         raise PermissionError("path fuori dal progetto")
+    if PureWindowsPath(rel).drive:
+        raise PermissionError(f"path fuori dal progetto: {rel}")
+    rel = rel.replace("\\", "/")
     root = config.PROJECT_ROOT.resolve()
     p = (root / rel).resolve()
     root_str = os.fspath(root)
