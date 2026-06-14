@@ -876,6 +876,64 @@ def _prepare_runtime_config(root, bundle_blob, baseline_config=None):
     return writes
 
 
+def _write_runtime_files_transactionally(root, writes):
+    """Install validated runtime files, rolling back on any write failure."""
+    root = Path(root).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    stage_dir = Path(tempfile.mkdtemp(prefix=".runtime-update-", dir=root))
+    staged = []
+    installed = []
+    cleanup_stage = True
+    try:
+        destinations = set()
+        for index, (destination, blob) in enumerate(writes):
+            destination = Path(destination).resolve()
+            if not destination.is_relative_to(root):
+                raise ValueError(f"unsafe runtime update path: {destination}")
+            if destination in destinations:
+                raise ValueError(f"duplicate runtime update path: {destination}")
+            destinations.add(destination)
+
+            staged_path = stage_dir / f"new-{index:06d}"
+            with staged_path.open("wb") as f:
+                f.write(blob)
+                f.flush()
+                os.fsync(f.fileno())
+            staged.append((destination, staged_path, stage_dir / f"old-{index:06d}"))
+
+        for destination, staged_path, backup_path in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            backup = None
+            if destination.exists():
+                if not destination.is_file():
+                    raise OSError(f"runtime update target is not a file: {destination}")
+                os.replace(destination, backup_path)
+                backup = backup_path
+            installed.append((destination, backup))
+            os.replace(staged_path, destination)
+    except Exception as install_error:
+        rollback_errors = []
+        for destination, backup in reversed(installed):
+            try:
+                if backup is None:
+                    destination.unlink(missing_ok=True)
+                else:
+                    os.replace(backup, destination)
+            except OSError as rollback_error:
+                rollback_errors.append(f"{destination}: {rollback_error}")
+        if rollback_errors:
+            cleanup_stage = False
+            detail = "; ".join(rollback_errors)
+            raise OSError(
+                f"runtime update failed ({install_error}); rollback incomplete "
+                f"({detail}); recovery files kept in {stage_dir}"
+            ) from install_error
+        raise
+    finally:
+        if cleanup_stage:
+            shutil.rmtree(stage_dir, ignore_errors=True)
+
+
 #: Ed25519 public key that signs release bundles. Module-level so tests can inject a
 #: test keypair via monkeypatch; production keeps this baked-in key.
 _UPDATER_PUBKEY = b"""-----BEGIN PUBLIC KEY-----
@@ -999,12 +1057,7 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
             except OSError as e:
                 raise ValueError(f"cannot prepare runtime config: {e}") from None
 
-        for dst, blob in to_write:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_bytes(blob)
-        for dst, blob in config_writes:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_bytes(blob)
+        _write_runtime_files_transactionally(root, to_write + config_writes)
     return len(to_write) + (1 if config_blob is not None else 0)
 
 
