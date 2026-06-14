@@ -7,10 +7,11 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from src.dashboard import config as dash_config
+from src.dashboard import config as dash_config, data_api as dash_data_api
 from src.dashboard.data_api import _safe_path
 from src.dashboard.server import app
 
@@ -167,6 +168,78 @@ def test_config_put_rejects_invalid_yaml(client):
     r = client.put("/api/config", json={"content": "a: [unclosed"})
     assert r.status_code == 400
     assert r.json()["error"] == "invalid_yaml"
+
+
+@pytest.mark.parametrize("content", ["[]\n", "42\n", "{}\n"])
+def test_config_put_rejects_yaml_without_required_shape(monkeypatch, tmp_path, content):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+
+    r = TestClient(app).put("/api/config", json={"content": content})
+
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_config"
+    assert config_path.read_text(encoding="utf-8") == original
+    assert not config_path.with_suffix(".yaml.bak").exists()
+
+
+def test_config_put_rejects_wrong_core_field_type(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+    edited = yaml.safe_load(original)
+    edited["model"]["validation_years"] = 2024
+
+    r = TestClient(app).put(
+        "/api/config", json={"content": yaml.safe_dump(edited, sort_keys=False)})
+
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_config"
+    assert "model.validation_years" in r.json()["detail"]
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_config_put_atomically_saves_valid_config_with_backup(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+    edited = yaml.safe_load(original)
+    edited["betting"]["initial_bankroll"] = 1250
+    content = yaml.safe_dump(edited, sort_keys=False)
+
+    r = TestClient(app).put("/api/config", json={"content": content})
+
+    assert r.status_code == 200
+    assert r.json()["saved"] is True
+    assert config_path.read_text(encoding="utf-8") == content
+    assert config_path.with_suffix(".yaml.bak").read_text(encoding="utf-8") == original
+    assert not list(tmp_path.glob(".config.yaml.*.tmp"))
+
+
+def test_config_put_preserves_original_when_atomic_replace_fails(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+    edited = yaml.safe_load(original)
+    edited["betting"]["initial_bankroll"] = 1250
+
+    def fail_replace(source, destination):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(dash_data_api.os, "replace", fail_replace)
+    r = TestClient(app).put(
+        "/api/config", json={"content": yaml.safe_dump(edited, sort_keys=False)})
+
+    assert r.status_code == 500
+    assert r.json()["error"] == "config_write_error"
+    assert config_path.read_text(encoding="utf-8") == original
+    assert config_path.with_suffix(".yaml.bak").read_text(encoding="utf-8") == original
+    assert not list(tmp_path.glob(".config.yaml.*.tmp"))
 
 
 def test_file_api_rejects_path_traversal(client, tmp_path):
