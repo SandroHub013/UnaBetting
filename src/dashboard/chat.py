@@ -15,7 +15,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from . import config
+from . import config, security
 
 router = APIRouter()
 
@@ -297,9 +297,7 @@ def _ollama_call(messages):
 
 @router.websocket("/ws/chat")
 async def ws_chat(ws: WebSocket):
-    token = config.auth_token()
-    if token and ws.query_params.get("token") != token:
-        await ws.close(code=4401)
+    if not await security.authorize_websocket(ws):
         return
     await ws.accept()
     loop = asyncio.get_running_loop()
