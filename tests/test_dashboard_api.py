@@ -2,16 +2,26 @@
 JSON against a temp DB; non-whitelisted runner commands are rejected."""
 import json
 import shutil
+import socket
 import sqlite3
 import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from src.dashboard import config as dash_config
-from src.dashboard.data_api import _safe_path
+from src.dashboard import config as dash_config, data_api as dash_data_api
+from src.dashboard.data_api import (
+    _PublicHTTPConnection,
+    _PublicHTTPSConnection,
+    _PublicOnlyRedirectHandler,
+    _UnsafeBrowseURL,
+    _create_public_connection,
+    _safe_path,
+    _validate_public_http_url,
+)
 from src.dashboard.server import app
 
 
@@ -207,6 +217,78 @@ def test_config_put_rejects_invalid_yaml(client):
     assert r.json()["error"] == "invalid_yaml"
 
 
+@pytest.mark.parametrize("content", ["[]\n", "42\n", "{}\n"])
+def test_config_put_rejects_yaml_without_required_shape(monkeypatch, tmp_path, content):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+
+    r = TestClient(app).put("/api/config", json={"content": content})
+
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_config"
+    assert config_path.read_text(encoding="utf-8") == original
+    assert not config_path.with_suffix(".yaml.bak").exists()
+
+
+def test_config_put_rejects_wrong_core_field_type(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+    edited = yaml.safe_load(original)
+    edited["model"]["validation_years"] = 2024
+
+    r = TestClient(app).put(
+        "/api/config", json={"content": yaml.safe_dump(edited, sort_keys=False)})
+
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_config"
+    assert "model.validation_years" in r.json()["detail"]
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_config_put_atomically_saves_valid_config_with_backup(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+    edited = yaml.safe_load(original)
+    edited["betting"]["initial_bankroll"] = 1250
+    content = yaml.safe_dump(edited, sort_keys=False)
+
+    r = TestClient(app).put("/api/config", json={"content": content})
+
+    assert r.status_code == 200
+    assert r.json()["saved"] is True
+    assert config_path.read_text(encoding="utf-8") == content
+    assert config_path.with_suffix(".yaml.bak").read_text(encoding="utf-8") == original
+    assert not list(tmp_path.glob(".config.yaml.*.tmp"))
+
+
+def test_config_put_preserves_original_when_atomic_replace_fails(monkeypatch, tmp_path):
+    original = dash_config.CONFIG_YAML.read_text(encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(dash_config, "CONFIG_YAML", config_path)
+    edited = yaml.safe_load(original)
+    edited["betting"]["initial_bankroll"] = 1250
+
+    def fail_replace(source, destination):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(dash_data_api.os, "replace", fail_replace)
+    r = TestClient(app).put(
+        "/api/config", json={"content": yaml.safe_dump(edited, sort_keys=False)})
+
+    assert r.status_code == 500
+    assert r.json()["error"] == "config_write_error"
+    assert config_path.read_text(encoding="utf-8") == original
+    assert config_path.with_suffix(".yaml.bak").read_text(encoding="utf-8") == original
+    assert not list(tmp_path.glob(".config.yaml.*.tmp"))
+
+
 def test_file_api_rejects_path_traversal(client, tmp_path):
     assert client.get("/api/file?path=../secrets.txt").status_code == 403
     assert client.get(r"/api/file?path=..\secrets.txt").status_code == 403
@@ -229,6 +311,84 @@ def test_file_api_reads_project_file(client):
     tree = client.get("/api/tree").json()
     names = [i["name"] for i in tree]
     assert "src" in names and ".git" not in names
+
+
+def test_browser_rejects_private_network_targets(client, monkeypatch):
+    def private_dns(host, port, type=0):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.10", port))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", private_dns)
+
+    for url in (
+        "http://127.0.0.1:8765/api/overview",
+        "http://[::1]/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://dashboard.internal/",
+        "http://user:pass@example.com/",
+        "file:///etc/passwd",
+    ):
+        r = client.get("/api/browse", params={"url": url})
+        assert r.status_code == 400
+        assert r.json()["error"] == "unsafe_url"
+
+
+def test_browser_rejects_mixed_public_private_dns(monkeypatch):
+    def mixed_dns(host, port, type=0):
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", port)),
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", mixed_dns)
+
+    with pytest.raises(_UnsafeBrowseURL):
+        _validate_public_http_url("https://example.com/")
+
+
+def test_browser_allows_global_dns_targets(monkeypatch):
+    def public_dns(host, port, type=0):
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port)),
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2606:2800:220:1:248:1893:25c8:1946", port, 0, 0)),
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", public_dns)
+
+    assert (_validate_public_http_url("https://example.com/path")
+            == "https://example.com/path")
+
+
+def test_browser_redirects_revalidate_destinations(monkeypatch):
+    def private_dns(host, port, type=0):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", private_dns)
+    handler = _PublicOnlyRedirectHandler()
+
+    with pytest.raises(_UnsafeBrowseURL):
+        handler.redirect_request(
+            None, None, 302, "Found", {}, "http://internal.example/admin")
+
+
+def test_browser_connections_use_validated_socket_factory():
+    assert (_PublicHTTPConnection("example.com")._create_connection
+            is _create_public_connection)
+    assert (_PublicHTTPSConnection("example.com")._create_connection
+            is _create_public_connection)
+
+
+def test_browser_connection_rejects_dns_rebinding(monkeypatch):
+    answers = iter([
+        [(socket.AF_INET, socket.SOCK_STREAM, 6, "",
+          ("93.184.216.34", 443))],
+        [(socket.AF_INET, socket.SOCK_STREAM, 6, "",
+          ("127.0.0.1", 443))],
+    ])
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *args, **kwargs: next(answers))
+
+    _validate_public_http_url("https://example.com/")
+    with pytest.raises(_UnsafeBrowseURL):
+        _create_public_connection(("example.com", 443))
 
 
 def test_bet_lifecycle_place_resolve_undo(client):

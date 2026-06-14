@@ -1,9 +1,15 @@
 """REST API: read-only data cockpit + config editor (the only writing endpoint)."""
+import http.client
+import ipaddress
 import json
 import os
 import shutil
+import socket
 import sqlite3
+import tempfile
+import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 from fastapi import APIRouter, Request
@@ -24,8 +30,78 @@ MEDIA_TYPES = {
 }
 
 
+class _UnsafeBrowseURL(ValueError):
+    """Raised when the agentic browser target can reach a non-public network."""
+
+
 def _err(status, error, detail=""):
     return JSONResponse({"error": error, "detail": str(detail)}, status_code=status)
+
+
+_REQUIRED_CONFIG_FIELDS = {
+    ("data", "sackmann"): dict,
+    ("data", "tennis_data_co_uk", "base_url"): str,
+    ("data", "tennis_data_co_uk", "atp_start_year"): int,
+    ("data", "tennis_data_co_uk", "wta_start_year"): int,
+    ("data", "odds_api", "regions"): str,
+    ("data", "odds_api", "markets"): str,
+    ("paths", "raw_data"): str,
+    ("paths", "processed_data"): str,
+    ("paths", "features"): str,
+    ("paths", "models"): str,
+    ("paths", "reports"): str,
+    ("features", "elo", "k_factor"): (int, float),
+    ("features", "elo", "k_factor_grand_slam"): (int, float),
+    ("features", "elo", "initial_rating"): (int, float),
+    ("features", "elo", "surface_weight"): (int, float),
+    ("model", "test_start_year"): int,
+    ("model", "validation_years"): list,
+    ("model", "xgboost"): dict,
+    ("model", "lightgbm"): dict,
+    ("model", "neural_network"): dict,
+    ("agent", "openrouter", "model"): str,
+    ("agent", "openrouter", "system_prompt"): str,
+}
+
+
+def _validate_config(value):
+    """Reject valid YAML that cannot satisfy the project's config contract."""
+    if not isinstance(value, dict):
+        raise ValueError("config root must be a YAML mapping")
+
+    for path, expected_type in _REQUIRED_CONFIG_FIELDS.items():
+        current = value
+        dotted = ".".join(path)
+        for key in path:
+            if not isinstance(current, dict) or key not in current:
+                raise ValueError(f"missing required config field: {dotted}")
+            current = current[key]
+        if isinstance(current, bool) or not isinstance(current, expected_type):
+            names = (expected_type.__name__ if isinstance(expected_type, type)
+                     else " or ".join(t.__name__ for t in expected_type))
+            raise ValueError(f"config field {dotted} must be {names}")
+        if isinstance(current, str) and not current.strip():
+            raise ValueError(f"config field {dotted} must not be empty")
+    return value
+
+
+def _write_config_atomically(path, content):
+    """Write a validated config without exposing a truncated active file."""
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        shutil.copystat(path, tmp)
+        backup = path.with_suffix(".yaml.bak")
+        shutil.copy2(path, backup)
+        os.replace(tmp, path)
+        return backup
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 @router.get("/session")
@@ -487,33 +563,136 @@ def _html_to_text(html: str, base_url: str = ""):
     return title, body[:20000], links
 
 
+def _validate_public_http_url(url: str):
+    """Reject browser targets that are not public HTTP(S) destinations."""
+    try:
+        parsed = urlsplit(url)
+        hostname = parsed.hostname
+        port = parsed.port
+    except ValueError as e:
+        raise _UnsafeBrowseURL(f"URL non valido: {e}") from None
+    if parsed.scheme.lower() not in {"http", "https"} or not hostname:
+        raise _UnsafeBrowseURL("sono ammessi solo URL http/https completi")
+    if parsed.username is not None or parsed.password is not None:
+        raise _UnsafeBrowseURL("le credenziali nell'URL non sono ammesse")
+    if "%" in hostname:
+        raise _UnsafeBrowseURL("gli scope IPv6 non sono ammessi")
+
+    _resolve_public_addresses(
+        hostname, port or (443 if parsed.scheme.lower() == "https" else 80))
+    return url
+
+
+def _resolve_public_addresses(host, port):
+    """Resolve a host and reject the whole result if any address is non-public."""
+    try:
+        infos = socket.getaddrinfo(
+            host.rstrip("."), port, type=socket.SOCK_STREAM)
+    except socket.gaierror as e:
+        raise _UnsafeBrowseURL(f"host non risolvibile: {host}") from e
+    addresses = set()
+    for info in infos:
+        try:
+            addresses.add(ipaddress.ip_address(info[4][0]))
+        except ValueError as e:
+            raise _UnsafeBrowseURL(
+                f"indirizzo non valido per host: {host}") from e
+
+    if not addresses:
+        raise _UnsafeBrowseURL(f"host non risolvibile: {host}")
+    blocked = sorted(str(address) for address in addresses if not address.is_global)
+    if blocked:
+        raise _UnsafeBrowseURL(
+            f"destinazione di rete non pubblica non ammessa: {', '.join(blocked)}")
+    return infos
+
+
+def _create_public_connection(
+        address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+    """Connect only to an address from the validated DNS result."""
+    host, port = address
+    last_error = None
+    for family, socktype, proto, _, sockaddr in _resolve_public_addresses(host, port):
+        sock = None
+        try:
+            sock = socket.socket(family, socktype, proto)
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            sock.connect(sockaddr)
+            return sock
+        except OSError as e:
+            last_error = e
+            if sock is not None:
+                sock.close()
+    if last_error is not None:
+        raise last_error
+    raise OSError("getaddrinfo returned no usable addresses")
+
+
+class _PublicHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = _create_public_connection
+
+
+class _PublicHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = _create_public_connection
+
+
+class _PublicHTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_PublicHTTPConnection, req)
+
+
+class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(
+            _PublicHTTPSConnection, req, context=self._context,
+            check_hostname=self._check_hostname)
+
+
+class _PublicOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Apply public-network validation to every redirect hop."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _validate_public_http_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _fetch_url(url: str):
-    """Server-side fetch (urllib, curl.exe fallback for picky sites)."""
-    import urllib.request
+    """Fetch a public web page while preventing local-network requests."""
     ua = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
           "(KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": "text/html,*/*"})
-        with urllib.request.urlopen(req, timeout=20) as r:
-            ct = r.headers.get("Content-Type", "")
-            raw = r.read(3_000_000)
-        return raw.decode("utf-8", errors="replace"), ct
-    except Exception:
-        import subprocess
-        r = subprocess.run(["curl.exe", "-sL", "--compressed", "-m", "25",
-                            "-A", ua, url], capture_output=True, timeout=40)
-        if r.returncode != 0 or not r.stdout:
-            raise RuntimeError(f"fetch fallito (curl {r.returncode})")
-        return r.stdout.decode("utf-8", errors="replace"), "text/html"
+    _validate_public_http_url(url)
+    req = urllib.request.Request(
+        url, headers={"User-Agent": ua, "Accept": "text/html,*/*"})
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _PublicHTTPHandler(),
+        _PublicHTTPSHandler(),
+        _PublicOnlyRedirectHandler(),
+    )
+    with opener.open(req, timeout=20) as response:
+        _validate_public_http_url(response.geturl())
+        ct = response.headers.get("Content-Type", "")
+        raw = response.read(3_000_000)
+    return raw.decode("utf-8", errors="replace"), ct
 
 
 @router.get("/browse")
 def browse(url: str):
     """Agentic browser fetch: returns title + readable text + links for a URL."""
-    if not url.startswith(("http://", "https://")):
+    url = url.strip()
+    if not urlsplit(url).scheme:
         url = "https://" + url
     try:
         html, ct = _fetch_url(url)
+    except _UnsafeBrowseURL as e:
+        return _err(400, "unsafe_url", e)
     except Exception as e:
         return _err(502, "fetch_error", e)
     if "html" not in ct and "<html" not in html[:2000].lower():
@@ -920,15 +1099,15 @@ async def put_config(request: Request):
         content = body.get("content")
         if not isinstance(content, str) or not content.strip():
             return _err(400, "bad_request", "campo 'content' mancante o vuoto")
-        yaml.safe_load(content)  # reject invalid YAML before touching the file
+        _validate_config(yaml.safe_load(content))
     except yaml.YAMLError as e:
         return _err(400, "invalid_yaml", e)
+    except ValueError as e:
+        return _err(400, "invalid_config", e)
     except Exception as e:
         return _err(400, "bad_request", e)
     try:
-        backup = config.CONFIG_YAML.with_suffix(".yaml.bak")
-        shutil.copy2(config.CONFIG_YAML, backup)
-        config.CONFIG_YAML.write_text(content, encoding="utf-8")
+        backup = _write_config_atomically(config.CONFIG_YAML, content)
         return {"saved": True, "backup": str(backup)}
     except OSError as e:
         return _err(500, "config_write_error", e)
