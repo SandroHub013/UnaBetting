@@ -43,13 +43,13 @@ class PreFittedEnsemble:
     def predict(self, X):
         if self.is_regression:
             preds = np.column_stack([m.predict(X) for m in self.models])
-            return np.average(preds, axis=1, weights=self.weights)
+            return np.average(preds, axis=1, weights=getattr(self, "weights", None))
         else:
             return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
             
     def predict_proba(self, X):
         probs = np.array([m.predict_proba(X) for m in self.models])
-        return np.average(probs, axis=0, weights=self.weights)
+        return np.average(probs, axis=0, weights=getattr(self, "weights", None))
 
 
 # Pickle identity across entrypoints. When this file runs as

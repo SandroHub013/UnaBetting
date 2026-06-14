@@ -388,10 +388,13 @@ def run_inference():
         for col in feature_cols:
             if col in X.columns and pd.isna(X.at[0, col]):
                 X.at[0, col] = medians.get(col, 0)
-        # Strict column order: reindex to authoritative feature_cols (from artifact bundle).
-        # Raise immediately on any missing column — silent reorder produces wrong predictions.
-        X = X.reindex(columns=feature_cols)
-        assert list(X.columns) == list(feature_cols), "Inference column order mismatch"
+        # Authoritative column order = the scaler's fit order (the order the scaler AND
+        # the models were fitted on). The model-bundle feature_cols may be saved in a
+        # different order, which trips scaler.transform's feature-name check; align to
+        # the scaler so the scaled vector matches what every model expects.
+        order = list(getattr(scaler, "feature_names_in_", feature_cols))
+        X = X.reindex(columns=order)
+        assert list(X.columns) == order, "Inference column order mismatch"
         if X.isna().any().any():
             missing = X.columns[X.isna().any()].tolist()
             for c in missing:
