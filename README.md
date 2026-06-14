@@ -61,7 +61,7 @@ flowchart LR
 flowchart TD
   UI[Browser UI · FastAPI server 127.0.0.1] -->|REST /api/*| API[data_api.py]
   UI -->|WS /ws/run| RUN[whitelisted pipeline runner]
-  UI -->|WS /ws/term| TERM[real terminals · pywinpty]
+  UI -->|WS /ws/term| TERM[real terminals · ConPTY / POSIX PTY]
   UI -->|WS /ws/chat| OS[UnaBettingOS · local Ollama qwen3.5:9b]
   API --> DB[(betanalytix.db, ro)]
   API --> ODDS[odds_history.csv]

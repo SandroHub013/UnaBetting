@@ -1,6 +1,6 @@
-"""Real interactive terminals over WebSocket: pywinpty (ConPTY) <-> xterm.js.
+"""Real interactive terminals over WebSocket: native PTY <-> xterm.js.
 
-/ws/term?shell=powershell|wsl   one PTY per connection; multiple connections =
+/ws/term?shell=<whitelisted>   one PTY per connection; multiple connections =
 multiple independent terminals. Full shell = arbitrary code execution BY DESIGN
 (local personal tool, see spec — security section).
 
@@ -10,10 +10,13 @@ Server -> client: raw text frames (terminal output).
 """
 import asyncio
 import json
+import sys
+from contextlib import suppress
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from . import config
+from .pty_process import spawn_terminal
 
 router = APIRouter()
 
@@ -25,24 +28,26 @@ def _terminal_command(shell: str, agent: str = "") -> str | list[str] | None:
         if not cmd:
             return None
         session = f"vibe-{agent}"
-        return [
-            "wsl.exe", "--cd", str(config.PROJECT_ROOT.resolve()), "-e", "bash", "-lc",
-            f"tmux new-session -A -s {session} {cmd}",
-        ]
+        if sys.platform == "win32":
+            return [
+                "wsl.exe", "--cd", str(config.PROJECT_ROOT.resolve()), "-e", "bash", "-lc",
+                f"tmux new-session -A -s {session} {cmd}",
+            ]
+        return ["tmux", "new-session", "-A", "-s", session, cmd]
 
     return config.SHELLS.get(shell)
 
 
 @router.websocket("/ws/term")
-async def ws_term(ws: WebSocket, shell: str = "powershell", agent: str = ""):
+async def ws_term(ws: WebSocket, shell: str = "", agent: str = ""):
     token = config.auth_token()
     if token and ws.query_params.get("token") != token:
         await ws.close(code=4401)
         return
     await ws.accept()
 
-    # argv as a list keeps clone paths with spaces intact. WSL resolves the
-    # Windows project root, so every clone opens in its own working tree.
+    # Agent argv stays structured so clone paths with spaces remain intact.
+    shell = shell or config.DEFAULT_SHELL
     cmdline = _terminal_command(shell, agent)
     if not cmdline:
         if agent:
@@ -56,8 +61,8 @@ async def ws_term(ws: WebSocket, shell: str = "powershell", agent: str = ""):
         return
 
     try:
-        from winpty import PtyProcess
-        pty = PtyProcess.spawn(cmdline, cwd=str(config.PROJECT_ROOT), dimensions=(30, 120))
+        pty = spawn_terminal(
+            cmdline, cwd=str(config.PROJECT_ROOT), dimensions=(30, 120))
     except Exception as e:
         # e.g. WSL not installed -> clear message, clean close
         await ws.send_text(f"\r\n[dashboard] impossibile avviare '{cmdline}': {e}\r\n")
@@ -107,3 +112,5 @@ async def ws_term(ws: WebSocket, shell: str = "powershell", agent: str = ""):
         except Exception:
             pass
         reader.cancel()
+        with suppress(asyncio.CancelledError):
+            await reader

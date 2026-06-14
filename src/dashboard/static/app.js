@@ -32,7 +32,7 @@ const I18N = {
     scanlive: '⚡ scan match live', note_scan: 'scarica quote fresche (the-odds-api, consuma crediti) e fa girare modello + news. Risultati nel tab Segnali.', stopb: '■ stop', note_ponly: 'Output nel tab "Pipeline". Solo comandi whitelisted: il resto passa dai terminali.',
     note_browser: 'Browser agentico: apri URL, leggi il contenuto, segui i link. Anche l\'agente UnaBettingOS può navigare (tool browse_web).', brurl_ph: 'url o dominio…', brback: 'indietro', note_graph: 'Il grafo del progetto (graphify): nodi-stella colorati per community, 3D. Trascina per ruotare, scroll per zoom, click su un nodo per il focus.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'loop notturno', l_weekly: 'loop settimanale', l_metrics: 'storico metriche', loops_none: 'nessuna run ancora',
-    term_label: 'TERMINALE', vibe_hint: 'agente a scelta, in tmux su WSL (la sessione sopravvive alla chiusura del tab)',
+    term_label: 'TERMINALE', vibe_hint: 'agente a scelta, in tmux (la sessione sopravvive alla chiusura del tab)',
     upd_title: 'Aggiornamento disponibile', upd_btn: 'Aggiorna ora', upd_later: 'Più tardi', upd_doing: 'aggiornamento…', upd_done: 'Aggiornato ✓ — riavvia l\'app per applicare', upd_fail: 'Aggiornamento fallito', upd_restart: 'Riavvia app',
     chat_intro: "Sono <b>UnaBettingOS</b> — memoria e intelligenza agentica dell'app (qwen3.5:9b, locale). Dati live, vault Obsidian, knowledge graph e memoria persistente: chiedimi dei match, del modello, della storia del progetto — o dimmi \"ricorda che…\".",
     chat_ph: 'scrivi… (Invio per inviare)', open_graph: 'apri il grafo 3D', go: 'vai',
@@ -65,7 +65,7 @@ const I18N = {
     scanlive: '⚡ scan live matches', note_scan: 'fetches fresh odds (the-odds-api, uses credits) and runs model + news. Results in the Signals tab.', stopb: '■ stop', note_ponly: 'Output in the "Pipeline" tab. Whitelisted commands only: everything else goes through the terminals.',
     note_browser: 'Agentic browser: open a URL, read the content, follow links. UnaBettingOS can browse too (browse_web tool).', brurl_ph: 'url or domain…', brback: 'back', note_graph: 'The project graph (graphify): star nodes colored by community, 3D. Drag to rotate, scroll to zoom, click a node to focus.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'nightly loop', l_weekly: 'weekly loop', l_metrics: 'metrics history', loops_none: 'no runs yet',
-    term_label: 'TERMINAL', vibe_hint: 'pick an agent, in tmux on WSL (the session survives closing the tab)',
+    term_label: 'TERMINAL', vibe_hint: 'pick an agent in tmux (the session survives closing the tab)',
     upd_title: 'Update available', upd_btn: 'Update now', upd_later: 'Later', upd_doing: 'updating…', upd_done: 'Updated ✓ — restart the app to apply', upd_fail: 'Update failed', upd_restart: 'Restart app',
     chat_intro: "I'm <b>UnaBettingOS</b> — the app's agentic memory & intelligence (qwen3.5:9b, local). Live data, Obsidian vault, knowledge graph and persistent memory: ask me about matches, the model, the project's history — or say \"remember that…\".",
     chat_ph: 'type… (Enter to send)', open_graph: 'open the 3D graph', go: 'go',
@@ -97,7 +97,7 @@ const I18N = {
     scanlive: '⚡ escanear partidos en vivo', note_scan: 'descarga cuotas frescas (the-odds-api, consume créditos) y ejecuta modelo + news. Resultados en la pestaña Señales.', stopb: '■ parar', note_ponly: 'Salida en la pestaña "Pipeline". Solo comandos en whitelist: el resto va por los terminales.',
     note_browser: 'Navegador agéntico: abre una URL, lee el contenido, sigue enlaces. UnaBettingOS también puede navegar (herramienta browse_web).', brurl_ph: 'url o dominio…', brback: 'atrás', note_graph: 'El grafo del proyecto (graphify): nodos-estrella coloreados por comunidad, 3D. Arrastra para rotar, scroll para zoom, clic en un nodo para enfocar.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'bucle nocturno', l_weekly: 'bucle semanal', l_metrics: 'historial de métricas', loops_none: 'aún sin runs',
-    term_label: 'TERMINAL', vibe_hint: 'elige un agente, en tmux sobre WSL (la sesión sobrevive al cierre de la pestaña)',
+    term_label: 'TERMINAL', vibe_hint: 'elige un agente en tmux (la sesión sobrevive al cierre de la pestaña)',
     upd_title: 'Actualización disponible', upd_btn: 'Actualizar ahora', upd_later: 'Más tarde', upd_doing: 'actualizando…', upd_done: 'Actualizado ✓ — reinicia la app para aplicar', upd_fail: 'Actualización fallida', upd_restart: 'Reiniciar app',
     chat_intro: "Soy <b>UnaBettingOS</b> — memoria e inteligencia agéntica de la app (qwen3.5:9b, local). Datos en vivo, vault Obsidian, grafo de conocimiento y memoria persistente: pregúntame por los partidos, el modelo o la historia del proyecto — o di \"recuerda que…\".",
     chat_ph: 'escribe… (Intro para enviar)', open_graph: 'abrir el grafo 3D', go: 'ir',
@@ -129,7 +129,7 @@ const I18N = {
     scanlive: '⚡ scanner les matchs en direct', note_scan: 'télécharge des cotes fraîches (the-odds-api, consomme des crédits) et lance modèle + news. Résultats dans l\'onglet Signaux.', stopb: '■ stop', note_ponly: 'Sortie dans l\'onglet "Pipeline". Commandes whitelistées seulement : le reste passe par les terminaux.',
     note_browser: 'Navigateur agentique : ouvre une URL, lis le contenu, suis les liens. UnaBettingOS peut aussi naviguer (outil browse_web).', brurl_ph: 'url ou domaine…', brback: 'retour', note_graph: 'Le graphe du projet (graphify) : nœuds-étoiles colorés par communauté, 3D. Glisser pour tourner, molette pour zoomer, clic sur un nœud pour focaliser.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'boucle nocturne', l_weekly: 'boucle hebdo', l_metrics: 'historique des métriques', loops_none: 'aucun run pour l\'instant',
-    term_label: 'TERMINAL', vibe_hint: 'choisis un agent, en tmux sur WSL (la session survit à la fermeture de l\'onglet)',
+    term_label: 'TERMINAL', vibe_hint: 'choisis un agent dans tmux (la session survit à la fermeture de l\'onglet)',
     upd_title: 'Mise à jour disponible', upd_btn: 'Mettre à jour', upd_later: 'Plus tard', upd_doing: 'mise à jour…', upd_done: 'Mis à jour ✓ — redémarre l\'app pour appliquer', upd_fail: 'Échec de la mise à jour', upd_restart: 'Redémarrer',
     chat_intro: "Je suis <b>UnaBettingOS</b> — la mémoire et l'intelligence agentique de l'app (qwen3.5:9b, local). Données en direct, vault Obsidian, graphe de connaissances et mémoire persistante : demande-moi les matchs, le modèle, l'historique du projet — ou dis \"souviens-toi que…\".",
     chat_ph: 'écris… (Entrée pour envoyer)', open_graph: 'ouvrir le graphe 3D', go: 'aller',
@@ -161,7 +161,7 @@ const I18N = {
     scanlive: '⚡ Live-Matches scannen', note_scan: 'holt frische Quoten (the-odds-api, verbraucht Credits) und führt Modell + News aus. Ergebnisse im Tab Signale.', stopb: '■ stopp', note_ponly: 'Ausgabe im Tab "Pipeline". Nur Whitelist-Befehle: alles andere über die Terminals.',
     note_browser: 'Agentischer Browser: URL öffnen, Inhalt lesen, Links folgen. UnaBettingOS kann auch browsen (browse_web-Tool).', brurl_ph: 'url oder Domain…', brback: 'zurück', note_graph: 'Der Projektgraph (graphify): Stern-Knoten nach Community gefärbt, 3D. Ziehen zum Drehen, Scrollen zum Zoomen, Klick auf einen Knoten zum Fokussieren.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'Nightly-Loop', l_weekly: 'Weekly-Loop', l_metrics: 'Metrik-Historie', loops_none: 'noch keine Runs',
-    term_label: 'TERMINAL', vibe_hint: 'wähle einen Agenten, in tmux auf WSL (die Session überlebt das Schließen des Tabs)',
+    term_label: 'TERMINAL', vibe_hint: 'wähle einen Agenten in tmux (die Session überlebt das Schließen des Tabs)',
     upd_title: 'Update verfügbar', upd_btn: 'Jetzt aktualisieren', upd_later: 'Später', upd_doing: 'aktualisiere…', upd_done: 'Aktualisiert ✓ — App neu starten zum Anwenden', upd_fail: 'Update fehlgeschlagen', upd_restart: 'App neu starten',
     chat_intro: "Ich bin <b>UnaBettingOS</b> — das agentische Gedächtnis & die Intelligenz der App (qwen3.5:9b, lokal). Live-Daten, Obsidian-Vault, Wissensgraph und persistentes Gedächtnis: frag mich nach Matches, dem Modell, der Projektgeschichte — oder sag \"merke dir, dass…\".",
     chat_ph: 'schreiben… (Enter zum Senden)', open_graph: '3D-Graph öffnen', go: 'los',
@@ -999,10 +999,18 @@ async function runCommand(cmd) {
 let termCount = 0;
 const terms = {};
 
-$('#term-new-ps').onclick = () => newTerminal('powershell');
-$('#term-new-wsl').onclick = () => newTerminal('wsl');
+const WINDOWS_TERMINALS = navigator.userAgent.includes('Windows');
+const primaryShell = WINDOWS_TERMINALS ? 'powershell' : 'shell';
+const primaryShellButton = $('#term-new-ps');
+const wslButton = $('#term-new-wsl');
+primaryShellButton.textContent = WINDOWS_TERMINALS ? '+ PowerShell' : '+ Shell';
+primaryShellButton.onclick = () => newTerminal(primaryShell);
+wslButton.onclick = () => newTerminal('wsl');
+if (!WINDOWS_TERMINALS) {
+  wslButton.hidden = true;
+}
 
-/* --- vibe coding: menu di scelta agente (tmux su WSL) --- */
+/* --- vibe coding: menu di scelta agente (tmux) --- */
 const VIBE_AGENTS = [
   { id: 'claude',   label: 'Claude Code', color: '#D97757', glyph: '✳' },
   { id: 'opencode', label: 'OpenCode',    color: '#1A1A12', glyph: '>_' },
@@ -1020,7 +1028,10 @@ $('#term-new-vibe').onclick = (e) => {
     const item = el('button', 'vibe-item',
       `<span class="vibe-badge" style="background:${a.color}">${a.glyph}</span>
        <span>${a.label}</span><span class="vibe-tmux">tmux:vibe-${a.id}</span>`);
-    item.onclick = () => { menu.remove(); newTerminal('wsl', { agent: a.id, label: a.label }); };
+    item.onclick = () => {
+      menu.remove();
+      newTerminal(WINDOWS_TERMINALS ? 'wsl' : 'shell', { agent: a.id, label: a.label });
+    };
     menu.appendChild(item);
   });
   const btn = $('#term-new-vibe').getBoundingClientRect();
@@ -1099,7 +1110,7 @@ async function newTerminal(shell, opts = {}) {
   const ws = new WebSocket(endpoint);
   ws.onmessage = (ev) => term.write(ev.data);
   ws.onclose = () => term.write('\r\n[connessione chiusa' +
-    (opts.agent ? ` — la sessione tmux vibe-${opts.agent} resta viva in WSL` : '') + ']\r\n');
+    (opts.agent ? ` — la sessione tmux vibe-${opts.agent} resta viva` : '') + ']\r\n');
   term.onData(d => { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'input', data: d })); });
   term.onResize(({ cols, rows }) => {
     if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', cols, rows }));
