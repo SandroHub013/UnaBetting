@@ -610,12 +610,82 @@ _MAX_BUNDLE_BYTES = 500 * 1024 * 1024
 #: are case-insensitive; `data\live\x` etc.) can sneak a write onto these.
 _PROTECTED_NAMES = ("betanalytix.db", "settings.json")
 _PROTECTED_PREFIXES = ("data/live/",)
+_CONFIG_MEMBER = "config/config.yaml"
+_CONFIG_DEFAULTS_SNAPSHOT = "config/.runtime-default.yaml"
+_MISSING = object()
 
 
 def _is_protected(rel_posix_lower):
     name = rel_posix_lower.rsplit("/", 1)[-1]
     return (name in _PROTECTED_NAMES
             or any(rel_posix_lower.startswith(p) for p in _PROTECTED_PREFIXES))
+
+
+def _load_yaml_mapping(blob, label):
+    try:
+        value = yaml.safe_load(blob.decode("utf-8"))
+    except (UnicodeDecodeError, yaml.YAMLError) as e:
+        raise ValueError(f"{label} is not valid UTF-8 YAML: {e}") from None
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must contain a YAML mapping")
+    return value
+
+
+def _merge_config_defaults(old, current, new):
+    """Advance untouched defaults while preserving user overrides and extra keys."""
+    if old is not _MISSING and current == old:
+        return new
+    if not isinstance(current, dict) or not isinstance(new, dict):
+        return current
+
+    old_map = old if isinstance(old, dict) else {}
+    merged = {}
+    for key, new_value in new.items():
+        if key not in current:
+            merged[key] = new_value
+            continue
+        old_value = old_map.get(key, _MISSING)
+        merged[key] = _merge_config_defaults(old_value, current[key], new_value)
+    for key, current_value in current.items():
+        old_value = old_map.get(key, _MISSING)
+        if key not in new and (old_value is _MISSING or current_value != old_value):
+            merged[key] = current_value
+    return merged
+
+
+def _prepare_runtime_config(root, bundle_blob, baseline_config=None):
+    """Return writes needed to safely update the persistent runtime config."""
+    config_path = (root / _CONFIG_MEMBER).resolve()
+    defaults_path = (root / _CONFIG_DEFAULTS_SNAPSHOT).resolve()
+    if not config_path.is_relative_to(root) or not defaults_path.is_relative_to(root):
+        raise ValueError("unsafe generated config path")
+    new_defaults = _load_yaml_mapping(bundle_blob, "bundle config")
+    writes = [(defaults_path, bundle_blob)]
+
+    if not config_path.exists():
+        writes.insert(0, (config_path, bundle_blob))
+        return writes
+
+    current_blob = config_path.read_bytes()
+    current = _load_yaml_mapping(current_blob, "current config")
+    old_blob = None
+    if defaults_path.is_file():
+        old_blob = defaults_path.read_bytes()
+    elif baseline_config is not None and Path(baseline_config).is_file():
+        old_blob = Path(baseline_config).read_bytes()
+    old_defaults = (_load_yaml_mapping(old_blob, "previous default config")
+                    if old_blob is not None else _MISSING)
+
+    merged = _merge_config_defaults(old_defaults, current, new_defaults)
+    if merged != current:
+        merged_blob = yaml.safe_dump(
+            merged, sort_keys=False, allow_unicode=True).encode("utf-8")
+        backup_path = config_path.with_suffix(".yaml.bak").resolve()
+        if not backup_path.is_relative_to(root):
+            raise ValueError("unsafe generated config backup path")
+        writes.insert(0, (backup_path, current_blob))
+        writes.insert(1, (config_path, merged_blob))
+    return writes
 
 
 #: Ed25519 public key that signs release bundles. Module-level so tests can inject a
@@ -625,7 +695,7 @@ MCowBQYDK2VwAyEAx5CLlxfVh6r1rPNaBcJqQhr1zgNDcAEkXTIvIUXs1Mc=
 -----END PUBLIC KEY-----"""
 
 
-def _extract_runtime_bundle(zip_path, data_root):
+def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
     """Extract a runtime bundle into data_root. Returns the number of files written.
 
     INTEGRITY, NOT AUTHENTICITY: manifest.json lives inside the same zip it attests,
@@ -638,6 +708,8 @@ def _extract_runtime_bundle(zip_path, data_root):
     nothing): it must resolve inside data_root (zip-slip / absolute-path guard), be
     listed in the manifest with a matching size and sha256, and the manifest must not
     list files absent from the zip. Protected user paths (_is_protected) are skipped.
+    Runtime config is three-way merged against the previous shipped defaults so new
+    defaults land without replacing user overrides; the prior config is backed up.
     Schema produced by scripts/build_release_bundle.py. Raises ValueError on any
     violation.
     """
@@ -705,6 +777,7 @@ def _extract_runtime_bundle(zip_path, data_root):
             raise ValueError(f"manifest lists files absent from bundle: {absent[:5]}")
 
         to_write = []  # validate-all-then-write: (dst, blob)
+        config_blob = None
         for m in zf.namelist():
             if m.endswith("/") or m == "manifest.json":
                 continue
@@ -722,23 +795,37 @@ def _extract_runtime_bundle(zip_path, data_root):
                 raise ValueError(f"size mismatch: {m}")
             if hashlib.sha256(blob).hexdigest() != sha:
                 raise ValueError(f"sha256 mismatch: {m}")
-            to_write.append((dst, blob))
+            if m == _CONFIG_MEMBER:
+                config_blob = blob
+            else:
+                to_write.append((dst, blob))
 
-        if not to_write:
+        if not to_write and config_blob is None:
             raise ValueError("bundle contains no installable files")
+
+        config_writes = []
+        if config_blob is not None:
+            try:
+                config_writes = _prepare_runtime_config(
+                    root, config_blob, baseline_config=baseline_config)
+            except OSError as e:
+                raise ValueError(f"cannot prepare runtime config: {e}") from None
 
         for dst, blob in to_write:
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_bytes(blob)
-    return len(to_write)
+        for dst, blob in config_writes:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes(blob)
+    return len(to_write) + (1 if config_blob is not None else 0)
 
 
 @router.post("/update/apply")
 def update_apply():
     """Packaged: download the latest runtime bundle and extract it into DATA_ROOT
-    (models + reference data + config), preserving the user's portfolio db and
-    settings. Source checkout: git fast-forward pull."""
-    from src.runtime_paths import FROZEN, DATA_ROOT, app_version
+    (models + reference data + merged config), preserving the user's portfolio db,
+    settings, and config overrides. Source checkout: git fast-forward pull."""
+    from src.runtime_paths import BUNDLE_DIR, FROZEN, DATA_ROOT, app_version
     if FROZEN:
         import tempfile
         import urllib.request
@@ -769,7 +856,9 @@ def update_apply():
                         if got > _MAX_BUNDLE_BYTES:
                             raise ValueError("bundle exceeds size limit")
                         f.write(chunk)
-                n = _extract_runtime_bundle(tmp, DATA_ROOT)
+                n = _extract_runtime_bundle(
+                    tmp, DATA_ROOT,
+                    baseline_config=BUNDLE_DIR / "config" / "config.yaml")
             except ValueError as e:
                 return _err(502, "bundle_rejected", e)
             finally:
