@@ -1,48 +1,42 @@
+"""Perspective randomization must flip both features and labels."""
 import pandas as pd
-import numpy as np
 
-def _randomize_perspective(X, y):
-    n = len(X)
-    flip_mask = np.random.random(n) > 0.5
-    X_flipped = X.copy()
-    y_flipped = y.copy()
-    
-    # Prefix-based swap
-    cols = list(X.columns)
-    for cw in cols:
-        if cw.startswith("w_"):
-            cl = "l_" + cw[2:]
-            if cl in cols:
-                X_flipped.loc[flip_mask, cw], X_flipped.loc[flip_mask, cl] = \
-                    X.loc[flip_mask, cl], X.loc[flip_mask, cw]
-        elif cw.endswith("W"):
-            cl = cw[:-1] + "L"
-            if cl in cols:
-                X_flipped.loc[flip_mask, cw], X_flipped.loc[flip_mask, cl] = \
-                    X.loc[flip_mask, cl], X.loc[flip_mask, cw]
-                    
-    y_flipped.loc[flip_mask] = 1 - y.loc[flip_mask]
-    return X_flipped, y_flipped, flip_mask
+from src.models.train import _randomize_perspective
 
-# Test data
-data = {
-    "w_elo": [2000, 2100, 2200, 2300],
-    "l_elo": [1500, 1600, 1700, 1800],
-    "AvgW": [1.5, 1.4, 1.3, 1.2],
-    "AvgL": [2.5, 2.6, 2.7, 2.8],
-    "target": [1, 1, 1, 1]
-}
-df = pd.DataFrame(data)
-X = df.drop(columns=["target"])
-y = df["target"]
 
-X_r, y_r, mask = _randomize_perspective(X, y)
+def test_randomize_perspective_swaps_features_and_targets():
+    X = pd.DataFrame({
+        "w_serve": [0.60, 0.70, 0.65, 0.80],
+        "l_serve": [0.40, 0.30, 0.35, 0.20],
+        "B365W": [1.90, 1.80, 1.75, 1.70],
+        "B365L": [2.10, 2.20, 2.25, 2.30],
+        "diff_elo": [100, 120, 80, 150],
+        "rank_ratio": [2.0, 1.5, 3.0, 1.25],
+        "elo_win_prob": [0.60, 0.70, 0.55, 0.80],
+    })
+    y = pd.DataFrame({
+        "target": [1, 0, 1, 0],
+        "game_diff": [2, -3, 1, -4],
+        "total_games": [20, 22, 19, 24],
+    })
+    flip_mask = pd.Series([False, True, False, True])
 
-print("Mask (True = Flipped):", mask)
-print("\nOriginal X:\n", X)
-print("\nRandomized X:\n", X_r)
-print("\nRandomized y:\n", y_r)
+    X_r, y_r = _randomize_perspective(X, y, flip_mask=flip_mask)
 
-# Check correlation: if randomization worked, correlation should be low
-print("\nCorrelations with y_r:")
-print(X_r.corrwith(y_r))
+    expected_X = pd.DataFrame({
+        "w_serve": [0.60, 0.30, 0.65, 0.20],
+        "l_serve": [0.40, 0.70, 0.35, 0.80],
+        "B365W": [1.90, 2.20, 1.75, 2.30],
+        "B365L": [2.10, 1.80, 2.25, 1.70],
+        "diff_elo": [100, -120, 80, -150],
+        "rank_ratio": [2.0, 1 / 1.5, 3.0, 1 / 1.25],
+        "elo_win_prob": [0.60, 0.30, 0.55, 0.20],
+    })
+    expected_y = pd.DataFrame({
+        "target": [1, 1, 1, 1],
+        "game_diff": [2, 3, 1, 4],
+        "total_games": [20, 22, 19, 24],
+    })
+
+    pd.testing.assert_frame_equal(X_r, expected_X, check_exact=False, atol=1e-12)
+    pd.testing.assert_frame_equal(y_r, expected_y, check_exact=False, atol=1e-12)

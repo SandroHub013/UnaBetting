@@ -37,8 +37,13 @@ Set-Location $DevDir
 
 # Always start each run from a clean, current public main.
 git fetch origin --quiet
-git checkout --quiet main 2>$null
+git switch --quiet main 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git switch --quiet --create main origin/main 2>$null
+    if ($LASTEXITCODE -ne 0) { Write-Error 'Unable to reset to origin/main'; exit 1 }
+}
 git reset --hard --quiet origin/main
+if ($LASTEXITCODE -ne 0) { Write-Error 'Unable to reset to origin/main'; exit 1 }
 
 $logDir = Join-Path $DevDir 'reports\loops'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
