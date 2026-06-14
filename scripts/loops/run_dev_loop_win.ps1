@@ -54,6 +54,9 @@ $prompt = 'Read and execute the instructions in scripts/loops/dev_contribute.md.
           'and NEVER push to main or merge. Follow CONTRIBUTING.md literally.'
 
 & $opencode run --model $Model $prompt 2>&1 | Tee-Object -FilePath $log
+$opencodeExit = $LASTEXITCODE
 
 Get-ChildItem $logDir -Filter 'dev_contribute_*.log' -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -Force
+
+exit $opencodeExit

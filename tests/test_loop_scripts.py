@@ -62,6 +62,12 @@ def test_dev_loop_scripts_reset_main_with_git_switch():
         assert "git switch" in text
 
 
+def test_windows_dev_loop_preserves_opencode_exit_code():
+    text = _loop_file("run_dev_loop_win.ps1")
+    assert "$opencodeExit = $LASTEXITCODE" in text
+    assert "exit $opencodeExit" in text
+
+
 def test_dev_contribute_loop_enforces_safe_public_pr_workflow():
     text = _loop_file("dev_contribute.md")
     assert "NEVER push to `main`" in text
