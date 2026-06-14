@@ -4,15 +4,26 @@
 # The Opus PR-review loop reviews & merges the good ones.
 #
 # Register (hourly):
-#   $a=New-ScheduledTaskAction -Execute powershell.exe -Argument '-NoProfile -ExecutionPolicy Bypass -File "G:\tennis betting\scripts\loops\run_dev_loop_win.ps1"'
+#   $a=New-ScheduledTaskAction -Execute powershell.exe -Argument '-NoProfile -ExecutionPolicy Bypass -File "<path-to-this-script>\run_dev_loop_win.ps1"'
 #   $t=New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Days 9999)
 #   Register-ScheduledTask -TaskName TennisLoopDevContribute -Action $a -Trigger $t -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -MultipleInstances IgnoreNew)
 param(
-    [string]$DevDir = 'C:\Users\Utente\unabetting-dev',
+    [string]$DevDir = '',
     [string]$Model  = 'openrouter/nex-agi/nex-n2-pro:free'
 )
 $ErrorActionPreference = 'Continue'
-$opencode = 'C:\Users\Utente\AppData\Roaming\npm\opencode.cmd'
+
+if (-not $DevDir) {
+    $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $DevDir = (Resolve-Path (Join-Path $scriptRoot '..\..')).Path
+}
+
+$opencode = $env:OPENCODE_BIN
+if (-not $opencode) {
+    $cmd = Get-Command opencode.cmd -ErrorAction SilentlyContinue
+    if ($cmd) { $opencode = $cmd.Source }
+}
+if (-not $opencode) { $opencode = 'opencode' }
 
 if (-not $env:OPENROUTER_API_KEY) {
     $env:OPENROUTER_API_KEY = [Environment]::GetEnvironmentVariable('OPENROUTER_API_KEY', 'User')
