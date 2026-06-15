@@ -161,9 +161,10 @@ python -m src.dashboard</pre>
       <tr><td>Odds-ensemble (real-odds rows)</td><td id="d-odds">69.6%</td></tr>
       <tr><td>Log loss</td><td id="d-ll">0.601</td></tr>
       <tr><td>ROC AUC</td><td id="d-roc">0.740</td></tr>
-      <tr><td>Honest backtest ROI</td><td class="neg" id="d-roi">negative</td></tr>
+      <tr><td>Honest backtest ROI</td><td class="neg" id="d-roi">-7.3%</td></tr>
+      <tr><td>Backtest win rate</td><td class="neg" id="d-wr">48.5%</td></tr>
     </table>
-    <p>Decent accuracy, but the honest backtest still loses to the bookmaker margin — there is no betting edge. We publish this on purpose: it's the difference between research and marketing.</p>
+    <p class="muted" style="font-size:13px;">Backtest run 2026-06-12: 2,801 matches, 458 bets, max drawdown 43.8%. Decent accuracy, but the honest backtest still loses to the bookmaker margin — there is no betting edge. We publish this on purpose: it's the difference between research and marketing.</p>
 
     <h2 id="leak">The leak hunt</h2>
     <p>This project's real history is a chain of self-caught data leaks. Each one made the model look brilliant; each one was a bug.</p>
@@ -222,7 +223,8 @@ python -m src.dashboard</pre>
 (function(){const M=window.__METRICS;if(!M)return;const set=(id,v)=>{const e=document.getElementById(id);if(e&&v&&v!=='—')e.textContent=v;};
   set('d-acc',M.acc+'%');set('d-odds',M.odds_acc+'%');
   set('d-ll',M.ll);set('d-roc',M.roc);
-  if(M.roi&&M.roi!=='—')set('d-roi',M.roi+'% (win rate '+M.winrate+'%)');
+  if(M.roi&&M.roi!=='—')set('d-roi',M.roi+'%');
+  if(M.winrate&&M.winrate!=='—')set('d-wr',M.winrate+'%');
 })();
 // build right TOC from h2s
 const heads=[...document.querySelectorAll('.doc h2[id]')];
