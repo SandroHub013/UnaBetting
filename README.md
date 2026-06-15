@@ -108,6 +108,8 @@ tool-calling model (`qwen3.5:9b`, configurable via `CHAT_MODEL`). Its persisted
 `chat_settings.json` can instead select the `openrouter` or `openai` provider with an
 HTTPS API base URL and an `api_key_env` name such as `OPENROUTER_API_KEY`; the credential
 is read from the environment at runtime and is never stored in the settings file.
+`GET /api/chat/models` ranks installed Ollama models by full-GPU, partial-GPU, or CPU
+fit. Pass `ram_gb` and `vram_gb` query values to override detection on unsupported hardware.
 
 Browser requests to the dashboard APIs and WebSockets are restricted to the local app
 origin. Set `DASHBOARD_TOKEN` before launch to additionally require the same session token
