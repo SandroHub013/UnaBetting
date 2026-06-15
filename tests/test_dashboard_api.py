@@ -403,6 +403,10 @@ def test_bet_lifecycle_place_resolve_undo(client):
     assert r.status_code == 200
     rows = client.get("/api/bets?status=pending").json()
     assert any(b["id"] == bet_id for b in rows)
+    r = client.post(f"/api/bet/{bet_id}/resolve", json={"won": False})
+    assert r.status_code == 200
+    assert r.json()["status"] == "lost"
+    assert r.json()["profit"] == -10.0
 
 
 def test_bet_rejects_bad_input(client):
@@ -410,6 +414,56 @@ def test_bet_rejects_bad_input(client):
                                          "odds": 2.0, "stake": 10}).status_code == 400
     assert client.post("/api/bet", json={"match_str": "A", "side_name": "X",
                                          "odds": 0.9, "stake": 10}).status_code == 400
+
+
+@pytest.mark.parametrize("invalid", [
+    {"match_str": None},
+    {"side_name": {"player": "X"}},
+    {"odds": "NaN"},
+    {"stake": "Infinity"},
+    {"model_prob": "-Infinity"},
+    {"model_prob": 1.1},
+    {"edge": "NaN"},
+    {"kelly_pct": "Infinity"},
+    {"side": True},
+    {"side": 3},
+    {"notes": ["not", "text"]},
+])
+def test_bet_rejects_malformed_fields_without_writing(client, invalid):
+    payload = {
+        "match_str": "X vs Y",
+        "side_name": "X",
+        "odds": 2.0,
+        "stake": 10,
+        **invalid,
+    }
+
+    response = client.post("/api/bet", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "bad_request"
+    assert len(client.get("/api/bets").json()) == 1
+
+
+@pytest.mark.parametrize("payload", [
+    {},
+    {"won": None},
+    {"won": 0},
+    {"won": "false"},
+])
+def test_bet_resolution_requires_json_boolean(client, payload):
+    placed = client.post(
+        "/api/bet",
+        json={"match_str": "X vs Y", "side_name": "X", "odds": 2.0, "stake": 10},
+    )
+    bet_id = placed.json()["bet_id"]
+
+    response = client.post(f"/api/bet/{bet_id}/resolve", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "bad_request"
+    pending = client.get("/api/bets?status=pending").json()
+    assert any(b["id"] == bet_id for b in pending)
 
 
 def test_file_api_rejects_binary_and_missing(client):
