@@ -81,6 +81,7 @@ ALLOWED_BOOKMAKERS = ["pinnacle", "williamhill", "sport888", "marathonbet",
 # user's RTX 2070 Super (4/4 correct tool calls @26 tok/s, fits 8GB VRAM).
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 CHAT_MODEL = os.environ.get("CHAT_MODEL", "qwen3.5:9b")
+CHAT_SETTINGS_PATH = DATA_ROOT / "chat_settings.json"
 CHAT_KEEP_ALIVE = "30m"   # keep weights warm while the app is open
 
 # In-app updater: public repo to check for new releases/commits.

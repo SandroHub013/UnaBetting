@@ -19,9 +19,9 @@ run every ~6h, so be thorough — quality of the merge matters more than speed.
   4. Scope coherence (no non-commercial-incompatible code, no heavy deps without reason).
   5. **Behavioural verification (don't trust pytest alone).** If the PR touches
      `src/live`, `src/features`, `src/models`, `warm_up`, or the scan/inference path,
-     actually RUN the affected runtime in a checkout that HAS the models + data (the
-     data-equipped clone at `C:\Users\Utente\unabetting-dev-codex`, or copy `models/`,
-     `data/processed/`, `data/features/` into the PR checkout): `python -m
+     actually RUN the affected runtime in a checkout that HAS the models + data (use a
+     data-equipped local checkout, or copy `models/`, `data/processed/`,
+     `data/features/` into the PR checkout): `python -m
      src.live.inference` and/or `python -m src.models.backtest` must complete without a
      new error vs `main`. Unit tests pass while these break — this is exactly how the
      live scan got merged broken. If you CANNOT run the runtime path, do NOT merge:
