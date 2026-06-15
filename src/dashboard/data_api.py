@@ -2,6 +2,7 @@
 import http.client
 import ipaddress
 import json
+import math
 import os
 import shutil
 import socket
@@ -198,27 +199,77 @@ def _portfolio():
     return BetAnalytix(db_path=config.DB_PATH)
 
 
+def _text_field(body, name, *, required=False):
+    value = body.get(name)
+    if value is None and not required:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    value = value.strip()
+    if required and not value:
+        raise ValueError(f"{name} must not be empty")
+    return value
+
+
+def _finite_number(body, name, *, default=None):
+    value = body.get(name, default)
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be a finite number")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a finite number") from None
+    if not math.isfinite(number):
+        raise ValueError(f"{name} must be a finite number")
+    return number
+
+
+def _bet_side(body):
+    value = body.get("side", 0)
+    if isinstance(value, bool):
+        raise ValueError("side must be 0, 1, or 2")
+    if isinstance(value, int):
+        side = value
+    elif isinstance(value, str) and value.strip() in {"0", "1", "2"}:
+        side = int(value)
+    else:
+        raise ValueError("side must be 0, 1, or 2")
+    if side not in {0, 1, 2}:
+        raise ValueError("side must be 0, 1, or 2")
+    return side
+
+
 @router.post("/bet")
 async def place_bet(request: Request):
     """Register a manually placed bet (Bet-Analytix style tracking)."""
     try:
         b = await request.json()
-        match_str = str(b["match_str"]).strip()
-        side_name = str(b["side_name"]).strip()
-        odds = float(b["odds"])
-        stake = float(b["stake"])
-        if not match_str or not side_name or odds <= 1.0 or stake <= 0:
-            raise ValueError("match, giocatore, quota>1 e stake>0 obbligatori")
-    except Exception as e:
+        if not isinstance(b, dict):
+            raise ValueError("request body must be a JSON object")
+        match_str = _text_field(b, "match_str", required=True)
+        side_name = _text_field(b, "side_name", required=True)
+        decision_id = _text_field(b, "decision_id")
+        notes = _text_field(b, "notes")
+        odds = _finite_number(b, "odds")
+        stake = _finite_number(b, "stake")
+        model_prob = _finite_number(b, "model_prob", default=0)
+        edge = _finite_number(b, "edge", default=0)
+        kelly_pct = _finite_number(b, "kelly_pct", default=0)
+        side = _bet_side(b)
+        if odds <= 1.0 or stake <= 0:
+            raise ValueError("odds must be greater than 1 and stake must be positive")
+        if not 0 <= model_prob <= 1:
+            raise ValueError("model_prob must be between 0 and 1")
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
         return _err(400, "bad_request", e)
     db = _portfolio()
     try:
         bet_id = db.place_bet(
-            decision_id=str(b.get("decision_id", "")), side=int(b.get("side", 0)),
+            decision_id=decision_id, side=side,
             side_name=side_name, odds=odds,
-            model_prob=float(b.get("model_prob") or 0), edge=float(b.get("edge") or 0),
-            kelly_pct=float(b.get("kelly_pct") or 0), stake=stake,
-            match_str=match_str, notes=str(b.get("notes", "")))
+            model_prob=model_prob, edge=edge,
+            kelly_pct=kelly_pct, stake=stake,
+            match_str=match_str, notes=notes)
         return {"bet_id": bet_id}
     except Exception as e:
         return _err(500, "db_error", e)
@@ -229,8 +280,11 @@ async def place_bet(request: Request):
 @router.post("/bet/{bet_id}/resolve")
 async def resolve_bet(bet_id: str, request: Request):
     try:
-        won = bool((await request.json()).get("won"))
-    except Exception as e:
+        body = await request.json()
+        if not isinstance(body, dict) or type(body.get("won")) is not bool:
+            raise ValueError("won must be a JSON boolean")
+        won = body["won"]
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
         return _err(400, "bad_request", e)
     db = _portfolio()
     try:
