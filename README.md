@@ -103,8 +103,11 @@ python -m src.dashboard               # UnaBetting (native window on Windows;
                                       # elsewhere: python -m src.dashboard --browser)
 ```
 
-The in-app chat (UnaBettingOS) needs [Ollama](https://ollama.com) with a tool-calling model
-(default: `qwen3.5:9b`, configurable via the `CHAT_MODEL` env var).
+The in-app chat (UnaBettingOS) defaults to [Ollama](https://ollama.com) with a
+tool-calling model (`qwen3.5:9b`, configurable via `CHAT_MODEL`). Its persisted
+`chat_settings.json` can instead select the `openrouter` or `openai` provider with an
+HTTPS API base URL and an `api_key_env` name such as `OPENROUTER_API_KEY`; the credential
+is read from the environment at runtime and is never stored in the settings file.
 
 Browser requests to the dashboard APIs and WebSockets are restricted to the local app
 origin. Set `DASHBOARD_TOKEN` before launch to additionally require the same session token

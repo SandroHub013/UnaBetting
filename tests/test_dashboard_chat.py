@@ -1,18 +1,23 @@
-"""Dashboard chat backend configuration and Ollama capability tests."""
+"""Dashboard chat backend configuration and provider capability tests."""
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.dashboard import chat, config as dash_config
 from src.dashboard.server import app
 
 
-def _settings(model="qwen3.5:9b", base_url="http://127.0.0.1:11434"):
+def _settings(
+        model="qwen3.5:9b",
+        base_url="http://127.0.0.1:11434",
+        provider="ollama",
+        api_key_env=""):
     return {
-        "provider": "ollama",
+        "provider": provider,
         "model": model,
         "base_url": base_url,
-        "api_key_env": "",
+        "api_key_env": api_key_env,
     }
 
 
@@ -38,22 +43,50 @@ def test_chat_config_defaults_and_round_trips_atomically(tmp_path, monkeypatch):
     assert not list(tmp_path.glob(".chat_settings.json.*.tmp"))
 
 
-def test_chat_config_rejects_secrets_and_unsupported_providers(tmp_path, monkeypatch):
+def test_chat_config_supports_external_provider_without_storing_secret(
+        tmp_path, monkeypatch):
     path = tmp_path / "chat_settings.json"
     monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
     client = TestClient(app)
 
-    with_secret = {**_settings(), "api_key": "do-not-store-this"}
-    response = client.put("/api/chat/config", json=with_secret)
+    external = _settings(
+        provider="openrouter",
+        model="openai/gpt-4.1-mini",
+        base_url="https://openrouter.ai/api/v1/",
+        api_key_env="OPENROUTER_API_KEY",
+    )
+    response = client.put("/api/chat/config", json=external)
+
+    assert response.status_code == 200
+    assert response.json() == {**external, "base_url": external["base_url"].rstrip("/")}
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+    assert persisted == response.json()
+    assert "api_key" not in persisted
+
+
+@pytest.mark.parametrize("external", [
+    {**_settings(), "api_key": "do-not-store-this"},
+    _settings(provider="anthropic"),
+    _settings(
+        provider="openrouter",
+        base_url="http://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+    ),
+    _settings(
+        provider="openai",
+        base_url="https://api.openai.com/v1",
+        api_key_env="",
+    ),
+])
+def test_chat_config_rejects_secrets_and_invalid_external_settings(
+        tmp_path, monkeypatch, external):
+    path = tmp_path / "chat_settings.json"
+    monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
+
+    response = TestClient(app).put("/api/chat/config", json=external)
+
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_chat_config"
-    assert not path.exists()
-
-    external = _settings()
-    external["provider"] = "openrouter"
-    response = client.put("/api/chat/config", json=external)
-    assert response.status_code == 400
-    assert "Phase 1" in response.json()["detail"]
     assert not path.exists()
 
 
@@ -95,6 +128,31 @@ def test_chat_models_reports_malformed_ollama_response(tmp_path, monkeypatch):
     assert response.json()["error"] == "ollama_unavailable"
 
 
+def test_chat_models_does_not_query_local_endpoint_for_external_provider(
+        tmp_path, monkeypatch):
+    path = tmp_path / "chat_settings.json"
+    monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
+    chat.save_chat_settings(_settings(
+        provider="openrouter",
+        model="openai/gpt-4.1-mini",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+    ))
+    monkeypatch.setattr(
+        chat, "_ollama_request",
+        lambda *args, **kwargs: pytest.fail("external provider queried Ollama"))
+
+    response = TestClient(app).get("/api/chat/models")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "provider": "openrouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "selected_model": "openai/gpt-4.1-mini",
+        "models": [],
+    }
+
+
 def test_chat_self_test_emits_and_executes_whitelisted_tool(tmp_path, monkeypatch):
     path = tmp_path / "chat_settings.json"
     monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
@@ -115,7 +173,7 @@ def test_chat_self_test_emits_and_executes_whitelisted_tool(tmp_path, monkeypatc
             "eval_duration": 1_000_000_000,
         }
 
-    monkeypatch.setattr(chat, "_ollama_call", fake_call)
+    monkeypatch.setattr(chat, "_chat_call", fake_call)
     monkeypatch.setitem(
         chat.TOOLS, "get_model_metrics",
         {**chat.TOOLS["get_model_metrics"], "fn": lambda: executed.append(True)})
@@ -138,7 +196,7 @@ def test_chat_self_test_fails_when_model_answers_without_tool(tmp_path, monkeypa
     monkeypatch.setattr(
         dash_config, "CHAT_SETTINGS_PATH", tmp_path / "chat_settings.json")
     monkeypatch.setattr(
-        chat, "_ollama_call",
+        chat, "_chat_call",
         lambda messages, settings=None, timeout=300: {
             "message": {"content": "The metric is..."},
             "eval_count": 3,
@@ -170,3 +228,181 @@ def test_ollama_chat_call_uses_persisted_model_and_base_url(tmp_path, monkeypatc
     assert seen["settings"]["base_url"] == "http://ollama.local:11434"
     assert seen["payload"]["model"] == "chosen:latest"
     assert seen["endpoint"] == "/api/chat"
+
+
+def test_external_chat_call_uses_bearer_key_and_normalizes_response(
+        tmp_path, monkeypatch):
+    path = tmp_path / "chat_settings.json"
+    monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "runtime-test-key")
+    chat.save_chat_settings(_settings(
+        provider="openrouter",
+        model="openai/gpt-4.1-mini",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+    ))
+    seen = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [{
+                            "id": "call_metrics",
+                            "type": "function",
+                            "function": {
+                                "name": "get_model_metrics",
+                                "arguments": "{}",
+                            },
+                        }],
+                    },
+                }],
+                "usage": {"completion_tokens": 12},
+            }).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        seen.update(request=request, timeout=timeout)
+        return FakeResponse()
+
+    monkeypatch.setattr(chat.urllib.request, "urlopen", fake_urlopen)
+    response = chat._chat_call([{"role": "user", "content": "metrics"}])
+
+    request = seen["request"]
+    payload = json.loads(request.data)
+    assert request.full_url == "https://openrouter.ai/api/v1/chat/completions"
+    assert request.get_header("Authorization") == "Bearer runtime-test-key"
+    assert request.get_header("Http-referer") == (
+        "https://github.com/SandroHub013/UnaBetting")
+    assert seen["timeout"] == 300
+    assert payload["model"] == "openai/gpt-4.1-mini"
+    assert payload["tool_choice"] == "auto"
+    assert any(
+        item["function"]["name"] == "get_model_metrics"
+        for item in payload["tools"]
+    )
+    assert response["message"]["tool_calls"][0]["id"] == "call_metrics"
+
+
+def test_external_self_test_reports_usage_rate_and_executes_tool(
+        tmp_path, monkeypatch):
+    path = tmp_path / "chat_settings.json"
+    monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
+    chat.save_chat_settings(_settings(
+        provider="openai",
+        model="gpt-4.1-mini",
+        base_url="https://api.openai.com/v1",
+        api_key_env="OPENAI_API_KEY",
+    ))
+    monkeypatch.setattr(chat, "_chat_call", lambda *args, **kwargs: {
+        "message": {
+            "tool_calls": [{
+                "id": "call_metrics",
+                "function": {
+                    "name": "get_model_metrics",
+                    "arguments": "{}",
+                },
+            }],
+        },
+        "usage": {"completion_tokens": 18},
+    })
+    monkeypatch.setattr(
+        chat, "_tokens_per_second",
+        lambda response, elapsed: 9.0
+        if response["usage"]["completion_tokens"] == 18 and elapsed >= 0
+        else None,
+    )
+    executed = []
+    monkeypatch.setitem(
+        chat.TOOLS, "get_model_metrics",
+        {**chat.TOOLS["get_model_metrics"], "fn": lambda: executed.append(True)})
+
+    response = TestClient(app).post("/api/chat/test")
+
+    assert response.status_code == 200
+    assert response.json()["passed"] is True
+    assert response.json()["provider"] == "openai"
+    assert response.json()["tokens_per_second"] == 9.0
+    assert executed == [True]
+
+
+def test_external_tokens_per_second_uses_completion_usage():
+    assert chat._tokens_per_second(
+        {"usage": {"completion_tokens": 18}}, elapsed=2.0) == 9.0
+
+
+def test_external_provider_requires_runtime_api_key(tmp_path, monkeypatch):
+    path = tmp_path / "chat_settings.json"
+    monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    chat.save_chat_settings(_settings(
+        provider="openrouter",
+        model="openai/gpt-4.1-mini",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+    ))
+
+    response = TestClient(app).post("/api/chat/test")
+
+    assert response.status_code == 502
+    assert response.json()["error"] == "chat_provider_unavailable"
+    assert "OPENROUTER_API_KEY" in response.json()["detail"]
+
+
+def test_external_websocket_round_trips_tool_call_id(tmp_path, monkeypatch):
+    path = tmp_path / "chat_settings.json"
+    monkeypatch.setattr(dash_config, "CHAT_SETTINGS_PATH", path)
+    chat.save_chat_settings(_settings(
+        provider="openrouter",
+        model="openai/gpt-4.1-mini",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+    ))
+    calls = []
+
+    def fake_call(messages, settings=None, timeout=300):
+        calls.append(json.loads(json.dumps(messages)))
+        if len(calls) == 1:
+            return {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": "call_metrics",
+                        "type": "function",
+                        "function": {
+                            "name": "get_model_metrics",
+                            "arguments": "{}",
+                        },
+                    }],
+                },
+            }
+        return {"message": {"role": "assistant", "content": "Metrics loaded."}}
+
+    monkeypatch.setattr(chat, "_chat_call", fake_call)
+    monkeypatch.setitem(
+        chat.TOOLS, "get_model_metrics",
+        {**chat.TOOLS["get_model_metrics"], "fn": lambda: {"accuracy": 0.67}})
+
+    with TestClient(app).websocket_connect("/ws/chat") as ws:
+        ws.send_text(json.dumps({"text": "Show metrics"}))
+        assert json.loads(ws.receive_text()) == {
+            "type": "tool", "name": "get_model_metrics", "status": "start"}
+        assert json.loads(ws.receive_text()) == {
+            "type": "tool", "name": "get_model_metrics", "status": "done"}
+        reply = json.loads(ws.receive_text())
+
+    assert reply["type"] == "reply"
+    assert reply["text"] == "Metrics loaded."
+    tool_message = calls[1][-1]
+    assert tool_message["role"] == "tool"
+    assert tool_message["tool_call_id"] == "call_metrics"
+    assert "tool_name" not in tool_message

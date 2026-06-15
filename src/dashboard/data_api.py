@@ -1247,12 +1247,19 @@ async def put_chat_config(request: Request):
         return _err(500, "chat_config_write_error", e)
 
 
+def _chat_unavailable(error):
+    provider = chat.load_chat_settings()["provider"]
+    code = "ollama_unavailable" if provider == "ollama" else \
+        "chat_provider_unavailable"
+    return _err(502, code, error)
+
+
 @router.get("/chat/models")
 def get_chat_models():
     try:
         return chat.list_ollama_models()
     except (OSError, ValueError, json.JSONDecodeError) as e:
-        return _err(502, "ollama_unavailable", e)
+        return _chat_unavailable(e)
 
 
 @router.post("/chat/test")
@@ -1260,4 +1267,4 @@ def test_chat_model():
     try:
         return chat.run_chat_self_test()
     except (OSError, ValueError, json.JSONDecodeError) as e:
-        return _err(502, "ollama_unavailable", e)
+        return _chat_unavailable(e)
