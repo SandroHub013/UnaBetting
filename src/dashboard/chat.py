@@ -13,6 +13,8 @@ import json
 import logging
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
@@ -40,6 +42,17 @@ CHAT_SETTINGS_KEYS = {"provider", "model", "base_url", "api_key_env"}
 CHAT_PROVIDERS = {"ollama", "openai", "openrouter"}
 ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SELF_TEST_TOOL = "get_model_metrics"
+GIB = 1024 ** 3
+MODEL_WEIGHT_MULTIPLIER = 1.15
+MODEL_FIXED_OVERHEAD_BYTES = 768 * 1024 ** 2
+SYSTEM_RAM_RESERVE_BYTES = 2 * GIB
+FIT_PRIORITY = {
+    "full_gpu": 0,
+    "partial_gpu": 1,
+    "cpu": 2,
+    "unknown": 3,
+    "insufficient": 4,
+}
 
 
 # ---------------- tools ----------------
@@ -469,8 +482,195 @@ def _chat_call(messages, settings=None, timeout=300):
     return _openai_compatible_call(messages, settings=settings, timeout=timeout)
 
 
-def list_ollama_models():
-    """Return installed Ollama models from the configured backend."""
+def _detect_total_ram_bytes():
+    """Return physical RAM bytes and the detection source, if available."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [
+                    ("length", ctypes.c_ulong),
+                    ("memory_load", ctypes.c_ulong),
+                    ("total_physical", ctypes.c_ulonglong),
+                    ("available_physical", ctypes.c_ulonglong),
+                    ("total_page_file", ctypes.c_ulonglong),
+                    ("available_page_file", ctypes.c_ulonglong),
+                    ("total_virtual", ctypes.c_ulonglong),
+                    ("available_virtual", ctypes.c_ulonglong),
+                    ("available_extended_virtual", ctypes.c_ulonglong),
+                ]
+
+            status = MemoryStatus()
+            status.length = ctypes.sizeof(status)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return int(status.total_physical), "windows_api"
+        except (AttributeError, OSError, ValueError):
+            logger.debug("Windows RAM detection failed", exc_info=True)
+
+    try:
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        pages = os.sysconf("SC_PHYS_PAGES")
+        if page_size > 0 and pages > 0:
+            return int(page_size * pages), "sysconf"
+    except (AttributeError, OSError, ValueError):
+        logger.debug("sysconf RAM detection failed", exc_info=True)
+    return None, None
+
+
+def _detect_nvidia_vram():
+    """Return aggregate NVIDIA VRAM and GPU names via nvidia-smi."""
+    command = [
+        "nvidia-smi",
+        "--query-gpu=name,memory.total",
+        "--format=csv,noheader,nounits",
+    ]
+    kwargs = {}
+    if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW"):
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=3,
+            check=False,
+            **kwargs,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+
+    names = []
+    total_mib = 0
+    for line in result.stdout.splitlines():
+        try:
+            name, memory_mib = line.rsplit(",", 1)
+            total_mib += int(memory_mib.strip())
+            names.append(name.strip())
+        except (ValueError, AttributeError):
+            logger.debug("Ignoring malformed nvidia-smi row: %r", line)
+    if not names or total_mib <= 0:
+        return None
+    return ", ".join(names), total_mib * 1024 ** 2, "nvidia_smi"
+
+
+def _detect_linux_drm_vram():
+    """Return aggregate dedicated VRAM exposed by Linux DRM drivers."""
+    if not sys.platform.startswith("linux"):
+        return None
+    values = []
+    for path in Path("/sys/class/drm").glob("card*/device/mem_info_vram_total"):
+        try:
+            value = int(path.read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            continue
+        if value > 0:
+            values.append(value)
+    if not values:
+        return None
+    return "DRM GPU", sum(values), "linux_drm"
+
+
+def detect_hardware(total_ram_bytes=None, total_vram_bytes=None):
+    """Detect model-relevant memory, honoring explicit API overrides."""
+    detected_ram, ram_source = _detect_total_ram_bytes()
+    gpu = _detect_nvidia_vram() or _detect_linux_drm_vram()
+    if gpu:
+        gpu_name, detected_vram, vram_source = gpu
+    elif sys.platform == "darwin" and detected_ram:
+        gpu_name = "Apple unified memory"
+        detected_vram = int(detected_ram * 0.75)
+        vram_source = "apple_unified_memory"
+    else:
+        gpu_name = None
+        detected_vram = None
+        vram_source = None
+
+    ram_overridden = total_ram_bytes is not None
+    vram_overridden = total_vram_bytes is not None
+    return {
+        "total_ram_bytes": (
+            int(total_ram_bytes) if ram_overridden else detected_ram),
+        "total_vram_bytes": (
+            int(total_vram_bytes) if vram_overridden else detected_vram),
+        "gpu_name": "Manual override" if vram_overridden else gpu_name,
+        "ram_source": "manual" if ram_overridden else ram_source,
+        "vram_source": "manual" if vram_overridden else vram_source,
+    }
+
+
+def _estimated_runtime_bytes(model_size):
+    """Estimate weights plus KV cache/runtime overhead for a 4K-ish context."""
+    if not isinstance(model_size, (int, float)) or model_size <= 0:
+        return None
+    return int(model_size * MODEL_WEIGHT_MULTIPLIER) + MODEL_FIXED_OVERHEAD_BYTES
+
+
+def _model_fit(estimated_bytes, hardware):
+    if estimated_bytes is None:
+        return "unknown", "model size is unavailable"
+
+    ram = hardware["total_ram_bytes"]
+    vram = hardware["total_vram_bytes"]
+    usable_ram = max(0, ram - SYSTEM_RAM_RESERVE_BYTES) if ram is not None else None
+
+    if vram is not None and vram >= estimated_bytes:
+        return "full_gpu", "estimated runtime fits fully in GPU memory"
+
+    minimum_gpu_share = max(2 * GIB, int(estimated_bytes * 0.25))
+    if (vram is not None and usable_ram is not None
+            and vram >= minimum_gpu_share
+            and usable_ram >= max(0, estimated_bytes - vram)):
+        return "partial_gpu", "GPU offload fits with the remaining layers in system RAM"
+
+    if usable_ram is not None and usable_ram >= estimated_bytes:
+        return "cpu", "fits in system RAM but not enough GPU memory was detected"
+
+    if ram is None or vram is None:
+        return "unknown", "hardware memory could not be fully detected; use API overrides"
+    return "insufficient", "estimated runtime exceeds detected GPU and usable system RAM"
+
+
+def _rank_models(models, hardware):
+    enriched = []
+    for model in models:
+        estimated = _estimated_runtime_bytes(model.get("size"))
+        fit, reason = _model_fit(estimated, hardware)
+        enriched.append({
+            **model,
+            "estimated_runtime_bytes": estimated,
+            "fit": fit,
+            "fit_reason": reason,
+        })
+
+    enriched.sort(key=lambda model: (
+        FIT_PRIORITY[model["fit"]],
+        -(model.get("size") or 0),
+        model["name"].casefold(),
+    ))
+    recommended = next(
+        (model for model in enriched
+         if model["fit"] in {"full_gpu", "partial_gpu", "cpu"}),
+        None,
+    )
+    for rank, model in enumerate(enriched, start=1):
+        model["rank"] = rank
+        model["recommended"] = model is recommended
+    if recommended is None:
+        return enriched, None
+    return enriched, {
+        "model": recommended["name"],
+        "fit": recommended["fit"],
+        "estimated_runtime_bytes": recommended["estimated_runtime_bytes"],
+    }
+
+
+def list_ollama_models(total_ram_bytes=None, total_vram_bytes=None):
+    """Return installed Ollama models ranked for the available hardware."""
     settings = load_chat_settings()
     if settings["provider"] != "ollama":
         return {
@@ -498,11 +698,22 @@ def list_ollama_models():
             "modified_at": item.get("modified_at"),
             "details": item.get("details") if isinstance(item.get("details"), dict) else {},
         })
-    models.sort(key=lambda item: item["name"].casefold())
+    hardware = detect_hardware(
+        total_ram_bytes=total_ram_bytes,
+        total_vram_bytes=total_vram_bytes,
+    )
+    models, recommendation = _rank_models(models, hardware)
     return {
         "provider": "ollama",
         "base_url": settings["base_url"],
         "selected_model": settings["model"],
+        "hardware": hardware,
+        "fit_heuristic": {
+            "weight_multiplier": MODEL_WEIGHT_MULTIPLIER,
+            "fixed_overhead_bytes": MODEL_FIXED_OVERHEAD_BYTES,
+            "system_ram_reserve_bytes": SYSTEM_RAM_RESERVE_BYTES,
+        },
+        "recommendation": recommendation,
         "models": models,
     }
 

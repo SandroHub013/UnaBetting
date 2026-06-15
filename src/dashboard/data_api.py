@@ -13,7 +13,7 @@ from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
 
 import yaml
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import chat, config
@@ -1255,9 +1255,14 @@ def _chat_unavailable(error):
 
 
 @router.get("/chat/models")
-def get_chat_models():
+def get_chat_models(
+        ram_gb: float | None = Query(default=None, ge=1, le=4096),
+        vram_gb: float | None = Query(default=None, ge=0, le=1024)):
     try:
-        return chat.list_ollama_models()
+        return chat.list_ollama_models(
+            total_ram_bytes=int(ram_gb * chat.GIB) if ram_gb is not None else None,
+            total_vram_bytes=int(vram_gb * chat.GIB) if vram_gb is not None else None,
+        )
     except (OSError, ValueError, json.JSONDecodeError) as e:
         return _chat_unavailable(e)
 
