@@ -1,5 +1,6 @@
 """Dashboard chat backend configuration and provider capability tests."""
 import json
+import subprocess
 
 import pytest
 from fastapi.testclient import TestClient
@@ -100,21 +101,140 @@ def test_chat_models_lists_installed_ollama_models(tmp_path, monkeypatch):
         seen.update(settings=settings, endpoint=endpoint, payload=payload, timeout=timeout)
         return {
             "models": [
-                {"name": "qwen3.5:9b", "size": 6_000, "details": {"family": "qwen3"}},
-                {"model": "llama3.1:8b", "size": 5_000},
+                {
+                    "name": "qwen3.5:9b",
+                    "size": 6 * chat.GIB,
+                    "details": {"family": "qwen3"},
+                },
+                {"model": "llama3.1:8b", "size": 4 * chat.GIB},
             ]
         }
 
     monkeypatch.setattr(chat, "_ollama_request", fake_request)
+    monkeypatch.setattr(
+        chat, "detect_hardware",
+        lambda **kwargs: {
+            "total_ram_bytes": 16 * chat.GIB,
+            "total_vram_bytes": 8 * chat.GIB,
+            "gpu_name": "Test GPU",
+            "ram_source": "test",
+            "vram_source": "test",
+        })
     response = TestClient(app).get("/api/chat/models")
 
     assert response.status_code == 200
     assert response.json()["selected_model"] == "qwen3.5:9b"
     assert [item["name"] for item in response.json()["models"]] == [
-        "llama3.1:8b", "qwen3.5:9b"]
+        "qwen3.5:9b", "llama3.1:8b"]
+    assert response.json()["recommendation"] == {
+        "model": "qwen3.5:9b",
+        "fit": "full_gpu",
+        "estimated_runtime_bytes": int(
+            6 * chat.GIB * chat.MODEL_WEIGHT_MULTIPLIER)
+        + chat.MODEL_FIXED_OVERHEAD_BYTES,
+    }
+    assert response.json()["fit_heuristic"]["system_ram_reserve_bytes"] == 2 * chat.GIB
+    assert response.json()["models"][0]["recommended"] is True
+    assert response.json()["models"][0]["rank"] == 1
     assert seen["endpoint"] == "/api/tags"
     assert seen["payload"] is None
     assert seen["timeout"] == 10
+
+
+def test_nvidia_vram_detection_aggregates_devices(monkeypatch):
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen.update(command=command, kwargs=kwargs)
+        return subprocess.CompletedProcess(
+            command,
+            returncode=0,
+            stdout="GPU One, 8192\nmalformed\nGPU Two, 4096\n",
+        )
+
+    monkeypatch.setattr(chat.subprocess, "run", fake_run)
+
+    assert chat._detect_nvidia_vram() == (
+        "GPU One, GPU Two",
+        12 * 1024 ** 3,
+        "nvidia_smi",
+    )
+    assert seen["command"][0] == "nvidia-smi"
+    assert seen["kwargs"]["timeout"] == 3
+
+
+def test_chat_models_rank_full_partial_cpu_and_insufficient_fits(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        dash_config, "CHAT_SETTINGS_PATH", tmp_path / "chat_settings.json")
+    monkeypatch.setattr(
+        chat, "_ollama_request",
+        lambda *args, **kwargs: {
+            "models": [
+                {"name": "too-large:70b", "size": 70 * chat.GIB},
+                {"name": "cpu-capable:40b", "size": 40 * chat.GIB},
+                {"name": "partial:16b", "size": 16 * chat.GIB},
+                {"name": "full:4b", "size": 4 * chat.GIB},
+            ]
+        })
+    monkeypatch.setattr(
+        chat, "detect_hardware",
+        lambda **kwargs: {
+            "total_ram_bytes": 64 * chat.GIB,
+            "total_vram_bytes": 8 * chat.GIB,
+            "gpu_name": "Test GPU",
+            "ram_source": "test",
+            "vram_source": "test",
+        })
+
+    payload = TestClient(app).get("/api/chat/models").json()
+
+    assert [(model["name"], model["fit"]) for model in payload["models"]] == [
+        ("full:4b", "full_gpu"),
+        ("partial:16b", "partial_gpu"),
+        ("cpu-capable:40b", "cpu"),
+        ("too-large:70b", "insufficient"),
+    ]
+    assert payload["recommendation"]["model"] == "full:4b"
+    assert [model["rank"] for model in payload["models"]] == [1, 2, 3, 4]
+
+
+def test_chat_models_accepts_manual_memory_overrides(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        dash_config, "CHAT_SETTINGS_PATH", tmp_path / "chat_settings.json")
+    monkeypatch.setattr(
+        chat, "_ollama_request",
+        lambda *args, **kwargs: {"models": []})
+    seen = {}
+
+    def fake_detect_hardware(total_ram_bytes=None, total_vram_bytes=None):
+        seen.update(ram=total_ram_bytes, vram=total_vram_bytes)
+        return {
+            "total_ram_bytes": total_ram_bytes,
+            "total_vram_bytes": total_vram_bytes,
+            "gpu_name": "Manual override",
+            "ram_source": "manual",
+            "vram_source": "manual",
+        }
+
+    monkeypatch.setattr(chat, "detect_hardware", fake_detect_hardware)
+
+    response = TestClient(app).get("/api/chat/models?ram_gb=24&vram_gb=6.5")
+
+    assert response.status_code == 200
+    assert seen == {
+        "ram": 24 * chat.GIB,
+        "vram": int(6.5 * chat.GIB),
+    }
+    assert response.json()["hardware"]["ram_source"] == "manual"
+    assert response.json()["hardware"]["vram_source"] == "manual"
+
+
+@pytest.mark.parametrize("query", ["ram_gb=0", "vram_gb=-1", "vram_gb=2048"])
+def test_chat_models_rejects_invalid_memory_overrides(query):
+    response = TestClient(app).get(f"/api/chat/models?{query}")
+
+    assert response.status_code == 422
 
 
 def test_chat_models_reports_malformed_ollama_response(tmp_path, monkeypatch):
