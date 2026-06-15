@@ -519,7 +519,7 @@ const PANELS = {
       { key: 'surface', label: t('surface') },
       { key: 'odds_1', label: 'Q1', fmt: v => fmt(v) }, { key: 'odds_2', label: 'Q2', fmt: v => fmt(v) },
       { key: 'ml_prob_1', label: 'ML p1', fmt: v => fmt(v, 3) }, { key: 'ml_prob_2', label: 'ML p2', fmt: v => fmt(v, 3) },
-      { key: 'edge', label: 'Edge', fmt: v => fmt(v, 3) }, { key: 'value_side', label: t('side') },
+      { key: 'edge', label: t('edge'), fmt: v => fmt(v, 3) }, { key: 'value_side', label: t('side') },
       { key: 'kelly_fraction', label: 'Kelly', fmt: v => fmt(v, 4) },
       { key: 'low_confidence', label: t('conf'), fmt: v => v ? 'LOW' : 'ok' },
     ], rows, {
