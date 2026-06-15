@@ -28,15 +28,24 @@ const I18N = {
     f_edgepos: 'solo edge > 0', f_lowconf: 'escludi low-conf', f_clvpos: 'solo CLV positivo',
     ready: 'pronto', running: 'in esecuzione:', finished: 'terminato (exit', errw: 'errore', copyout: 'copia output', copied: 'output copiato', copyfail: 'copia fallita', file_open_failed: 'Impossibile aprire', loading: 'carico…', links_l: 'Link:', nodata: 'nessun dato', rows_l: 'righe', choosematch: '— scegli match —', snap_l: 'snapshot:', nosnap: 'nessuno snapshot',
     q_today: 'quali sono i match di oggi?', q_sig: 'ultimi segnali del modello?', q_model: 'com’è messo il modello?', q_bank: 'stato del bankroll?', q_vault: 'cerca nel vault: perché il backtest dava 85%?', q_graphelo: 'interroga il grafo: EloRating', q_remember: 'ricorda che: ', q_recall: 'cosa ti ho chiesto di ricordare?',
-    note_os: '<b>UnaBettingOS</b> — centro di memoria agentica. Modello locale <b>qwen3.5:9b</b> via Ollama. Collegato a: dati live, vault Obsidian, knowledge graph, memoria persistente.', note_memfile: 'La memoria vive in docs/obsidian/UnaBettingOS_Memoria.md — versionata con git.', note_cold: 'Nota: la prima risposta a freddo carica il modello in VRAM (~1-2 min); poi resta caldo.',
+    note_os: '<b>UnaBettingOS</b> — centro di memoria agentica con modello configurabile. Collegato a: dati live, vault Obsidian, knowledge graph, memoria persistente.', note_memfile: 'La memoria vive in docs/obsidian/UnaBettingOS_Memoria.md — versionata con git.', note_cold: 'Nota: la prima risposta a freddo può richiedere il caricamento del modello; poi resta caldo.',
     scanlive: '⚡ scan match live', note_scan: 'scarica quote fresche (the-odds-api, consuma crediti) e fa girare modello + news. Risultati nel tab Segnali.', stopb: '■ stop', note_ponly: 'Output nel tab "Pipeline". Solo comandi whitelisted: il resto passa dai terminali.',
     note_browser: 'Browser agentico: apri URL, leggi il contenuto, segui i link. Anche l\'agente UnaBettingOS può navigare (tool browse_web).', brurl_ph: 'url o dominio…', brback: 'indietro', note_graph: 'Il grafo del progetto (graphify): nodi-stella colorati per community, 3D. Trascina per ruotare, scroll per zoom, click su un nodo per il focus.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'loop notturno', l_weekly: 'loop settimanale', l_metrics: 'storico metriche', loops_none: 'nessuna run ancora',
     term_label: 'TERMINALE', vibe_hint: 'agente a scelta, in tmux (la sessione sopravvive alla chiusura del tab)',
     upd_title: 'Aggiornamento disponibile', upd_btn: 'Aggiorna ora', upd_later: 'Più tardi', upd_doing: 'aggiornamento…', upd_done: 'Aggiornato ✓ — riavvia l\'app per applicare', upd_fail: 'Aggiornamento fallito', upd_restart: 'Riavvia app',
-    chat_intro: "Sono <b>UnaBettingOS</b> — memoria e intelligenza agentica dell'app (qwen3.5:9b, locale). Dati live, vault Obsidian, knowledge graph e memoria persistente: chiedimi dei match, del modello, della storia del progetto — o dimmi \"ricorda che…\".",
+    chat_intro: "Sono <b>UnaBettingOS</b> — memoria e intelligenza agentica dell'app. Dati live, vault Obsidian, knowledge graph e memoria persistente: chiedimi dei match, del modello, della storia del progetto — o dimmi \"ricorda che…\".",
     chat_ph: 'scrivi… (Invio per inviare)', open_graph: 'apri il grafo 3D', go: 'vai',
     filter: '⌕ filtra…', register_bet: 'Registra una bet', save: 'Salva',
+    chat_settings: 'Modello chat', chat_settings_note: 'Scegli il modello usato da UnaBettingOS. Le chiavi API restano nelle variabili di ambiente.',
+    chat_provider: 'Provider', chat_local: 'Locale — Ollama', chat_external_openrouter: 'Esterno — OpenRouter', chat_external_openai: 'Esterno — OpenAI',
+    chat_model: 'Modello', chat_model_slug: 'Slug modello', chat_base_url: 'URL base', chat_api_key_env: 'Variabile ambiente chiave API',
+    chat_load_models: 'Modelli Ollama installati', chat_no_models: 'Nessun modello installato trovato', chat_recommended: 'Consigliato',
+    chat_hardware: 'Hardware rilevato', chat_save: 'Salva modello', chat_test: 'Salva e testa', chat_saving: 'salvataggio…',
+    chat_saved: 'Configurazione chat salvata', chat_testing: 'test tool-calling in corso…', chat_test_passed: 'Test superato',
+    chat_test_failed: 'Test fallito', chat_model_load_failed: 'Impossibile caricare i modelli Ollama',
+    chat_fit_full_gpu: 'tutto in GPU', chat_fit_partial_gpu: 'GPU + RAM', chat_fit_cpu: 'solo CPU',
+    chat_fit_unknown: 'fit sconosciuto', chat_fit_insufficient: 'memoria insufficiente', chat_tps: 'token/s',
   },
   en: {
     act_cockpit: 'Data cockpit', act_os: 'UnaBettingOS — agentic memory', act_graph: '3D knowledge graph',
@@ -61,15 +70,24 @@ const I18N = {
     f_edgepos: 'edge > 0 only', f_lowconf: 'exclude low-conf', f_clvpos: 'positive CLV only',
     ready: 'ready', running: 'running:', finished: 'finished (exit', errw: 'error', copyout: 'copy output', copied: 'output copied', copyfail: 'copy failed', file_open_failed: 'Unable to open', loading: 'loading…', links_l: 'Links:', nodata: 'no data', rows_l: 'rows', choosematch: '— choose match —', snap_l: 'snapshot:', nosnap: 'no snapshot',
     q_today: 'what are today’s matches?', q_sig: 'latest model signals?', q_model: 'how is the model doing?', q_bank: 'bankroll status?', q_vault: 'search the vault: why did the backtest show 85%?', q_graphelo: 'query the graph: EloRating', q_remember: 'remember that: ', q_recall: 'what did I ask you to remember?',
-    note_os: '<b>UnaBettingOS</b> — agentic memory hub. Local model <b>qwen3.5:9b</b> via Ollama. Wired to: live data, Obsidian vault, knowledge graph, persistent memory.', note_memfile: 'Memory lives in docs/obsidian/UnaBettingOS_Memoria.md — git-versioned.', note_cold: 'Note: the first cold reply loads the model into VRAM (~1-2 min); then it stays warm.',
+    note_os: '<b>UnaBettingOS</b> — agentic memory hub with a configurable model. Wired to: live data, Obsidian vault, knowledge graph, persistent memory.', note_memfile: 'Memory lives in docs/obsidian/UnaBettingOS_Memoria.md — git-versioned.', note_cold: 'Note: the first cold reply may need to load the model; then it stays warm.',
     scanlive: '⚡ scan live matches', note_scan: 'fetches fresh odds (the-odds-api, uses credits) and runs model + news. Results in the Signals tab.', stopb: '■ stop', note_ponly: 'Output in the "Pipeline" tab. Whitelisted commands only: everything else goes through the terminals.',
     note_browser: 'Agentic browser: open a URL, read the content, follow links. UnaBettingOS can browse too (browse_web tool).', brurl_ph: 'url or domain…', brback: 'back', note_graph: 'The project graph (graphify): star nodes colored by community, 3D. Drag to rotate, scroll to zoom, click a node to focus.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'nightly loop', l_weekly: 'weekly loop', l_metrics: 'metrics history', loops_none: 'no runs yet',
     term_label: 'TERMINAL', vibe_hint: 'pick an agent in tmux (the session survives closing the tab)',
     upd_title: 'Update available', upd_btn: 'Update now', upd_later: 'Later', upd_doing: 'updating…', upd_done: 'Updated ✓ — restart the app to apply', upd_fail: 'Update failed', upd_restart: 'Restart app',
-    chat_intro: "I'm <b>UnaBettingOS</b> — the app's agentic memory & intelligence (qwen3.5:9b, local). Live data, Obsidian vault, knowledge graph and persistent memory: ask me about matches, the model, the project's history — or say \"remember that…\".",
+    chat_intro: "I'm <b>UnaBettingOS</b> — the app's agentic memory & intelligence. Live data, Obsidian vault, knowledge graph and persistent memory: ask me about matches, the model, the project's history — or say \"remember that…\".",
     chat_ph: 'type… (Enter to send)', open_graph: 'open the 3D graph', go: 'go',
     filter: '⌕ filter…', register_bet: 'Log a bet', save: 'Save',
+    chat_settings: 'Chat model', chat_settings_note: 'Choose the model used by UnaBettingOS. API keys stay in environment variables.',
+    chat_provider: 'Provider', chat_local: 'Local — Ollama', chat_external_openrouter: 'External — OpenRouter', chat_external_openai: 'External — OpenAI',
+    chat_model: 'Model', chat_model_slug: 'Model slug', chat_base_url: 'Base URL', chat_api_key_env: 'API key environment variable',
+    chat_load_models: 'Installed Ollama models', chat_no_models: 'No installed models found', chat_recommended: 'Recommended',
+    chat_hardware: 'Detected hardware', chat_save: 'Save model', chat_test: 'Save and test', chat_saving: 'saving…',
+    chat_saved: 'Chat configuration saved', chat_testing: 'running tool-calling test…', chat_test_passed: 'Test passed',
+    chat_test_failed: 'Test failed', chat_model_load_failed: 'Unable to load Ollama models',
+    chat_fit_full_gpu: 'full GPU', chat_fit_partial_gpu: 'GPU + RAM', chat_fit_cpu: 'CPU only',
+    chat_fit_unknown: 'unknown fit', chat_fit_insufficient: 'insufficient memory', chat_tps: 'tokens/s',
   },
   es: {
     act_cockpit: 'Panel de datos', act_os: 'UnaBettingOS — memoria agéntica', act_graph: 'Grafo 3D',
@@ -93,15 +111,24 @@ const I18N = {
     f_edgepos: 'solo edge > 0', f_lowconf: 'excluir low-conf', f_clvpos: 'solo CLV positivo',
     ready: 'listo', running: 'ejecutando:', finished: 'terminado (exit', errw: 'error', copyout: 'copiar salida', copied: 'salida copiada', copyfail: 'copia fallida', file_open_failed: 'No se pudo abrir', loading: 'cargando…', links_l: 'Enlaces:', nodata: 'sin datos', rows_l: 'filas', choosematch: '— elige partido —', snap_l: 'snapshot:', nosnap: 'sin snapshot',
     q_today: '¿qué partidos hay hoy?', q_sig: '¿últimas señales del modelo?', q_model: '¿cómo está el modelo?', q_bank: '¿estado del bankroll?', q_vault: 'busca en el vault: ¿por qué el backtest daba 85%?', q_graphelo: 'consulta el grafo: EloRating', q_remember: 'recuerda que: ', q_recall: '¿qué te pedí recordar?',
-    note_os: '<b>UnaBettingOS</b> — centro de memoria agéntica. Modelo local <b>qwen3.5:9b</b> vía Ollama. Conectado a: datos en vivo, vault Obsidian, grafo de conocimiento, memoria persistente.', note_memfile: 'La memoria vive en docs/obsidian/UnaBettingOS_Memoria.md — versionada con git.', note_cold: 'Nota: la primera respuesta en frío carga el modelo en VRAM (~1-2 min); luego queda caliente.',
+    note_os: '<b>UnaBettingOS</b> — centro de memoria agéntica con modelo configurable. Conectado a: datos en vivo, vault Obsidian, grafo de conocimiento, memoria persistente.', note_memfile: 'La memoria vive en docs/obsidian/UnaBettingOS_Memoria.md — versionada con git.', note_cold: 'Nota: la primera respuesta en frío puede necesitar cargar el modelo; luego queda caliente.',
     scanlive: '⚡ escanear partidos en vivo', note_scan: 'descarga cuotas frescas (the-odds-api, consume créditos) y ejecuta modelo + news. Resultados en la pestaña Señales.', stopb: '■ parar', note_ponly: 'Salida en la pestaña "Pipeline". Solo comandos en whitelist: el resto va por los terminales.',
     note_browser: 'Navegador agéntico: abre una URL, lee el contenido, sigue enlaces. UnaBettingOS también puede navegar (herramienta browse_web).', brurl_ph: 'url o dominio…', brback: 'atrás', note_graph: 'El grafo del proyecto (graphify): nodos-estrella coloreados por comunidad, 3D. Arrastra para rotar, scroll para zoom, clic en un nodo para enfocar.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'bucle nocturno', l_weekly: 'bucle semanal', l_metrics: 'historial de métricas', loops_none: 'aún sin runs',
     term_label: 'TERMINAL', vibe_hint: 'elige un agente en tmux (la sesión sobrevive al cierre de la pestaña)',
     upd_title: 'Actualización disponible', upd_btn: 'Actualizar ahora', upd_later: 'Más tarde', upd_doing: 'actualizando…', upd_done: 'Actualizado ✓ — reinicia la app para aplicar', upd_fail: 'Actualización fallida', upd_restart: 'Reiniciar app',
-    chat_intro: "Soy <b>UnaBettingOS</b> — memoria e inteligencia agéntica de la app (qwen3.5:9b, local). Datos en vivo, vault Obsidian, grafo de conocimiento y memoria persistente: pregúntame por los partidos, el modelo o la historia del proyecto — o di \"recuerda que…\".",
+    chat_intro: "Soy <b>UnaBettingOS</b> — memoria e inteligencia agéntica de la app. Datos en vivo, vault Obsidian, grafo de conocimiento y memoria persistente: pregúntame por los partidos, el modelo o la historia del proyecto — o di \"recuerda que…\".",
     chat_ph: 'escribe… (Intro para enviar)', open_graph: 'abrir el grafo 3D', go: 'ir',
     filter: '⌕ filtrar…', register_bet: 'Registrar apuesta', save: 'Guardar',
+    chat_settings: 'Modelo de chat', chat_settings_note: 'Elige el modelo usado por UnaBettingOS. Las claves API permanecen en variables de entorno.',
+    chat_provider: 'Proveedor', chat_local: 'Local — Ollama', chat_external_openrouter: 'Externo — OpenRouter', chat_external_openai: 'Externo — OpenAI',
+    chat_model: 'Modelo', chat_model_slug: 'Slug del modelo', chat_base_url: 'URL base', chat_api_key_env: 'Variable de entorno de la clave API',
+    chat_load_models: 'Modelos Ollama instalados', chat_no_models: 'No se encontraron modelos instalados', chat_recommended: 'Recomendado',
+    chat_hardware: 'Hardware detectado', chat_save: 'Guardar modelo', chat_test: 'Guardar y probar', chat_saving: 'guardando…',
+    chat_saved: 'Configuración de chat guardada', chat_testing: 'ejecutando prueba de herramientas…', chat_test_passed: 'Prueba superada',
+    chat_test_failed: 'Prueba fallida', chat_model_load_failed: 'No se pudieron cargar los modelos Ollama',
+    chat_fit_full_gpu: 'todo en GPU', chat_fit_partial_gpu: 'GPU + RAM', chat_fit_cpu: 'solo CPU',
+    chat_fit_unknown: 'ajuste desconocido', chat_fit_insufficient: 'memoria insuficiente', chat_tps: 'tokens/s',
   },
   fr: {
     act_cockpit: 'Cockpit de données', act_os: 'UnaBettingOS — mémoire agentique', act_graph: 'Graphe 3D',
@@ -125,15 +152,24 @@ const I18N = {
     f_edgepos: 'edge > 0 seulement', f_lowconf: 'exclure low-conf', f_clvpos: 'CLV positif seulement',
     ready: 'prêt', running: 'en cours :', finished: 'terminé (exit', errw: 'erreur', copyout: 'copier la sortie', copied: 'sortie copiée', copyfail: 'échec copie', file_open_failed: 'Impossible d’ouvrir', loading: 'chargement…', links_l: 'Liens :', nodata: 'aucune donnée', rows_l: 'lignes', choosematch: '— choisir un match —', snap_l: 'snapshot :', nosnap: 'aucun snapshot',
     q_today: 'quels sont les matchs du jour ?', q_sig: 'derniers signaux du modèle ?', q_model: 'comment va le modèle ?', q_bank: 'état du bankroll ?', q_vault: 'cherche dans le vault : pourquoi le backtest donnait 85% ?', q_graphelo: 'interroge le graphe : EloRating', q_remember: 'souviens-toi que : ', q_recall: 'que t\'ai-je demandé de retenir ?',
-    note_os: '<b>UnaBettingOS</b> — centre de mémoire agentique. Modèle local <b>qwen3.5:9b</b> via Ollama. Connecté à : données en direct, vault Obsidian, graphe de connaissances, mémoire persistante.', note_memfile: 'La mémoire vit dans docs/obsidian/UnaBettingOS_Memoria.md — versionnée avec git.', note_cold: 'Note : la première réponse à froid charge le modèle en VRAM (~1-2 min) ; ensuite il reste chaud.',
+    note_os: '<b>UnaBettingOS</b> — centre de mémoire agentique avec modèle configurable. Connecté à : données en direct, vault Obsidian, graphe de connaissances, mémoire persistante.', note_memfile: 'La mémoire vit dans docs/obsidian/UnaBettingOS_Memoria.md — versionnée avec git.', note_cold: 'Note : la première réponse à froid peut nécessiter le chargement du modèle ; ensuite il reste chaud.',
     scanlive: '⚡ scanner les matchs en direct', note_scan: 'télécharge des cotes fraîches (the-odds-api, consomme des crédits) et lance modèle + news. Résultats dans l\'onglet Signaux.', stopb: '■ stop', note_ponly: 'Sortie dans l\'onglet "Pipeline". Commandes whitelistées seulement : le reste passe par les terminaux.',
     note_browser: 'Navigateur agentique : ouvre une URL, lis le contenu, suis les liens. UnaBettingOS peut aussi naviguer (outil browse_web).', brurl_ph: 'url ou domaine…', brback: 'retour', note_graph: 'Le graphe du projet (graphify) : nœuds-étoiles colorés par communauté, 3D. Glisser pour tourner, molette pour zoomer, clic sur un nœud pour focaliser.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'boucle nocturne', l_weekly: 'boucle hebdo', l_metrics: 'historique des métriques', loops_none: 'aucun run pour l\'instant',
     term_label: 'TERMINAL', vibe_hint: 'choisis un agent dans tmux (la session survit à la fermeture de l\'onglet)',
     upd_title: 'Mise à jour disponible', upd_btn: 'Mettre à jour', upd_later: 'Plus tard', upd_doing: 'mise à jour…', upd_done: 'Mis à jour ✓ — redémarre l\'app pour appliquer', upd_fail: 'Échec de la mise à jour', upd_restart: 'Redémarrer',
-    chat_intro: "Je suis <b>UnaBettingOS</b> — la mémoire et l'intelligence agentique de l'app (qwen3.5:9b, local). Données en direct, vault Obsidian, graphe de connaissances et mémoire persistante : demande-moi les matchs, le modèle, l'historique du projet — ou dis \"souviens-toi que…\".",
+    chat_intro: "Je suis <b>UnaBettingOS</b> — la mémoire et l'intelligence agentique de l'app. Données en direct, vault Obsidian, graphe de connaissances et mémoire persistante : demande-moi les matchs, le modèle, l'historique du projet — ou dis \"souviens-toi que…\".",
     chat_ph: 'écris… (Entrée pour envoyer)', open_graph: 'ouvrir le graphe 3D', go: 'aller',
     filter: '⌕ filtrer…', register_bet: 'Enregistrer un pari', save: 'Enregistrer',
+    chat_settings: 'Modèle de chat', chat_settings_note: 'Choisissez le modèle utilisé par UnaBettingOS. Les clés API restent dans les variables d’environnement.',
+    chat_provider: 'Fournisseur', chat_local: 'Local — Ollama', chat_external_openrouter: 'Externe — OpenRouter', chat_external_openai: 'Externe — OpenAI',
+    chat_model: 'Modèle', chat_model_slug: 'Slug du modèle', chat_base_url: 'URL de base', chat_api_key_env: 'Variable d’environnement de la clé API',
+    chat_load_models: 'Modèles Ollama installés', chat_no_models: 'Aucun modèle installé trouvé', chat_recommended: 'Recommandé',
+    chat_hardware: 'Matériel détecté', chat_save: 'Enregistrer le modèle', chat_test: 'Enregistrer et tester', chat_saving: 'enregistrement…',
+    chat_saved: 'Configuration du chat enregistrée', chat_testing: 'test des appels d’outils…', chat_test_passed: 'Test réussi',
+    chat_test_failed: 'Échec du test', chat_model_load_failed: 'Impossible de charger les modèles Ollama',
+    chat_fit_full_gpu: 'entièrement sur GPU', chat_fit_partial_gpu: 'GPU + RAM', chat_fit_cpu: 'CPU uniquement',
+    chat_fit_unknown: 'compatibilité inconnue', chat_fit_insufficient: 'mémoire insuffisante', chat_tps: 'jetons/s',
   },
   de: {
     act_cockpit: 'Daten-Cockpit', act_os: 'UnaBettingOS — agentisches Gedächtnis', act_graph: '3D-Wissensgraph',
@@ -157,15 +193,24 @@ const I18N = {
     f_edgepos: 'nur Edge > 0', f_lowconf: 'low-conf ausschließen', f_clvpos: 'nur positives CLV',
     ready: 'bereit', running: 'läuft:', finished: 'beendet (exit', errw: 'Fehler', copyout: 'Ausgabe kopieren', copied: 'Ausgabe kopiert', copyfail: 'Kopie fehlgeschlagen', file_open_failed: 'Öffnen fehlgeschlagen', loading: 'lädt…', links_l: 'Links:', nodata: 'keine Daten', rows_l: 'Zeilen', choosematch: '— Match wählen —', snap_l: 'Snapshot:', nosnap: 'kein Snapshot',
     q_today: 'welche Matches sind heute?', q_sig: 'neueste Modell-Signale?', q_model: 'wie steht das Modell?', q_bank: 'Bankroll-Status?', q_vault: 'durchsuche das Vault: warum zeigte der Backtest 85%?', q_graphelo: 'frage den Graphen ab: EloRating', q_remember: 'merke dir, dass: ', q_recall: 'was solltest du dir merken?',
-    note_os: '<b>UnaBettingOS</b> — agentische Gedächtniszentrale. Lokales Modell <b>qwen3.5:9b</b> via Ollama. Verbunden mit: Live-Daten, Obsidian-Vault, Wissensgraph, persistentem Gedächtnis.', note_memfile: 'Das Gedächtnis liegt in docs/obsidian/UnaBettingOS_Memoria.md — git-versioniert.', note_cold: 'Hinweis: die erste Kaltantwort lädt das Modell in den VRAM (~1-2 Min); danach bleibt es warm.',
+    note_os: '<b>UnaBettingOS</b> — agentische Gedächtniszentrale mit konfigurierbarem Modell. Verbunden mit: Live-Daten, Obsidian-Vault, Wissensgraph, persistentem Gedächtnis.', note_memfile: 'Das Gedächtnis liegt in docs/obsidian/UnaBettingOS_Memoria.md — git-versioniert.', note_cold: 'Hinweis: die erste Kaltantwort muss das Modell möglicherweise laden; danach bleibt es warm.',
     scanlive: '⚡ Live-Matches scannen', note_scan: 'holt frische Quoten (the-odds-api, verbraucht Credits) und führt Modell + News aus. Ergebnisse im Tab Signale.', stopb: '■ stopp', note_ponly: 'Ausgabe im Tab "Pipeline". Nur Whitelist-Befehle: alles andere über die Terminals.',
     note_browser: 'Agentischer Browser: URL öffnen, Inhalt lesen, Links folgen. UnaBettingOS kann auch browsen (browse_web-Tool).', brurl_ph: 'url oder Domain…', brback: 'zurück', note_graph: 'Der Projektgraph (graphify): Stern-Knoten nach Community gefärbt, 3D. Ziehen zum Drehen, Scrollen zum Zoomen, Klick auf einen Knoten zum Fokussieren.',
     l_exp: 'EXPERIMENTS.md', l_nightly: 'Nightly-Loop', l_weekly: 'Weekly-Loop', l_metrics: 'Metrik-Historie', loops_none: 'noch keine Runs',
     term_label: 'TERMINAL', vibe_hint: 'wähle einen Agenten in tmux (die Session überlebt das Schließen des Tabs)',
     upd_title: 'Update verfügbar', upd_btn: 'Jetzt aktualisieren', upd_later: 'Später', upd_doing: 'aktualisiere…', upd_done: 'Aktualisiert ✓ — App neu starten zum Anwenden', upd_fail: 'Update fehlgeschlagen', upd_restart: 'App neu starten',
-    chat_intro: "Ich bin <b>UnaBettingOS</b> — das agentische Gedächtnis & die Intelligenz der App (qwen3.5:9b, lokal). Live-Daten, Obsidian-Vault, Wissensgraph und persistentes Gedächtnis: frag mich nach Matches, dem Modell, der Projektgeschichte — oder sag \"merke dir, dass…\".",
+    chat_intro: "Ich bin <b>UnaBettingOS</b> — das agentische Gedächtnis & die Intelligenz der App. Live-Daten, Obsidian-Vault, Wissensgraph und persistentes Gedächtnis: frag mich nach Matches, dem Modell, der Projektgeschichte — oder sag \"merke dir, dass…\".",
     chat_ph: 'schreiben… (Enter zum Senden)', open_graph: '3D-Graph öffnen', go: 'los',
     filter: '⌕ filtern…', register_bet: 'Wette eintragen', save: 'Speichern',
+    chat_settings: 'Chat-Modell', chat_settings_note: 'Wähle das Modell für UnaBettingOS. API-Schlüssel bleiben in Umgebungsvariablen.',
+    chat_provider: 'Anbieter', chat_local: 'Lokal — Ollama', chat_external_openrouter: 'Extern — OpenRouter', chat_external_openai: 'Extern — OpenAI',
+    chat_model: 'Modell', chat_model_slug: 'Modell-Slug', chat_base_url: 'Basis-URL', chat_api_key_env: 'Umgebungsvariable für API-Schlüssel',
+    chat_load_models: 'Installierte Ollama-Modelle', chat_no_models: 'Keine installierten Modelle gefunden', chat_recommended: 'Empfohlen',
+    chat_hardware: 'Erkannte Hardware', chat_save: 'Modell speichern', chat_test: 'Speichern und testen', chat_saving: 'speichert…',
+    chat_saved: 'Chat-Konfiguration gespeichert', chat_testing: 'Tool-Aufruf-Test läuft…', chat_test_passed: 'Test bestanden',
+    chat_test_failed: 'Test fehlgeschlagen', chat_model_load_failed: 'Ollama-Modelle konnten nicht geladen werden',
+    chat_fit_full_gpu: 'vollständig auf GPU', chat_fit_partial_gpu: 'GPU + RAM', chat_fit_cpu: 'nur CPU',
+    chat_fit_unknown: 'Kompatibilität unbekannt', chat_fit_insufficient: 'zu wenig Speicher', chat_tps: 'Token/s',
   },
 };
 let LANG = localStorage.getItem('mc-lang') || 'en';
@@ -881,6 +926,9 @@ const ACTS = {
     } catch (err) { body.appendChild(textEl('div', 'sb-note', 'errore: ' + err.message)); }
   }},
   config: { title: 'Config', render: (body) => {
+    const model = el('button', 'sb-item', '⚙ ' + t('chat_settings'));
+    model.onclick = openChatSettings;
+    body.appendChild(model);
     const b = el('button', 'sb-item', '⚙ config/config.yaml');
     b.onclick = () => openFile('config/config.yaml');
     body.appendChild(b);
@@ -1206,6 +1254,211 @@ function openGraph3D() {
     pane.innerHTML = '<iframe src="/static/graph3d.html" style="width:100%;height:100%;border:none;display:block"></iframe>';
   });
   activateTab('panel:graph3d');
+}
+
+/* ================= CHAT SETTINGS ================= */
+const CHAT_PROVIDER_DEFAULTS = {
+  ollama: { base_url: 'http://127.0.0.1:11434', api_key_env: '' },
+  openrouter: { base_url: 'https://openrouter.ai/api/v1', api_key_env: 'OPENROUTER_API_KEY' },
+  openai: { base_url: 'https://api.openai.com/v1', api_key_env: 'OPENAI_API_KEY' },
+};
+
+const chatFitLabel = fit => t('chat_fit_' + fit);
+const chatMemory = bytes => bytes == null ? '—' : (bytes / (1024 ** 3)).toFixed(1) + ' GB';
+
+function openChatSettings() {
+  openTab('panel:chat-settings', '⚙ ' + t('chat_settings'), (pane) => {
+    pane.innerHTML = `<div class="pane-pad settings-host">
+      <div class="section-bar">${t('chat_settings')}</div>
+      <p class="panel-note">${t('chat_settings_note')}</p>
+      <form id="chat-settings-form" class="settings-form">
+        <label class="settings-field">
+          <span>${t('chat_provider')}</span>
+          <select id="chat-provider">
+            <option value="ollama">${t('chat_local')}</option>
+            <option value="openrouter">${t('chat_external_openrouter')}</option>
+            <option value="openai">${t('chat_external_openai')}</option>
+          </select>
+        </label>
+        <label class="settings-field" id="chat-local-model-field">
+          <span>${t('chat_load_models')}</span>
+          <select id="chat-local-model"></select>
+        </label>
+        <label class="settings-field" id="chat-external-model-field">
+          <span>${t('chat_model_slug')}</span>
+          <input id="chat-external-model" autocomplete="off" required>
+        </label>
+        <label class="settings-field">
+          <span>${t('chat_base_url')}</span>
+          <input id="chat-base-url" type="url" autocomplete="url" required>
+        </label>
+        <label class="settings-field" id="chat-key-env-field">
+          <span>${t('chat_api_key_env')}</span>
+          <input id="chat-key-env" autocomplete="off" spellcheck="false">
+        </label>
+        <div id="chat-model-meta" class="settings-meta" aria-live="polite"></div>
+        <div class="settings-actions">
+          <button class="btn" id="chat-test" type="button">${t('chat_test')}</button>
+          <button class="btn primary" id="chat-save" type="submit">${t('chat_save')}</button>
+        </div>
+        <div id="chat-settings-status" class="settings-status" role="status" aria-live="polite"></div>
+      </form>
+    </div>`;
+    loadChatSettings(pane);
+  });
+  activateTab('panel:chat-settings');
+}
+
+async function loadChatSettings(pane) {
+  const form = pane.querySelector('#chat-settings-form');
+  const provider = pane.querySelector('#chat-provider');
+  const localModel = pane.querySelector('#chat-local-model');
+  const externalModel = pane.querySelector('#chat-external-model');
+  const baseUrl = pane.querySelector('#chat-base-url');
+  const keyEnv = pane.querySelector('#chat-key-env');
+  const status = pane.querySelector('#chat-settings-status');
+  const meta = pane.querySelector('#chat-model-meta');
+  const saveButton = pane.querySelector('#chat-save');
+  const testButton = pane.querySelector('#chat-test');
+  let previousProvider = 'ollama';
+
+  const setStatus = (message, failed = false) => {
+    status.textContent = message;
+    status.classList.toggle('err', failed);
+  };
+
+  const setBusy = busy => {
+    saveButton.disabled = busy;
+    testButton.disabled = busy;
+  };
+
+  const updateProvider = (next, resetDefaults = false) => {
+    const local = next === 'ollama';
+    pane.querySelector('#chat-local-model-field').hidden = !local;
+    pane.querySelector('#chat-external-model-field').hidden = local;
+    pane.querySelector('#chat-key-env-field').hidden = local;
+    localModel.disabled = !local;
+    externalModel.disabled = local;
+    keyEnv.disabled = local;
+    externalModel.required = !local;
+    keyEnv.required = !local;
+    meta.hidden = !local;
+    if (resetDefaults) {
+      const oldDefaults = CHAT_PROVIDER_DEFAULTS[previousProvider];
+      const nextDefaults = CHAT_PROVIDER_DEFAULTS[next];
+      if (!baseUrl.value || baseUrl.value === oldDefaults.base_url) baseUrl.value = nextDefaults.base_url;
+      if (!keyEnv.value || keyEnv.value === oldDefaults.api_key_env) keyEnv.value = nextDefaults.api_key_env;
+    }
+    previousProvider = next;
+  };
+
+  const loadModels = async selected => {
+    meta.classList.remove('err');
+    meta.textContent = t('loading');
+    try {
+      const data = await getJSON('/api/chat/models');
+      const models = data.models || [];
+      localModel.innerHTML = '';
+      const names = models.map(model => model.name);
+      if (selected && !names.includes(selected)) names.unshift(selected);
+      if (!names.length) names.push(selected || 'qwen3.5:9b');
+      names.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        const model = models.find(item => item.name === name);
+        option.textContent = model
+          ? `${name} — ${chatFitLabel(model.fit)}${model.recommended ? ' · ' + t('chat_recommended') : ''}`
+          : name;
+        localModel.appendChild(option);
+      });
+      localModel.value = selected || (data.recommendation && data.recommendation.model) || names[0];
+      const hardware = data.hardware;
+      const hardwareText = hardware
+        ? `${t('chat_hardware')}: ${hardware.gpu_name || 'GPU'} · VRAM ${chatMemory(hardware.total_vram_bytes)} · RAM ${chatMemory(hardware.total_ram_bytes)}`
+        : '';
+      const recommendation = data.recommendation
+        ? `${t('chat_recommended')}: ${data.recommendation.model} (${chatFitLabel(data.recommendation.fit)})`
+        : t('chat_no_models');
+      meta.textContent = [recommendation, hardwareText].filter(Boolean).join(' · ');
+    } catch (err) {
+      if (!localModel.options.length) {
+        const option = document.createElement('option');
+        option.value = selected || 'qwen3.5:9b';
+        option.textContent = option.value;
+        localModel.appendChild(option);
+      }
+      meta.textContent = t('chat_model_load_failed') + ': ' + err.message;
+      meta.classList.add('err');
+    }
+  };
+
+  const saveSettings = async () => {
+    setBusy(true);
+    setStatus(t('chat_saving'));
+    const currentProvider = provider.value;
+    const payload = {
+      provider: currentProvider,
+      model: currentProvider === 'ollama' ? localModel.value : externalModel.value.trim(),
+      base_url: baseUrl.value.trim(),
+      api_key_env: currentProvider === 'ollama' ? '' : keyEnv.value.trim(),
+    };
+    try {
+      const response = await fetch('/api/chat/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.error) throw new Error(data.detail || data.error || ('HTTP ' + response.status));
+      if (chatWs) chatWs.close();
+      setStatus(t('chat_saved'));
+      if (currentProvider === 'ollama') await loadModels(data.model);
+      return data;
+    } catch (err) {
+      setStatus(err.message, true);
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  try {
+    const settings = await getJSON('/api/chat/config');
+    provider.value = settings.provider;
+    previousProvider = settings.provider;
+    baseUrl.value = settings.base_url;
+    keyEnv.value = settings.api_key_env;
+    externalModel.value = settings.provider === 'ollama' ? '' : settings.model;
+    updateProvider(settings.provider);
+    if (settings.provider === 'ollama') await loadModels(settings.model);
+  } catch (err) {
+    setStatus(err.message, true);
+  }
+
+  provider.onchange = () => {
+    updateProvider(provider.value, true);
+    if (provider.value === 'ollama' && !localModel.options.length) loadModels('qwen3.5:9b');
+  };
+  form.onsubmit = async event => {
+    event.preventDefault();
+    try { await saveSettings(); } catch (_) {}
+  };
+  testButton.onclick = async () => {
+    try {
+      await saveSettings();
+      setBusy(true);
+      setStatus(t('chat_testing'));
+      const response = await fetch('/api/chat/test', { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.error) throw new Error(data.detail || data.error || ('HTTP ' + response.status));
+      const speed = data.tokens_per_second == null ? '' : ` · ${data.tokens_per_second} ${t('chat_tps')}`;
+      setStatus((data.passed ? t('chat_test_passed') : t('chat_test_failed')) + speed + ' · ' + data.detail, !data.passed);
+    } catch (err) {
+      setStatus(t('chat_test_failed') + ': ' + err.message, true);
+    } finally {
+      setBusy(false);
+    }
+  };
 }
 
 /* ================= CHAT AGENT ================= */

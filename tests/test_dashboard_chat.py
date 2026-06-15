@@ -1,5 +1,7 @@
 """Dashboard chat backend configuration and provider capability tests."""
 import json
+from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -20,6 +22,24 @@ def _settings(
         "base_url": base_url,
         "api_key_env": api_key_env,
     }
+
+
+def test_chat_settings_ui_wires_config_models_and_self_test():
+    app_js = (
+        Path(__file__).parents[1] / "src" / "dashboard" / "static" / "app.js"
+    ).read_text(encoding="utf-8")
+
+    assert "openChatSettings" in app_js
+    assert "t('chat_settings')" in app_js
+    assert "fetch('/api/chat/config'" in app_js
+    assert "getJSON('/api/chat/models')" in app_js
+    assert "fetch('/api/chat/test'" in app_js
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is not installed")
+def test_chat_settings_javascript_is_valid():
+    app_js = Path(__file__).parents[1] / "src" / "dashboard" / "static" / "app.js"
+    subprocess.run(["node", "--check", str(app_js)], check=True)
 
 
 def test_chat_config_defaults_and_round_trips_atomically(tmp_path, monkeypatch):
