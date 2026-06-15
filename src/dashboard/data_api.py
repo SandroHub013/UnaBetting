@@ -15,7 +15,7 @@ import yaml
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import config
+from . import chat, config
 
 router = APIRouter(prefix="/api")
 
@@ -1111,3 +1111,35 @@ async def put_config(request: Request):
         return {"saved": True, "backup": str(backup)}
     except OSError as e:
         return _err(500, "config_write_error", e)
+
+
+@router.get("/chat/config")
+def get_chat_config():
+    return chat.load_chat_settings()
+
+
+@router.put("/chat/config")
+async def put_chat_config(request: Request):
+    try:
+        body = await request.json()
+        return chat.save_chat_settings(body)
+    except (ValueError, json.JSONDecodeError) as e:
+        return _err(400, "invalid_chat_config", e)
+    except OSError as e:
+        return _err(500, "chat_config_write_error", e)
+
+
+@router.get("/chat/models")
+def get_chat_models():
+    try:
+        return chat.list_ollama_models()
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        return _err(502, "ollama_unavailable", e)
+
+
+@router.post("/chat/test")
+def test_chat_model():
+    try:
+        return chat.run_chat_self_test()
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        return _err(502, "ollama_unavailable", e)
