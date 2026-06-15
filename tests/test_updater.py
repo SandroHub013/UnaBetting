@@ -10,6 +10,7 @@ import io
 import json
 import urllib.request
 import zipfile
+from pathlib import Path
 
 import pytest
 import yaml
@@ -261,6 +262,39 @@ def test_hash_mismatch_rejected_and_nothing_written(tmp_path):
     with pytest.raises(ValueError, match="sha256 mismatch"):
         _extract_runtime_bundle(bundle, root)
     assert not (root / "models/a.txt").exists(), "partial extraction occurred"
+
+
+def test_write_failure_rolls_back_existing_and_new_files(tmp_path, monkeypatch):
+    """A local I/O failure must not leave a mixed-version runtime install."""
+    bundle = tmp_path / "bundle.zip"
+    root = tmp_path / "data_root"
+    models = root / "models"
+    models.mkdir(parents=True)
+    existing = models / "a.txt"
+    existing.write_bytes(b"old")
+    _make_bundle(bundle, {
+        "models/a.txt": b"new",
+        "models/b.txt": b"new file",
+    })
+
+    real_replace = data_api.os.replace
+    failed = False
+
+    def fail_second_install(source, destination):
+        nonlocal failed
+        if Path(destination) == models / "b.txt" and not failed:
+            failed = True
+            raise OSError("simulated disk failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(data_api.os, "replace", fail_second_install)
+
+    with pytest.raises(OSError, match="simulated disk failure"):
+        _extract_runtime_bundle(bundle, root)
+
+    assert existing.read_bytes() == b"old"
+    assert not (models / "b.txt").exists()
+    assert not list(root.glob(".runtime-update-*"))
 
 
 def test_user_data_never_overwritten(tmp_path):
