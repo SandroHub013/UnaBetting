@@ -1,4 +1,4 @@
-"""In-app chat agent: local Ollama (qwen3.5:9b) + whitelisted tools.
+"""In-app chat agent: configurable local Ollama model + whitelisted tools.
 
 /ws/chat protocol — client sends {"text": "..."}; server emits:
   {"type":"tool","name":...,"status":"start"|"done"}   tool activity
@@ -10,14 +10,22 @@ functions below (same trust model as the pipeline whitelist).
 """
 import asyncio
 import json
+import logging
+import os
+import re
+import tempfile
+import time
 import urllib.request
 from datetime import datetime
+from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from . import config, security
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are UnaBettingOS, the agentic memory and intelligence core of UnaBetting (a tennis analytics app).
 Reply in the user's language, concise and concrete. Use the tools to get real data: NEVER invent numbers, odds or matches.
@@ -28,6 +36,9 @@ When reporting matches: ALWAYS state the snapshot time and how old it is (ore_fa
 Odds: we only consider pinnacle (sharp reference) + williamhill, sport888, marathonbet, betfair (ADM-legal venues in Italy)."""
 
 MAX_TOOL_ROUNDS = 4
+CHAT_SETTINGS_KEYS = {"provider", "model", "base_url", "api_key_env"}
+ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+SELF_TEST_TOOL = "get_model_metrics"
 
 
 # ---------------- tools ----------------
@@ -283,16 +294,233 @@ def _tool_defs():
     return out
 
 
-def _ollama_call(messages):
-    payload = {"model": config.CHAT_MODEL, "messages": messages,
+def default_chat_settings():
+    """Return backward-compatible settings when no persisted choice exists."""
+    return {
+        "provider": "ollama",
+        "model": config.CHAT_MODEL,
+        "base_url": config.OLLAMA_URL.rstrip("/"),
+        "api_key_env": "",
+    }
+
+
+def validate_chat_settings(value):
+    """Validate the persisted Phase 1 chat backend contract."""
+    if not isinstance(value, dict):
+        raise ValueError("chat settings must be a JSON object")
+    missing = CHAT_SETTINGS_KEYS - value.keys()
+    unknown = value.keys() - CHAT_SETTINGS_KEYS
+    if missing:
+        raise ValueError(f"missing chat setting: {sorted(missing)[0]}")
+    if unknown:
+        raise ValueError(f"unknown chat setting: {sorted(unknown)[0]}")
+
+    provider = value["provider"]
+    model = value["model"]
+    base_url = value["base_url"]
+    api_key_env = value["api_key_env"]
+    if not isinstance(provider, str) or provider.strip().lower() != "ollama":
+        raise ValueError("Phase 1 supports provider 'ollama' only")
+    if not isinstance(model, str) or not model.strip():
+        raise ValueError("model must be a non-empty string")
+    if len(model.strip()) > 200 or any(c in model for c in "\r\n"):
+        raise ValueError("model is invalid")
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise ValueError("base_url must be a non-empty URL")
+    parsed = urlsplit(base_url.strip())
+    if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+            or parsed.username or parsed.password or parsed.query or parsed.fragment):
+        raise ValueError(
+            "base_url must be an http(s) URL without credentials, query, or fragment")
+    if not isinstance(api_key_env, str):
+        raise ValueError("api_key_env must be a string")
+    api_key_env = api_key_env.strip()
+    if api_key_env and not ENV_NAME_RE.fullmatch(api_key_env):
+        raise ValueError("api_key_env must be an environment variable name")
+
+    return {
+        "provider": "ollama",
+        "model": model.strip(),
+        "base_url": base_url.strip().rstrip("/"),
+        "api_key_env": api_key_env,
+    }
+
+
+def load_chat_settings(path=None):
+    """Load persisted settings, falling back safely to env-backed defaults."""
+    settings_path = Path(path or config.CHAT_SETTINGS_PATH)
+    if not settings_path.exists():
+        return validate_chat_settings(default_chat_settings())
+    try:
+        value = json.loads(settings_path.read_text(encoding="utf-8"))
+        return validate_chat_settings(value)
+    except (OSError, json.JSONDecodeError, ValueError):
+        logger.warning(
+            "Invalid chat settings at %s; using defaults", settings_path, exc_info=True)
+        return validate_chat_settings(default_chat_settings())
+
+
+def save_chat_settings(value, path=None):
+    """Validate and atomically persist chat settings as UTF-8 JSON."""
+    settings = validate_chat_settings(value)
+    settings_path = Path(path or config.CHAT_SETTINGS_PATH)
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{settings_path.name}.", suffix=".tmp", dir=settings_path.parent)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
+            json.dump(settings, file, indent=2, ensure_ascii=False)
+            file.write("\n")
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(tmp, settings_path)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return settings
+
+
+def _ollama_request(settings, endpoint, payload=None, timeout=30):
+    url = f"{settings['base_url']}{endpoint}"
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    headers = {"Accept": "application/json", "User-Agent": "UnaBettingOS"}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(url, data=data, headers=headers)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        result = json.loads(response.read())
+    if not isinstance(result, dict):
+        raise ValueError("Ollama returned a non-object JSON response")
+    return result
+
+
+def _ollama_call(messages, settings=None, timeout=300):
+    settings = settings or load_chat_settings()
+    payload = {"model": settings["model"], "messages": messages,
                "tools": _tool_defs(), "stream": False,
                "keep_alive": config.CHAT_KEEP_ALIVE,
                "options": {"temperature": 0.2}}
-    req = urllib.request.Request(f"{config.OLLAMA_URL}/api/chat",
-                                 data=json.dumps(payload).encode(),
-                                 headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        return json.loads(r.read())
+    return _ollama_request(settings, "/api/chat", payload, timeout)
+
+
+def list_ollama_models():
+    """Return installed Ollama models from the configured backend."""
+    settings = load_chat_settings()
+    response = _ollama_request(settings, "/api/tags", timeout=10)
+    if not isinstance(response, dict):
+        raise ValueError("Ollama returned a non-object JSON response")
+    items = response.get("models")
+    if not isinstance(items, list):
+        raise ValueError("Ollama model list is missing or invalid")
+    models = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name") or item.get("model")
+        if not isinstance(name, str) or not name:
+            continue
+        models.append({
+            "name": name,
+            "size": item.get("size"),
+            "modified_at": item.get("modified_at"),
+            "details": item.get("details") if isinstance(item.get("details"), dict) else {},
+        })
+    models.sort(key=lambda item: item["name"].casefold())
+    return {
+        "provider": "ollama",
+        "base_url": settings["base_url"],
+        "selected_model": settings["model"],
+        "models": models,
+    }
+
+
+def _tokens_per_second(response, elapsed):
+    count = response.get("eval_count")
+    duration = response.get("eval_duration")
+    if isinstance(count, (int, float)) and count >= 0:
+        seconds = duration / 1_000_000_000 if isinstance(
+            duration, (int, float)) else elapsed
+        if seconds > 0:
+            return round(count / seconds, 2)
+    return None
+
+
+def run_chat_self_test():
+    """Verify that the selected model emits and executes a safe tool call."""
+    settings = load_chat_settings()
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a tool-calling capability test. You must call the requested "
+                "tool instead of answering directly."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Call get_model_metrics exactly once with no arguments. "
+                "Do not call any other tool and do not answer with plain text."
+            ),
+        },
+    ]
+    started = time.perf_counter()
+    response = _ollama_call(messages, settings=settings, timeout=300)
+    elapsed = time.perf_counter() - started
+    if not isinstance(response, dict):
+        raise ValueError("Ollama returned a non-object JSON response")
+    message = response.get("message")
+    calls = (message.get("tool_calls") or []) if isinstance(message, dict) else []
+    call = calls[0] if len(calls) == 1 and isinstance(calls[0], dict) else {}
+    function = call.get("function") if isinstance(call.get("function"), dict) else {}
+    tool_name = function.get("name")
+    tokens_per_second = _tokens_per_second(response, elapsed)
+    if tool_name != SELF_TEST_TOOL:
+        return {
+            "passed": False,
+            "provider": settings["provider"],
+            "model": settings["model"],
+            "tool": tool_name,
+            "tokens_per_second": tokens_per_second,
+            "detail": f"expected one {SELF_TEST_TOOL} tool call",
+        }
+
+    arguments = function.get("arguments") or {}
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            arguments = None
+    if not isinstance(arguments, dict):
+        return {
+            "passed": False,
+            "provider": settings["provider"],
+            "model": settings["model"],
+            "tool": tool_name,
+            "tokens_per_second": tokens_per_second,
+            "detail": "tool arguments were not a JSON object",
+        }
+
+    tool = TOOLS[SELF_TEST_TOOL]
+    try:
+        tool["fn"](**arguments)
+    except Exception as exc:
+        return {
+            "passed": False,
+            "provider": settings["provider"],
+            "model": settings["model"],
+            "tool": tool_name,
+            "tokens_per_second": tokens_per_second,
+            "detail": f"tool execution failed: {exc}",
+        }
+    return {
+        "passed": True,
+        "provider": settings["provider"],
+        "model": settings["model"],
+        "tool": tool_name,
+        "tokens_per_second": tokens_per_second,
+        "detail": "tool call emitted and executed",
+    }
 
 
 @router.websocket("/ws/chat")
