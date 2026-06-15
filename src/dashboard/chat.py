@@ -1,4 +1,4 @@
-"""In-app chat agent: configurable local Ollama model + whitelisted tools.
+"""In-app chat agent: configurable Ollama/OpenAI-compatible model + safe tools.
 
 /ws/chat protocol — client sends {"text": "..."}; server emits:
   {"type":"tool","name":...,"status":"start"|"done"}   tool activity
@@ -37,6 +37,7 @@ Odds: we only consider pinnacle (sharp reference) + williamhill, sport888, marat
 
 MAX_TOOL_ROUNDS = 4
 CHAT_SETTINGS_KEYS = {"provider", "model", "base_url", "api_key_env"}
+CHAT_PROVIDERS = {"ollama", "openai", "openrouter"}
 ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SELF_TEST_TOOL = "get_model_metrics"
 
@@ -305,7 +306,7 @@ def default_chat_settings():
 
 
 def validate_chat_settings(value):
-    """Validate the persisted Phase 1 chat backend contract."""
+    """Validate the persisted chat backend contract without storing secrets."""
     if not isinstance(value, dict):
         raise ValueError("chat settings must be a JSON object")
     missing = CHAT_SETTINGS_KEYS - value.keys()
@@ -319,8 +320,12 @@ def validate_chat_settings(value):
     model = value["model"]
     base_url = value["base_url"]
     api_key_env = value["api_key_env"]
-    if not isinstance(provider, str) or provider.strip().lower() != "ollama":
-        raise ValueError("Phase 1 supports provider 'ollama' only")
+    if not isinstance(provider, str):
+        raise ValueError("provider must be a string")
+    provider = provider.strip().lower()
+    if provider not in CHAT_PROVIDERS:
+        raise ValueError(
+            f"provider must be one of: {', '.join(sorted(CHAT_PROVIDERS))}")
     if not isinstance(model, str) or not model.strip():
         raise ValueError("model must be a non-empty string")
     if len(model.strip()) > 200 or any(c in model for c in "\r\n"):
@@ -332,14 +337,18 @@ def validate_chat_settings(value):
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
         raise ValueError(
             "base_url must be an http(s) URL without credentials, query, or fragment")
+    if provider != "ollama" and parsed.scheme != "https":
+        raise ValueError("external provider base_url must use https")
     if not isinstance(api_key_env, str):
         raise ValueError("api_key_env must be a string")
     api_key_env = api_key_env.strip()
     if api_key_env and not ENV_NAME_RE.fullmatch(api_key_env):
         raise ValueError("api_key_env must be an environment variable name")
+    if provider != "ollama" and not api_key_env:
+        raise ValueError("api_key_env is required for external providers")
 
     return {
-        "provider": "ollama",
+        "provider": provider,
         "model": model.strip(),
         "base_url": base_url.strip().rstrip("/"),
         "api_key_env": api_key_env,
@@ -403,9 +412,73 @@ def _ollama_call(messages, settings=None, timeout=300):
     return _ollama_request(settings, "/api/chat", payload, timeout)
 
 
+def _openai_compatible_request(settings, payload, timeout=300):
+    api_key_env = settings["api_key_env"]
+    api_key = os.environ.get(api_key_env, "").strip()
+    if not api_key:
+        raise ValueError(f"environment variable {api_key_env} is not set")
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": "UnaBettingOS",
+    }
+    if settings["provider"] == "openrouter":
+        headers.update({
+            "HTTP-Referer": "https://github.com/SandroHub013/UnaBetting",
+            "X-Title": "UnaBettingOS",
+        })
+    request = urllib.request.Request(
+        f"{settings['base_url']}/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        result = json.loads(response.read())
+    if not isinstance(result, dict):
+        raise ValueError("external provider returned a non-object JSON response")
+    return result
+
+
+def _openai_compatible_call(messages, settings, timeout=300):
+    payload = {
+        "model": settings["model"],
+        "messages": messages,
+        "tools": _tool_defs(),
+        "tool_choice": "auto",
+        "temperature": 0.2,
+    }
+    result = _openai_compatible_request(settings, payload, timeout)
+    choices = result.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("external provider response has no choices")
+    choice = choices[0]
+    message = choice.get("message") if isinstance(choice, dict) else None
+    if not isinstance(message, dict):
+        raise ValueError("external provider response has no assistant message")
+    message = dict(message)
+    message.setdefault("role", "assistant")
+    return {**result, "message": message}
+
+
+def _chat_call(messages, settings=None, timeout=300):
+    """Route one agent turn through the configured provider."""
+    settings = settings or load_chat_settings()
+    if settings["provider"] == "ollama":
+        return _ollama_call(messages, settings=settings, timeout=timeout)
+    return _openai_compatible_call(messages, settings=settings, timeout=timeout)
+
+
 def list_ollama_models():
     """Return installed Ollama models from the configured backend."""
     settings = load_chat_settings()
+    if settings["provider"] != "ollama":
+        return {
+            "provider": settings["provider"],
+            "base_url": settings["base_url"],
+            "selected_model": settings["model"],
+            "models": [],
+        }
     response = _ollama_request(settings, "/api/tags", timeout=10)
     if not isinstance(response, dict):
         raise ValueError("Ollama returned a non-object JSON response")
@@ -442,6 +515,10 @@ def _tokens_per_second(response, elapsed):
             duration, (int, float)) else elapsed
         if seconds > 0:
             return round(count / seconds, 2)
+    usage = response.get("usage")
+    count = usage.get("completion_tokens") if isinstance(usage, dict) else None
+    if isinstance(count, (int, float)) and count >= 0 and elapsed > 0:
+        return round(count / elapsed, 2)
     return None
 
 
@@ -465,10 +542,10 @@ def run_chat_self_test():
         },
     ]
     started = time.perf_counter()
-    response = _ollama_call(messages, settings=settings, timeout=300)
+    response = _chat_call(messages, settings=settings, timeout=300)
     elapsed = time.perf_counter() - started
     if not isinstance(response, dict):
-        raise ValueError("Ollama returned a non-object JSON response")
+        raise ValueError("chat provider returned a non-object JSON response")
     message = response.get("message")
     calls = (message.get("tool_calls") or []) if isinstance(message, dict) else []
     call = calls[0] if len(calls) == 1 and isinstance(calls[0], dict) else {}
@@ -523,6 +600,21 @@ def run_chat_self_test():
     }
 
 
+def _tool_result_message(settings, call, name, result):
+    message = {
+        "role": "tool",
+        "content": json.dumps(result, ensure_ascii=False, default=str),
+    }
+    if settings["provider"] == "ollama":
+        message["tool_name"] = name
+        return message
+    call_id = call.get("id") if isinstance(call, dict) else None
+    if not isinstance(call_id, str) or not call_id:
+        raise ValueError("external provider tool call is missing an id")
+    message["tool_call_id"] = call_id
+    return message
+
+
 @router.websocket("/ws/chat")
 async def ws_chat(ws: WebSocket):
     if not await security.authorize_websocket(ws):
@@ -530,6 +622,7 @@ async def ws_chat(ws: WebSocket):
     await ws.accept()
     loop = asyncio.get_running_loop()
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    settings = load_chat_settings()
     try:
         while True:
             raw = await ws.receive_text()
@@ -544,7 +637,8 @@ async def ws_chat(ws: WebSocket):
             tool_data = {}   # raw results per tool -> frontend templates
             try:
                 for _ in range(MAX_TOOL_ROUNDS):
-                    resp = await loop.run_in_executor(None, _ollama_call, messages)
+                    resp = await loop.run_in_executor(
+                        None, lambda: _chat_call(messages, settings=settings))
                     msg = resp.get("message", {})
                     calls = msg.get("tool_calls") or []
                     if not calls:
@@ -579,8 +673,8 @@ async def ws_chat(ws: WebSocket):
                                 result = {"error": str(e)}
                         await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "done"}))
                         tool_data[name] = result
-                        messages.append({"role": "tool", "tool_name": name,
-                                         "content": json.dumps(result, ensure_ascii=False, default=str)})
+                        messages.append(
+                            _tool_result_message(settings, call, name, result))
                 else:
                     await ws.send_text(json.dumps(
                         {"type": "reply", "text": "(troppi giri di tool — riformula la domanda)"}))
