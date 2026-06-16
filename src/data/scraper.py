@@ -243,6 +243,8 @@ def fetch_all_tennis_odds():
                             sport_title = event.get('sport_title', sport_label)
                             all_matches.append({
                                 "match": match_str,
+                                "p1": p1_name,
+                                "p2": p2_name,
                                 "commence_time": commence_iso,
                                 "sport_key": sport,
                                 "sport_title": sport_title,
@@ -279,12 +281,21 @@ def fetch_all_tennis_odds():
 def save_to_csv(matches):
     os.makedirs(os.path.join(PROJECT_ROOT, 'data', 'live'), exist_ok=True)
     df = pd.DataFrame(matches)
+    columns = [
+        "match", "p1", "p2", "commence_time", "sport_key", "sport_title",
+        "odds_1", "odds_2", "spread_line", "spread_odds_1", "spread_odds_2",
+        "total_line", "total_over", "total_under", "source", "timestamp",
+    ]
 
     if df.empty:
         print("No active tennis matches with valid odds found.")
-        df = pd.DataFrame(columns=["match", "odds_1", "odds_2", "spread_line", "spread_odds_1", "spread_odds_2", "total_line", "total_over", "total_under", "source", "timestamp"])
+        df = pd.DataFrame(columns=columns)
     else:
+        for col in columns:
+            if col not in df.columns:
+                df[col] = ""
         df = df.drop_duplicates(subset=['match'])
+        df = df[columns + [col for col in df.columns if col not in columns]]
 
     csv_path = os.path.join(PROJECT_ROOT, 'data', 'live', 'current_odds.csv')
     df.to_csv(csv_path, index=False)
