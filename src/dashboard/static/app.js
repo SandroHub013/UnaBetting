@@ -17,7 +17,7 @@ const I18N = {
     s_runlogs: 'Log run (reports/loops)', s_root: 'Radice', s_obsidian: 'Obsidian',
     overview: 'Overview', signals: 'Segnali', bets: 'Bet', quotes: 'Quote',
     bankroll: 'Bankroll', profit: 'Profit', winrate: 'Win rate', open_bets: 'Bet aperte',
-    decisions: 'Decisioni', model: 'Modello', accuracy: 'Accuracy', vs_market: 'vs Mercato',
+    decisions: 'Decisioni', model: 'Modello', accuracy: 'Accuracy', log_loss_label: 'Perdita log', vs_market: 'vs Mercato',
     last_train: 'Train', match: 'Match', when: 'Quando', edge: 'Edge', odds: 'Quota',
     stake: 'Stake €', status: 'Status', record: 'Record', yield_: 'Yield',
     sec_bank: 'Banca', sec_model: 'Modello', sub_honest: 'onesta, leak-free', sub_market: 'favorito B365 — da battere', sub_train: 'TennisLoopNightly 07:13',
@@ -59,7 +59,7 @@ const I18N = {
     s_runlogs: 'Run logs (reports/loops)', s_root: 'Root', s_obsidian: 'Obsidian',
     overview: 'Overview', signals: 'Signals', bets: 'Bets', quotes: 'Odds',
     bankroll: 'Bankroll', profit: 'Profit', winrate: 'Win rate', open_bets: 'Open bets',
-    decisions: 'Decisions', model: 'Model', accuracy: 'Accuracy', vs_market: 'vs Market',
+    decisions: 'Decisions', model: 'Model', accuracy: 'Accuracy', log_loss_label: 'Log loss', vs_market: 'vs Market',
     last_train: 'Train', match: 'Match', when: 'When', edge: 'Edge', odds: 'Odds',
     stake: 'Stake €', status: 'Status', record: 'Record', yield_: 'Yield',
     sec_bank: 'Bank', sec_model: 'Model', sub_honest: 'honest, leak-free', sub_market: 'B365 favourite — to beat', sub_train: 'TennisLoopNightly 07:13',
@@ -100,7 +100,7 @@ const I18N = {
     s_runlogs: 'Logs (reports/loops)', s_root: 'Raíz', s_obsidian: 'Obsidian',
     overview: 'Resumen', signals: 'Señales', bets: 'Apuestas', quotes: 'Cuotas',
     bankroll: 'Bankroll', profit: 'Beneficio', winrate: 'Aciertos', open_bets: 'Apuestas abiertas',
-    decisions: 'Decisiones', model: 'Modelo', accuracy: 'Precisión', vs_market: 'vs Mercado',
+    decisions: 'Decisiones', model: 'Modelo', accuracy: 'Precisión', log_loss_label: 'Pérdida log', vs_market: 'vs Mercado',
     last_train: 'Train', match: 'Partido', when: 'Cuándo', edge: 'Edge', odds: 'Cuota',
     stake: 'Stake €', status: 'Estado', record: 'Récord', yield_: 'Yield',
     sec_bank: 'Banca', sec_model: 'Modelo', sub_honest: 'honesta, sin fugas', sub_market: 'favorito B365 — a batir', sub_train: 'TennisLoopNightly 07:13',
@@ -141,7 +141,7 @@ const I18N = {
     s_runlogs: 'Logs (reports/loops)', s_root: 'Racine', s_obsidian: 'Obsidian',
     overview: 'Aperçu', signals: 'Signaux', bets: 'Paris', quotes: 'Cotes',
     bankroll: 'Bankroll', profit: 'Profit', winrate: 'Taux de gain', open_bets: 'Paris ouverts',
-    decisions: 'Décisions', model: 'Modèle', accuracy: 'Précision', vs_market: 'vs Marché',
+    decisions: 'Décisions', model: 'Modèle', accuracy: 'Précision', log_loss_label: 'Perte log', vs_market: 'vs Marché',
     last_train: 'Train', match: 'Match', when: 'Quand', edge: 'Edge', odds: 'Cote',
     stake: 'Mise €', status: 'Statut', record: 'Bilan', yield_: 'Yield',
     sec_bank: 'Banque', sec_model: 'Modèle', sub_honest: 'honnête, sans fuite', sub_market: 'favori B365 — à battre', sub_train: 'TennisLoopNightly 07:13',
@@ -182,7 +182,7 @@ const I18N = {
     s_runlogs: 'Run-Logs (reports/loops)', s_root: 'Wurzel', s_obsidian: 'Obsidian',
     overview: 'Übersicht', signals: 'Signale', bets: 'Wetten', quotes: 'Quoten',
     bankroll: 'Bankroll', profit: 'Gewinn', winrate: 'Trefferquote', open_bets: 'Offene Wetten',
-    decisions: 'Entscheidungen', model: 'Modell', accuracy: 'Genauigkeit', vs_market: 'vs Markt',
+    decisions: 'Entscheidungen', model: 'Modell', accuracy: 'Genauigkeit', log_loss_label: 'Log-Verlust', vs_market: 'vs Markt',
     last_train: 'Train', match: 'Match', when: 'Wann', edge: 'Edge', odds: 'Quote',
     stake: 'Einsatz €', status: 'Status', record: 'Bilanz', yield_: 'Yield',
     sec_bank: 'Bank', sec_model: 'Modell', sub_honest: 'ehrlich, leak-frei', sub_market: 'B365-Favorit — zu schlagen', sub_train: 'TennisLoopNightly 07:13',
@@ -477,7 +477,7 @@ const PANELS = {
       <div class="blk-row">
         ${blk(t('accuracy'), c.accuracy ? (c.accuracy * 100).toFixed(1) + '%' : '—', 'grass', t('sub_honest'))}
         ${blk('Odds-ens', c.odds_ensemble_accuracy ? (c.odds_ensemble_accuracy * 100).toFixed(1) + '%' : '—', 'clay', 'real-odds rows')}
-        ${blk('Log loss', c.log_loss ? c.log_loss.toFixed(3) : '—', 'ink')}
+        ${blk(t('log_loss_label'), c.log_loss ? c.log_loss.toFixed(3) : '—', 'ink')}
         ${blk('ROC AUC', c.roc_auc ? c.roc_auc.toFixed(3) : '—', '')}
         ${blk(t('last_train'), c.trained_at ? dt(c.trained_at) : '—', '', t('sub_train'))}
       </div>
