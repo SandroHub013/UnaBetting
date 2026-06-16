@@ -80,7 +80,7 @@ TOURNEY_SURFACE_MAP = {
     'canada': 'Hard', 'montreal': 'Hard', 'toronto': 'Hard',
     'dubai': 'Hard', 'doha': 'Hard', 'rotterdam': 'Hard',
     'barcelona': 'Clay', 'acapulco': 'Hard', 'halle': 'Grass',
-    "queen's": 'Grass', 'queens': 'Grass', 'stuttgart': 'Clay',
+    "queen's": 'Grass', 'queens': 'Grass',
     'adelaide': 'Hard', 'brisbane': 'Hard', 'auckland': 'Hard',
     'marseille': 'Hard', 'delray beach': 'Hard', 'lyon': 'Clay',
     'eastbourne': 'Grass', 'hertogenbosch': 'Grass', 'mallorca': 'Grass',
@@ -111,6 +111,13 @@ def detect_surface_and_level(match_str, sport_key="", sport_title=""):
     surface = 'Hard'  # default
     level = 'A'  # default
     tourney_name = sport_title if sport_title else match_str  # prefer API title
+
+    stuttgart_keys = ('stuttgart', 'boss open', 'porsche tennis grand prix')
+    if any(key in search_str for key in stuttgart_keys):
+        surface = 'Clay' if any(key in search_str for key in ('wta', 'porsche')) else 'Grass'
+        if not sport_title:
+            tourney_name = 'Stuttgart'
+        return surface, level, tourney_name
 
     for key, surf in TOURNEY_SURFACE_MAP.items():
         if key in search_str:
