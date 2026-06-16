@@ -2,6 +2,9 @@
 Tests for the odds-history flattening (multi-book CLV/soft-book logger).
 Pure parsing — no network. See ALPHA_FINDINGS.md for why this dataset matters.
 """
+import pandas as pd
+
+from src.data import scraper
 from src.data.scraper import _event_book_rows
 
 
@@ -58,3 +61,12 @@ def test_spread_and_total_lines_captured():
 def test_empty_bookmakers_yields_no_rows():
     ev = {"home_team": "A", "away_team": "B", "commence_time": "", "bookmakers": []}
     assert _event_book_rows("s", ev, "t") == []
+
+
+def test_empty_current_odds_csv_keeps_live_schema(tmp_path, monkeypatch):
+    monkeypatch.setattr(scraper, "PROJECT_ROOT", str(tmp_path))
+
+    scraper.save_to_csv([])
+
+    df = pd.read_csv(tmp_path / "data" / "live" / "current_odds.csv")
+    assert {"match", "p1", "p2", "commence_time", "sport_key", "sport_title"} <= set(df.columns)
