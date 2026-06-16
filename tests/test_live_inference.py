@@ -6,6 +6,24 @@ format (legacy bare pickle vs bundle dict) or the return tuple shape changes.
 """
 import pytest
 
+from src.live.inference import _players_from_odds_row
+
+
+def test_players_from_odds_row_prefers_structured_names():
+    row = {
+        "match": "[12:00] Wrong Name vs Bad Name",
+        "p1": "Carlos Alcaraz",
+        "p2": "Jannik Sinner",
+    }
+
+    assert _players_from_odds_row(row) == ("Carlos Alcaraz", "Jannik Sinner")
+
+
+def test_players_from_odds_row_parses_legacy_match_string():
+    row = {"match": "[12:00] Carlos Alcaraz vs Jannik Sinner"}
+
+    assert _players_from_odds_row(row) == ("Carlos Alcaraz", "Jannik Sinner")
+
 
 @pytest.mark.slow
 def test_load_resources_returns_expected_tuple_shape():

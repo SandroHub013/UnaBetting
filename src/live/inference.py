@@ -165,6 +165,28 @@ def fuzzy_find_player_id(name, name_to_id, threshold=0.85):
     
     return best_id if best_ratio >= threshold else None
 
+
+def _row_text(row, key):
+    value = row.get(key, "")
+    if value is None or pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def _players_from_odds_row(row):
+    p1_name = _row_text(row, "p1") or _row_text(row, "player_1")
+    p2_name = _row_text(row, "p2") or _row_text(row, "player_2")
+    if p1_name and p2_name:
+        return p1_name, p2_name
+
+    match_str = _row_text(row, "match")
+    names_part = match_str.split("] ", 1)[1] if "] " in match_str else match_str
+    if " vs " not in names_part:
+        return None
+    p1_name, p2_name = (part.strip() for part in names_part.split(" vs ", 1))
+    return (p1_name, p2_name) if p1_name and p2_name else None
+
+
 def run_inference():
     print("[ML] Running inference on live markets...")
     
@@ -230,12 +252,10 @@ def run_inference():
         o1 = float(row['odds_1'])
         o2 = float(row['odds_2'])
         
-        # Parse names from "[Time] P1 vs P2"
-        try:
-            names_part = match_str.split('] ')[1]
-            p1_name, p2_name = names_part.split(' vs ')
-        except:
+        players = _players_from_odds_row(row)
+        if not players:
             continue
+        p1_name, p2_name = players
             
         p1_id = fuzzy_find_player_id(p1_name, name_to_id)
         p2_id = fuzzy_find_player_id(p2_name, name_to_id)
