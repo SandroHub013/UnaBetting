@@ -897,11 +897,9 @@ def run_agentic_research(predictions: list) -> list:
         p["prob_1"] = new_p1
         p["prob_2"] = new_p2
 
-        # Recalculate edge
-        implied_1 = 1.0 / p["odds_1"] if p["odds_1"] > 1 else 0
-        implied_2 = 1.0 / p["odds_2"] if p["odds_2"] > 1 else 0
-        edge_1 = new_p1 - implied_1
-        edge_2 = new_p2 - implied_2
+        # Recalculate ROI edge, matching base inference and passive news adjustment.
+        edge_1 = (p["odds_1"] * new_p1) - 1
+        edge_2 = (p["odds_2"] * new_p2) - 1
         p["edge"] = max(edge_1, edge_2)
         p["value_side"] = 1 if edge_1 > edge_2 else 2
 

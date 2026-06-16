@@ -57,3 +57,34 @@ def test_load_resources_returns_expected_tuple_shape():
 
     # medians: dict
     assert isinstance(medians, dict), "medians must be a dict"
+
+
+def test_agentic_research_recalculates_roi_edge(monkeypatch):
+    """Agentic adjustments must keep the same edge semantics as live inference."""
+    from src.live import agentic_research
+
+    class FakeAgent:
+        def research_matches(self, predictions):
+            return [{
+                "match": "[12:00] Alpha vs Beta",
+                "adjustment": 0.05,
+                "confidence": 1.0,
+                "reason": "fitness",
+            }]
+
+    monkeypatch.setattr(agentic_research, "AgenticResearcher", FakeAgent)
+
+    predictions = [{
+        "match": "[12:00] Alpha vs Beta",
+        "prob_1": 0.84,
+        "prob_2": 0.16,
+        "odds_1": 1.01,
+        "odds_2": 7.70,
+    }]
+
+    result = agentic_research.run_agentic_research(predictions)
+
+    assert result[0]["prob_1"] == pytest.approx(0.89)
+    assert result[0]["edge"] == pytest.approx((1.01 * 0.89) - 1)
+    assert result[0]["value_side"] == 1
+    assert result[0]["news_adjustment"]["applied"] is True
