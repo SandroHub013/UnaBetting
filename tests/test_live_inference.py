@@ -8,7 +8,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.live.inference import _players_from_odds_row, build_scan_summary
+from src.live.inference import (
+    _players_from_odds_row,
+    build_scan_summary,
+    detect_surface_and_level,
+)
 
 
 def test_players_from_odds_row_prefers_structured_names():
@@ -25,6 +29,12 @@ def test_players_from_odds_row_parses_legacy_match_string():
     row = {"match": "[12:00] Carlos Alcaraz vs Jannik Sinner"}
 
     assert _players_from_odds_row(row) == ("Carlos Alcaraz", "Jannik Sinner")
+
+
+def test_detect_surface_handles_stuttgart_tour_context():
+    assert detect_surface_and_level("", sport_title="ATP Stuttgart")[0] == "Grass"
+    assert detect_surface_and_level("", sport_title="BOSS OPEN")[0] == "Grass"
+    assert detect_surface_and_level("", sport_title="Porsche Tennis Grand Prix")[0] == "Clay"
 
 
 def test_build_scan_summary_counts_edges_and_confidence_flags():
