@@ -8,7 +8,7 @@ import numpy as np
 import joblib
 import yaml
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import dateutil.parser
 from difflib import SequenceMatcher
 from src.features.sota_features import map_cpi
@@ -185,6 +185,86 @@ def _players_from_odds_row(row):
         return None
     p1_name, p2_name = (part.strip() for part in names_part.split(" vs ", 1))
     return (p1_name, p2_name) if p1_name and p2_name else None
+
+
+def _json_float(value, default=0.0):
+    try:
+        if value is None or pd.isna(value):
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def build_scan_summary(predictions, generated_at=None, top_n=5):
+    """Build a compact live-scan summary for agents and UI surfaces."""
+    generated_at = generated_at or datetime.now(timezone.utc)
+    generated_at_iso = generated_at.isoformat().replace("+00:00", "Z")
+
+    surface_counts = {}
+    confidence_flags = {}
+    positive_edges = 0
+    low_confidence = 0
+    news_adjusted = 0
+    coverage_total = 0.0
+    coverage_points = 0
+    ranked = []
+
+    for pred in predictions:
+        surface = str(pred.get("surface") or "Unknown")
+        surface_counts[surface] = surface_counts.get(surface, 0) + 1
+
+        flag = pred.get("confidence_flag")
+        if flag:
+            confidence_flags[flag] = confidence_flags.get(flag, 0) + 1
+
+        if pred.get("low_confidence"):
+            low_confidence += 1
+
+        adjustment = pred.get("news_adjustment")
+        if isinstance(adjustment, dict) and adjustment.get("applied"):
+            news_adjusted += 1
+
+        for key in ("coverage_p1", "coverage_p2"):
+            if key in pred:
+                coverage_total += _json_float(pred.get(key))
+                coverage_points += 1
+
+        edge = _json_float(pred.get("edge"))
+        if edge > 0:
+            positive_edges += 1
+
+        forensics = pred.get("forensics") or {}
+        value_side = int(_json_float(pred.get("value_side"), 0))
+        value_player = ""
+        if value_side == 1:
+            value_player = str(forensics.get("p1_name") or "")
+        elif value_side == 2:
+            value_player = str(forensics.get("p2_name") or "")
+
+        ranked.append({
+            "match": str(pred.get("match") or ""),
+            "commence_time": str(pred.get("commence_time") or ""),
+            "surface": surface,
+            "edge": round(edge, 4),
+            "value_side": value_side,
+            "value_player": value_player,
+            "confidence_flag": flag,
+        })
+
+    ranked.sort(key=lambda item: item["edge"], reverse=True)
+
+    return {
+        "generated_at": generated_at_iso,
+        "match_count": len(predictions),
+        "positive_edge_count": positive_edges,
+        "low_confidence_count": low_confidence,
+        "news_adjusted_count": news_adjusted,
+        "average_coverage": round(coverage_total / coverage_points, 3) if coverage_points else 0.0,
+        "surface_counts": dict(sorted(surface_counts.items())),
+        "confidence_flags": dict(sorted(confidence_flags.items())),
+        "top_edges": ranked[:top_n],
+    }
 
 
 def run_inference():
@@ -566,8 +646,12 @@ def run_inference():
             print(f"  [News] WARNING: Fallback news adjustment also skipped: {e2}")
 
     # Save to JSON for TUI (ensure all numpy types are converted)
-    with open(PROJECT_ROOT / "data" / "live" / "predictions.json", "w") as f:
+    with open(PROJECT_ROOT / "data" / "live" / "predictions.json", "w", encoding="utf-8") as f:
         json.dump(predictions, f, indent=2, default=lambda x: float(x) if hasattr(x, 'item') else str(x))
+
+    summary = build_scan_summary(predictions)
+    with open(PROJECT_ROOT / "data" / "live" / "scan_summary.json", "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
 
     # Auto-log decisions to BetAnalytix DB
     try:
