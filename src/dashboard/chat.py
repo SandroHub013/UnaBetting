@@ -40,7 +40,7 @@ Odds: we only consider pinnacle (sharp reference) + williamhill, sport888, marat
 MAX_TOOL_ROUNDS = 4
 CHAT_SETTINGS_KEYS = {"provider", "model", "base_url", "api_key_env"}
 CHAT_PROVIDERS = {"ollama", "openai", "openrouter"}
-ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+ENV_NAME_RE = re.compile(r"^[A-Za-z_]\w*$", re.ASCII)
 SELF_TEST_TOOL = "get_model_metrics"
 GIB = 1024 ** 3
 MODEL_WEIGHT_MULTIPLIER = 1.15

@@ -220,7 +220,7 @@ python -m src.dashboard</pre>
 <script src="metrics.js"></script>
 <script>
 // Single source of truth: publish_metrics.py writes metrics.js (window.__METRICS).
-(function(){const M=window.__METRICS;if(!M)return;const set=(id,v)=>{const e=document.getElementById(id);if(e&&v&&v!=='—')e.textContent=v;};
+(function(){const M=window.__METRICS;if(!M){return;}const set=(id,v)=>{const e=document.getElementById(id);if(e&&v&&v!=='—')e.textContent=v;};
   set('d-acc',M.acc+'%');set('d-odds',M.odds_acc+'%');
   set('d-ll',M.ll);set('d-roc',M.roc);
   if(M.roi&&M.roi!=='—')set('d-roi',M.roi+'%');

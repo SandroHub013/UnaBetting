@@ -214,7 +214,7 @@ const I18N = {
   },
 };
 let LANG = localStorage.getItem('mc-lang') || 'en';
-const t = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
+const t = (k) => I18N[LANG]?.[k] || I18N.en[k] || k;
 
 const $ = (s) => document.querySelector(s);
 const escHtml = SafeHtml.escape;
@@ -243,7 +243,7 @@ const mkChart = (sel, cfg) => {
 async function getJSON(url) {
   const r = await fetch(url);
   const data = await r.json().catch(() => ({}));
-  if (!r.ok || (data && data.error)) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
+  if (!r.ok || data?.error) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
   return data;
 }
 
@@ -395,7 +395,7 @@ function makeTable(container, cols, rows, opts = {}) {
 
   table.addEventListener('click', (e) => {
     const th = e.target.closest('th');
-    if (!th || !th.dataset.key) return;
+    if (!th?.dataset.key) return;
     if (state.sortKey === th.dataset.key) state.sortDir *= -1;
     else { state.sortKey = th.dataset.key; state.sortDir = -1; }  // primo click: decrescente
     draw();
@@ -454,7 +454,7 @@ function applyTheme(th) {
     x.term.options.theme = { background: cssVar('--term-bg'), foreground: cssVar('--term-fg'), cursor: cssVar('--highlight') };
   });
   // pannello attivo: ri-renderizza coi colori nuovi
-  if (activeTab && activeTab.startsWith('panel:')) {
+  if (activeTab?.startsWith('panel:')) {
     const name = activeTab.split(':')[1];
     if (PANELS[name]) { closeTab(activeTab); openPanel(name); }
   }
@@ -536,7 +536,7 @@ const PANELS = {
         const best1 = Math.max(...dd.rows.map(r => r.price_1 || 0));
         const best2 = Math.max(...dd.rows.map(r => r.price_2 || 0));
         row.querySelector('.t-o').textContent = `${best1.toFixed(2)} / ${best2.toFixed(2)}`;
-      } catch (e) { row.querySelector('.t-o').textContent = '—'; }
+      } catch { row.querySelector('.t-o').textContent = '—'; }  // no odds for this match
     });
 
     // metrics history
@@ -1206,7 +1206,7 @@ function activateTerminal(id) {
 function closeTerminal(id) {
   const t = terms[id];
   if (!t) return;
-  try { t.ws.close(); } catch (e) { /* già chiusa */ }
+  try { t.ws.close(); } catch { /* già chiusa */ }
   t.term.dispose(); t.tab.remove(); t.pane.remove();
   delete terms[id];
   const left = Object.keys(terms);
@@ -1380,7 +1380,7 @@ async function loadChatSettings(pane) {
           : name;
         localModel.appendChild(option);
       });
-      localModel.value = selected || (data.recommendation && data.recommendation.model) || names[0];
+      localModel.value = selected || data.recommendation?.model || names[0];
       const hardware = data.hardware;
       const hardwareText = hardware
         ? `${t('chat_hardware')}: ${hardware.gpu_name || 'GPU'} · VRAM ${chatMemory(hardware.total_vram_bytes)} · RAM ${chatMemory(hardware.total_ram_bytes)}`
@@ -1450,7 +1450,7 @@ async function loadChatSettings(pane) {
   };
   form.onsubmit = async event => {
     event.preventDefault();
-    try { await saveSettings(); } catch (_) {}
+    try { await saveSettings(); } catch { /* settings are best-effort here */ }
   };
   testButton.onclick = async () => {
     try {
@@ -1492,7 +1492,7 @@ function openChat() {
 function chatTemplates(data) {
   let html = '';
   const tm = data.get_today_matches;
-  if (tm && tm.matches && tm.matches.length) {
+  if (tm?.matches?.length) {
     html += '<div class="chat-cards">' + tm.matches.slice(0, 10).map(m =>
       `<div class="chat-card"><span class="cc-main">🎾 ${escHtml(m.match)}</span>
        <span class="cc-badge">${escHtml(m.best_quota_p1)} / ${escHtml(m.best_quota_p2)}</span></div>`).join('') + '</div>';
@@ -1504,7 +1504,7 @@ function chatTemplates(data) {
        <span class="cc-badge ${s.edge > 0 ? 'pos' : 'neg'}">edge ${(s.edge * 100).toFixed(1)}%</span></div>`).join('') + '</div>';
   }
   const mm = data.get_model_metrics;
-  if (mm && mm.current) {
+  if (mm?.current) {
     const c = mm.current;
     html += `<div class="chat-kpis">
       <div class="chat-kpi"><div class="k">Accuracy</div><div class="v">${(c.accuracy * 100).toFixed(1)}%</div></div>
@@ -1672,7 +1672,7 @@ function applyLang(lang) {
   // ri-renderizza i pannelli-cockpit aperti (titoli + contenuti localizzati)
   Object.keys(tabs).filter(id => id.startsWith('panel:')).forEach(id => {
     const name = id.split(':')[1];
-    if (PANELS[name]) { const wasActive = activeTab === id; closeTab(id); openPanel(name); if (!wasActive) {} }
+    if (PANELS[name]) { closeTab(id); openPanel(name); }
   });
 }
 
@@ -1680,8 +1680,8 @@ function applyLang(lang) {
 async function checkUpdate(manual = false) {
   let d;
   try { d = await getJSON('/api/update/check'); }
-  catch (e) { if (manual) toast('update check failed: ' + e.message, true); return; }
-  if (!d.available) { if (manual) toast(t('upd_done').includes('✓') ? 'up to date ✓' : 'up to date'); return; }
+  catch (e) { if (manual) { toast('update check failed: ' + e.message, true); } return; }
+  if (!d.available) { if (manual) { toast(t('upd_done').includes('✓') ? 'up to date ✓' : 'up to date'); } return; }
   showUpdateModal(d);
 }
 

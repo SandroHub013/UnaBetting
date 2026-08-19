@@ -23,7 +23,8 @@ function texFor(group) {
   g.addColorStop(0, '#ffffff'); g.addColorStop(0.25, color);
   g.addColorStop(0.6, color + '44'); g.addColorStop(1, 'transparent');
   ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
-  return (textures[color] = new THREE.CanvasTexture(c));
+  textures[color] = new THREE.CanvasTexture(c);
+  return textures[color];
 }
 
 const elGraph = document.getElementById('graph');
@@ -61,7 +62,7 @@ if (hasTHREE) {
       sp.scale.set(s, s, 1);
       return sp;
     });
-  } catch (e) { /* Keep the built-in node renderer as a fallback. */ }
+  } catch { /* Keep the built-in node renderer as a fallback. */ }
 }
 
 fetch('/api/graph').then(r => r.json()).then(data => {
@@ -84,7 +85,7 @@ fetch('/api/graph').then(r => r.json()).then(data => {
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       Graph.scene().add(new THREE.Points(geo, new THREE.PointsMaterial(
         { color: 0x8890bb, size: 1.1, transparent: true, opacity: 0.7 })));
-    } catch (e) { /* The graph remains usable without the star field. */ }
+    } catch { /* The graph remains usable without the star field. */ }
   }
 
   let moved = false, fitted = false;

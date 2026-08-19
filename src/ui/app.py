@@ -497,7 +497,7 @@ class BloombergTUI(App):
     def run_background_scan(self):
         try:
             env = {**os.environ, "PYTHONUTF8": "1"}
-            run_opts = dict(check=True, cwd=PROJECT_ROOT, env=env)
+            run_opts = {"check": True, "cwd": PROJECT_ROOT, "env": env}
             subprocess.run([sys.executable, "-X", "utf8", "-m", "src.data.scraper"], **run_opts)
             self.call_from_thread(self._update_progress, 45)
             subprocess.run([sys.executable, "-X", "utf8", "-m", "src.live.inference"], **run_opts)
