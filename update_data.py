@@ -114,7 +114,7 @@ def update_odds(config):
             time.sleep(0.3)
 
 
-def rebuild_pipeline(config, retrain=False):
+def rebuild_pipeline(retrain=False):
     """Rebuild the data pipeline: clean → features → (optional) train."""
     print("\n" + "=" * 60)
     print("🔧 REBUILD PIPELINE")
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         update_odds(config)
     
     if not args.skip_rebuild:
-        rebuild_pipeline(config, retrain=args.retrain)
+        rebuild_pipeline(retrain=args.retrain)
     
     check_data_freshness(config)
     

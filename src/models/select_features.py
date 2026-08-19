@@ -37,7 +37,7 @@ def run_feature_selection(tour="atp", top_k=70):
     
     # 1. Prepare data (temporal split, etc.)
     print("1. Preparazione dati per ranking...")
-    X_train, y_train, _X_val, _y_val, X_test, y_test, scaler, feature_names, _medians = prepare_training_data(df, config, skip_selection=True)
+    X_train, y_train, _X_val, _y_val, _X_test, _y_test, _scaler, feature_names, _medians = prepare_training_data(df, config, skip_selection=True)
     
     # 2. Train Random Forest for importance
     print("2. Calcolo importanza via Random Forest (300 alberi)...")

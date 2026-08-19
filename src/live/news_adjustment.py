@@ -230,7 +230,6 @@ def _apply_adjustments(predictions: list, adjustments: list) -> list:
 
         # Apply symmetrically
         new_p1 = p["prob_1"] + effective_adj
-        new_p2 = 1.0 - new_p1
 
         # Clamp
         new_p1 = max(MIN_PROB, min(MAX_PROB, new_p1))

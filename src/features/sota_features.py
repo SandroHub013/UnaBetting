@@ -111,17 +111,7 @@ def add_points_defending_feature(df):
     # Now, for every match in the dataset, we look back 1 year exactly to find if the player played this tournament
     # and how many points they scored.
     
-    def get_defending_points(player_name, tourney_name, current_year):
-        match = tourney_pts[(tourney_pts['player_name'] == player_name) & 
-                            (tourney_pts['tourney_name'] == tourney_name) & 
-                            (tourney_pts['year'] == current_year - 1)]
-        if not match.empty:
-            return match['points_scored'].values[0]
-        return 0.0
-        
-    # We map this for w_ and l_
-    # This might be slow if using apply row by row, let's optimize it using a merge.
-    
+    # Mapped for w_ and l_ with a merge (row-by-row apply would be too slow).
     # Prepare previous year data
     tourney_pts['target_year_to_defend'] = tourney_pts['year'] + 1
     

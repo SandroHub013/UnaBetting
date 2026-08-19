@@ -34,7 +34,7 @@ def add_background(slide, color=NAVY):
     fill.solid()
     fill.fore_color.rgb = color
 
-def add_shape_bg(slide, left, top, width, height, color, transparency=0):
+def add_shape_bg(slide, left, top, width, height, color):
     shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
     shape.fill.solid()
     shape.fill.fore_color.rgb = color
@@ -89,7 +89,7 @@ def add_bullet_list(slide, left, top, width, height, items, font_size=14,
     return txBox
 
 def add_metric_card(slide, left, top, width, height, label, value, sublabel=""):
-    card = add_shape_bg(slide, left, top, width, height, DARK_BLUE)
+    add_shape_bg(slide, left, top, width, height, DARK_BLUE)
     # Value
     add_text_box(slide, left + Inches(0.2), top + Inches(0.15), width - Inches(0.4), Inches(0.6),
                  value, font_size=28, color=ACCENT_BLUE, bold=True, alignment=PP_ALIGN.CENTER)

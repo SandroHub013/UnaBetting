@@ -409,7 +409,7 @@ class TennisDataset(Dataset):
         }
 
 
-def _train_segment(target_col, segment, config, is_regression, X_train, y_train, P_train, X_val, y_val, P_val, X_test, y_test, P_test, feature_names, player_mapping, tour):
+def _train_segment(target_col, segment, config, is_regression, X_train, y_train, P_train, X_val, y_val, P_val, X_test, y_test, P_test, player_mapping):
     has_val = len(X_val) > 0
     print(f"\n2. Training modelli {segment.upper()} per {target_col}...")
     models = {}
@@ -647,7 +647,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
             X_train[m_tr], y_train[m_tr], P_train[m_tr],
             X_val[m_v], y_val[m_v], P_val[m_v],
             X_test[m_te], y_test[m_te], P_test[m_te],
-            feature_names, player_mapping, tour
+            player_mapping
         )
         
         all_models.update(seg_models)
@@ -768,7 +768,7 @@ def _evaluate_model(model, X_test, y_test, name, is_regression=False):
         mae = mean_absolute_error(y_test, y_pred)
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
-        print(f"    MAE: {mae:.4f} | MSE: {mse:.4f} | R2: {r2:.4f}")
+        print(f"    [{name}] MAE: {mae:.4f} | MSE: {mse:.4f} | R2: {r2:.4f}")
         return {"mae": mae, "mse": mse, "r2": r2}
     else:
         y_pred = model.predict(X_test)
@@ -779,7 +779,7 @@ def _evaluate_model(model, X_test, y_test, name, is_regression=False):
         brier = brier_score_loss(y_true, y_prob)
         roc = roc_auc_score(y_true, y_prob)
         ece = _expected_calibration_error(y_true, y_prob)
-        print(f"    Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {roc:.4f} | ECE: {ece:.4f}")
+        print(f"    [{name}] Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {roc:.4f} | ECE: {ece:.4f}")
         return {"accuracy": acc, "log_loss": ll, "brier": brier, "roc_auc": roc, "ece": ece}
 
 

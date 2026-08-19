@@ -1,6 +1,5 @@
 import pandas as pd
 import joblib
-import yaml
 from pathlib import Path
 from src.features.player_stats import PlayerStatsEngine
 from src.features.elo import EloRating
@@ -10,11 +9,6 @@ from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root 
 def warm_up():
     print("🎾 Pre-calcolando i motori ELO e Statistiche per l'analisi LIVE...")
     
-    # 1. Load config
-    config_path = PROJECT_ROOT / "config" / "config.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-        
     output_dir = PROJECT_ROOT / "models"
     output_dir.mkdir(exist_ok=True)
     

@@ -51,7 +51,7 @@ def run_cross_validation():
         temp_config["model"]["validation_years"] = []
 
         # Prepare data for this specific split (9-value return: train, val, test, scaler, features, medians)
-        X_train, y_train, _X_val, _y_val, X_test, y_test, scaler, feature_names, medians = prepare_training_data(df, temp_config)
+        X_train, y_train, _X_val, _y_val, X_test, y_test, _scaler, _feature_names, _medians = prepare_training_data(df, temp_config)
 
         # Walk-forward: test ONLY on test_year (not all future years).
         year_of = df["tourney_date"].dt.year

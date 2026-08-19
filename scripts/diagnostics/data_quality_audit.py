@@ -21,7 +21,6 @@ def run_audit(tour="atp"):
     # 2. Chronological Integrity
     # Group by tourney_id and check if match_num is strictly increasing with Round (heuristic)
     # Note: Round can be text (F, SF, QF, R16)
-    rounds_order = {'F': 7, 'SF': 6, 'QF': 5, 'R16': 4, 'R32': 3, 'R64': 2, 'R128': 1}
     df['round_rank'] = df['round_ordinal'].fillna(0)
     
     # Check if for any tournament, a higher round_rank has a lower match_num (potential leak)

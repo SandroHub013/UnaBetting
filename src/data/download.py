@@ -221,7 +221,7 @@ def download_all():
     tml_success = download_tml_database(config)
 
     # 4. Download tennis-data.co.uk odds
-    odds_downloaded, odds_errors = download_tennis_data_co_uk(config)
+    odds_downloaded, _odds_errors = download_tennis_data_co_uk(config)
 
     # Summary
     print("\n" + "=" * 60)

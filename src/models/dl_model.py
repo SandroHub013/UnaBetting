@@ -52,7 +52,7 @@ def load_and_scale_data():
     df = pd.read_csv(features_path)
     config = load_config()
     
-    X_train_scaled, y_train, _X_val, _y_val, X_test_scaled, y_test, scaler, numeric_cols, _medians = prepare_training_data(df, config)
+    X_train_scaled, y_train, _X_val, _y_val, X_test_scaled, y_test, _scaler, _numeric_cols, _medians = prepare_training_data(df, config)
     
     # Riempi eventuali NaNs rimasti causati da scaling
     X_train_scaled = np.nan_to_num(X_train_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
