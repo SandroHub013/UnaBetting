@@ -73,7 +73,7 @@ async def ws_term(ws: WebSocket, shell: str = "", agent: str = ""):
         while True:
             try:
                 data = await loop.run_in_executor(None, pty.read)
-            except (EOFError, ConnectionError, OSError):
+            except (EOFError, OSError):
                 break
             if not data:
                 break

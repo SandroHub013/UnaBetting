@@ -37,12 +37,13 @@ def run_feature_selection(tour="atp", top_k=70):
     
     # 1. Prepare data (temporal split, etc.)
     print("1. Preparazione dati per ranking...")
-    X_train, y_train, _X_val, _y_val, X_test, y_test, scaler, feature_names, _medians = prepare_training_data(df, config, skip_selection=True)
+    (X_train, _P_train, y_train, _X_val, _P_val, _y_val, _X_test, _P_test, _y_test,
+     _scaler, feature_names, _medians, _player_mapping) = prepare_training_data(df, config, skip_selection=True)
     
     # 2. Train Random Forest for importance
-    print(f"2. Calcolo importanza via Random Forest (300 alberi)...")
-    rf = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1)
-    rf.fit(X_train, y_train)
+    print("2. Calcolo importanza via Random Forest (300 alberi)...")
+    rf = RandomForestClassifier(n_estimators=300, min_samples_leaf=1, max_features="sqrt", random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train["target"])
     
     # 3. Rank features
     importances = rf.feature_importances_

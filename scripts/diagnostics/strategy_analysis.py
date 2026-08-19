@@ -84,7 +84,7 @@ df["edge"] = (df["random_odds"] * df["model_prob"]) - 1.0
 df["won"] = (df["target_r"] == 1).astype(int)
 
 # Sanity check
-print(f"[DATA] After perspective randomization:")
+print("[DATA] After perspective randomization:")
 print(f"  model_prob mean: {df['model_prob'].mean():.4f} (should be ~0.50)")
 print(f"  target_r mean:   {df['target_r'].mean():.4f} (should be ~0.50)")
 print(f"  random_odds mean: {df['random_odds'].mean():.2f}")
@@ -441,7 +441,7 @@ print_table(strategies, "PART 5: STRATEGY COMPARISON (Flat EUR 10)")
 # 6. EDGE THRESHOLD SWEEP
 # ============================================================
 print(f"\n{'=' * 100}")
-print(f"  PART 6: EDGE THRESHOLD SWEEP (Value bets, Flat EUR 10)")
+print("  PART 6: EDGE THRESHOLD SWEEP (Value bets, Flat EUR 10)")
 print(f"{'=' * 100}")
 print(f"  {'MinEdge':>8} {'Bets':>6} {'Win%':>7} {'Profit':>10} {'ROI%':>8} {'AvgOdds':>8} {'Sharpe':>7}")
 print(f"  {'-'*60}")
@@ -462,7 +462,7 @@ print(f"  {'-'*60}")
 # 7. DETAILED RISK ANALYSIS ON BEST STRATEGIES
 # ============================================================
 print(f"\n{'=' * 100}")
-print(f"  PART 7: DETAILED RISK ANALYSIS")
+print("  PART 7: DETAILED RISK ANALYSIS")
 print(f"{'=' * 100}")
 
 # Use the value bets as baseline
@@ -539,12 +539,12 @@ for strat_label, strat_mask in [
     print(f"  Profitable Months: {profitable_months}/{total_months}")
     if pnl.std() > 0:
         print(f"  Sharpe (annualized, per-bet): {(pnl.mean() / pnl.std()) * np.sqrt(252):.2f}")
-    print(f"  Avg Stake at Risk: EUR 10 (flat)")
+    print("  Avg Stake at Risk: EUR 10 (flat)")
     print(f"  Expected Bankroll to withstand 3x MaxDD: EUR {abs(max_dd) * 3:.0f}")
 
     # Print monthly summary
     if len(monthly) > 0:
-        print(f"\n  Monthly Breakdown:")
+        print("\n  Monthly Breakdown:")
         print(f"  {'Month':<12} {'Bets':>5} {'Wins':>5} {'Profit':>10}")
         print(f"  {'-'*35}")
         for period, row in monthly.iterrows():
@@ -556,7 +556,7 @@ for strat_label, strat_mask in [
 # 8. CALIBRATION REALITY CHECK
 # ============================================================
 print(f"\n{'=' * 100}")
-print(f"  PART 8: CALIBRATION REALITY CHECK")
+print("  PART 8: CALIBRATION REALITY CHECK")
 print(f"{'=' * 100}")
 print(f"  {'Prob Bin':<18} {'Count':>6} {'Predicted%':>11} {'Actual%':>9} {'Gap':>7} {'Calibrated?':>12}")
 print(f"  {'-'*70}")
@@ -570,7 +570,8 @@ for lo, hi in cal_bins:
     pred_avg = sub["model_prob"].mean() * 100
     actual_avg = sub["won"].mean() * 100
     gap = actual_avg - pred_avg
-    cal_status = "OK" if abs(gap) < 3 else ("OVER" if gap > 0 else "UNDER")
+    over_under = "OVER" if gap > 0 else "UNDER"
+    cal_status = "OK" if abs(gap) < 3 else over_under
     print(f"  {f'{lo:.2f}-{hi:.2f}':<18} {len(sub):>6} {pred_avg:>10.1f}% {actual_avg:>8.1f}% {gap:>+6.1f}% {cal_status:>12}")
 print(f"  {'-'*70}")
 
@@ -595,7 +596,7 @@ print(f"\n  Expected Calibration Error (ECE): {ece:.4f}")
 # 9. OVERROUND / MARGIN CHECK
 # ============================================================
 print(f"\n{'=' * 100}")
-print(f"  PART 9: BOOKMAKER MARGIN (OVERROUND) CHECK")
+print("  PART 9: BOOKMAKER MARGIN (OVERROUND) CHECK")
 print(f"{'=' * 100}")
 # Check using original (non-randomized) B365 odds
 orig_b365w = pd.to_numeric(df_raw.loc[df.index, "B365W"], errors="coerce")
@@ -609,20 +610,20 @@ if both_valid.sum() > 0:
     print(f"  Matches with valid B365W+B365L: {both_valid.sum()}")
 
     # True (devigged) probability comparison
-    print(f"\n  De-vig Analysis (removing margin):")
+    print("\n  De-vig Analysis (removing margin):")
     true_prob_w = (1.0 / orig_b365w[both_valid]) / overround[both_valid]
     model_prob_subset = df.loc[both_valid[both_valid].index, "model_prob"]
     # This comparison needs perspective-aware logic; skip if too complex
-    print(f"  (Note: de-vig comparison requires aligning with randomized perspective)")
+    print("  (Note: de-vig comparison requires aligning with randomized perspective)")
 else:
-    print(f"  Could not compute overround - missing B365L data")
+    print("  Could not compute overround - missing B365L data")
 
 
 # ============================================================
 # 10. FINAL SUMMARY & RECOMMENDATIONS
 # ============================================================
 print(f"\n{'=' * 100}")
-print(f"  PART 10: SUMMARY & RECOMMENDATIONS")
+print("  PART 10: SUMMARY & RECOMMENDATIONS")
 print(f"{'=' * 100}")
 
 # Find best strategy by ROI (with minimum 50 bets)
@@ -636,7 +637,7 @@ if viable:
     print(f"  BEST BY SHARPE: {best_sharpe['label']:<35} Sharpe={best_sharpe['sharpe']:.2f}, {best_sharpe['n_bets']} bets, ROI={best_sharpe['roi']:+.1f}%")
     print(f"  BEST BY PROFIT: {best_profit['label']:<35} Profit={best_profit['profit']:+.0f}E, {best_profit['n_bets']} bets, ROI={best_profit['roi']:+.1f}%")
 
-print(f"\n  FLAT STAKING BASELINE (Value Config Defaults):")
+print("\n  FLAT STAKING BASELINE (Value Config Defaults):")
 print(f"    Bets: {flat_result['n_bets']}")
 print(f"    Profit: {flat_result['profit']:+.0f}E on {flat_result['n_bets'] * 10:,}E staked")
 print(f"    ROI: {flat_result['roi']:+.1f}%")
@@ -644,21 +645,21 @@ print(f"    Win Rate: {flat_result['win_rate']:.1f}%")
 print(f"    Max Drawdown: {flat_result['max_drawdown']:+.0f}E")
 print(f"    Longest Losing Streak: {flat_result['max_losing_streak']}")
 
-print(f"\n  KELLY COMPOUNDING EFFECT:")
+print("\n  KELLY COMPOUNDING EFFECT:")
 print(f"    Kelly 25% (growing bankroll) profit: {kelly_total_profit_proper:+,.0f}E")
 print(f"    Flat EUR 10 profit:                  {flat_result['profit']:+,.0f}E")
 if flat_result['profit'] != 0:
     print(f"    Inflation factor:                    {kelly_total_profit_proper / flat_result['profit']:.1f}x")
 
 print(f"\n  The Kelly compounding result ({kelly_total_profit_proper:+,.0f}E) is mathematically valid")
-print(f"  under perfect execution, but UNREALISTIC in practice because:")
-print(f"  1. Bookmaker limits: stakes would be restricted long before reaching hundreds of EUR")
-print(f"  2. Odds movement: large bets move lines, reducing edge")
-print(f"  3. Model confidence: out-of-sample accuracy may degrade over time")
-print(f"  4. Execution: real-world slippage, account restrictions, timing issues")
+print("  under perfect execution, but UNREALISTIC in practice because:")
+print("  1. Bookmaker limits: stakes would be restricted long before reaching hundreds of EUR")
+print("  2. Odds movement: large bets move lines, reducing edge")
+print("  3. Model confidence: out-of-sample accuracy may degrade over time")
+print("  4. Execution: real-world slippage, account restrictions, timing issues")
 print(f"\n  REALISTIC EXPECTATION (flat EUR 10): {flat_result['profit']:+.0f}E profit over the test period")
 print(f"  Scale appropriately: EUR 100 flat -> {flat_result['profit'] * 10:+,.0f}E profit")
 
 print(f"\n{'=' * 100}")
-print(f"  ANALYSIS COMPLETE")
+print("  ANALYSIS COMPLETE")
 print(f"{'=' * 100}")

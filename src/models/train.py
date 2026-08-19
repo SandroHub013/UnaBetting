@@ -60,10 +60,11 @@ class PreFittedEnsemble:
 # Alias the running module under the canonical name so the class object is
 # identical on both save (training) and load (inference).
 import sys as _sys
-PreFittedEnsemble.__module__ = "src.models.train"
-_canon = _sys.modules.get("src.models.train")
+_MODULE_NAME = "src.models.train"
+PreFittedEnsemble.__module__ = _MODULE_NAME
+_canon = _sys.modules.get(_MODULE_NAME)
 if _canon is None:
-    _sys.modules["src.models.train"] = _sys.modules[__name__]
+    _sys.modules[_MODULE_NAME] = _sys.modules[__name__]
 elif _canon is not _sys.modules[__name__]:
     _canon.PreFittedEnsemble = PreFittedEnsemble
 
@@ -409,7 +410,7 @@ class TennisDataset(Dataset):
         }
 
 
-def _train_segment(target_col, segment, config, is_regression, X_train, y_train, P_train, X_val, y_val, P_val, X_test, y_test, P_test, feature_names, player_mapping, tour):
+def _train_segment(target_col, segment, config, is_regression, X_train, y_train, P_train, X_val, y_val, P_val, X_test, y_test, P_test, player_mapping):
     has_val = len(X_val) > 0
     print(f"\n2. Training modelli {segment.upper()} per {target_col}...")
     models = {}
@@ -438,10 +439,10 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
     if is_regression:
         from sklearn.ensemble import RandomForestRegressor
         print(f"\n  [>] Random Forest Regressor for {target_col} ({segment})...")
-        rf = RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
+        rf = RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_leaf=20, max_features=1.0, random_state=42, n_jobs=-1)
     else:
         print(f"\n  [>] Random Forest Classifier for {target_col} ({segment})...")
-        rf = RandomForestClassifier(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
+        rf = RandomForestClassifier(n_estimators=300, max_depth=10, min_samples_leaf=20, max_features="sqrt", random_state=42, n_jobs=-1)
 
     if len(X_train) > 0:
         rf.fit(X_train, y_train)
@@ -526,8 +527,8 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
         train_dataset = TennisDataset(P_train['p1_id'], P_train['p2_id'], X_train, y_train)
         val_dataset = TennisDataset(P_val['p1_id'], P_val['p2_id'], X_val, y_val)
         
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
+        val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=0)
         
         num_players = len(player_mapping) + 1
         emb_dim = 32
@@ -542,7 +543,7 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
         if len(X_test) > 0:
             nn_model.eval()
             test_dataset = TennisDataset(P_test['p1_id'], P_test['p2_id'], X_test, y_test)
-            test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
+            test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=0)
             
             y_prob_pt = []
             with torch.no_grad():
@@ -606,7 +607,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
     features_path = PROJECT_ROOT / config["paths"]["features"] / f"{tour}_features.csv"
     if not features_path.exists():
         print(f"  [X] Features non trovate: {features_path}")
-        print(f"  --> Esegui prima: python -m src.features.build_features")
+        print("  --> Esegui prima: python -m src.features.build_features")
         return None, None
         
     df = pd.read_csv(features_path, low_memory=False)
@@ -647,7 +648,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
             X_train[m_tr], y_train[m_tr], P_train[m_tr],
             X_val[m_v], y_val[m_v], P_val[m_v],
             X_test[m_te], y_test[m_te], P_test[m_te],
-            feature_names, player_mapping, tour
+            player_mapping
         )
         
         all_models.update(seg_models)
@@ -657,7 +658,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
         if m_te.sum() > 0:
             best_model_key = f"{target_col}_{segment}_ensemble"
             if best_model_key in seg_models:
-                m_te_idx = np.where(m_te)[0]
+                m_te_idx = np.nonzero(m_te)[0]
                 if is_regression:
                     preds = seg_models[best_model_key].predict(X_test[m_te])
                     y_test_pred_combined[m_te_idx] = preds
@@ -768,7 +769,7 @@ def _evaluate_model(model, X_test, y_test, name, is_regression=False):
         mae = mean_absolute_error(y_test, y_pred)
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
-        print(f"    MAE: {mae:.4f} | MSE: {mse:.4f} | R2: {r2:.4f}")
+        print(f"    [{name}] MAE: {mae:.4f} | MSE: {mse:.4f} | R2: {r2:.4f}")
         return {"mae": mae, "mse": mse, "r2": r2}
     else:
         y_pred = model.predict(X_test)
@@ -779,7 +780,7 @@ def _evaluate_model(model, X_test, y_test, name, is_regression=False):
         brier = brier_score_loss(y_true, y_prob)
         roc = roc_auc_score(y_true, y_prob)
         ece = _expected_calibration_error(y_true, y_prob)
-        print(f"    Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {roc:.4f} | ECE: {ece:.4f}")
+        print(f"    [{name}] Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {roc:.4f} | ECE: {ece:.4f}")
         return {"accuracy": acc, "log_loss": ll, "brier": brier, "roc_auc": roc, "ece": ece}
 
 

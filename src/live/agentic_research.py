@@ -35,6 +35,8 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+JSON_CONTENT_TYPE = "application/json"
+
 log = logging.getLogger("agentic")
 
 load_dotenv()
@@ -168,7 +170,7 @@ class AgentTools:
         url = "https://api.search.brave.com/res/v1/news/search"
         params = {"q": query, "count": max_results + 5, "freshness": "pw"}
         headers = {
-            "Accept": "application/json",
+            "Accept": JSON_CONTENT_TYPE,
             "Accept-Encoding": "gzip",
             "X-Subscription-Token": self._brave_key,
         }
@@ -249,7 +251,7 @@ class AgentTools:
         url = "https://api.search.brave.com/res/v1/web/search"
         params = {"q": query, "count": max_results}
         headers = {
-            "Accept": "application/json",
+            "Accept": JSON_CONTENT_TYPE,
             "Accept-Encoding": "gzip",
             "X-Subscription-Token": self._brave_key,
         }
@@ -721,7 +723,7 @@ class AgenticResearcher:
                     "content": result[:3000],
                 })
 
-        print(f"  [Agent] Max iterations. Forcing completion...")
+        print("  [Agent] Max iterations. Forcing completion...")
         return self._force_completion(messages)
 
     def _build_initial_context(self, predictions: list) -> str:
@@ -759,10 +761,11 @@ class AgenticResearcher:
         data = json.dumps(payload).encode("utf-8")
         headers = {
             "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
+            "Content-Type": JSON_CONTENT_TYPE,
             "X-Title": "Tennis Pro Terminal - Agentic Research",
         }
         ctx = ssl.create_default_context()
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
         self._last_error = None  # surface to run_agentic_research for failure reason
         for attempt in range(3):
@@ -788,7 +791,7 @@ class AgenticResearcher:
                 log.error("llm_http_final code=%s body=%s", e.code, body[:150])
                 self._last_error = f"http_{e.code}"
                 return None
-            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            except OSError as e:
                 if attempt < 2:
                     log.warning("llm_network attempt=%d err=%r", attempt + 1, e)
                     time.sleep(3)

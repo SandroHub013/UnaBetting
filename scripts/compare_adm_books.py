@@ -30,7 +30,7 @@ for b, row in agg.sort_values("mean").iterrows():
 # --- best price share among ADM bookmakers (no exchanges) ---
 adm_books = [b for b in ADM if b not in EXCHANGES]
 sub = h2h[h2h["bookmaker"].isin(adm_books)].copy()
-wins = {b: 0 for b in adm_books}
+wins = dict.fromkeys(adm_books, 0)
 tot = 0
 for _, g in sub.groupby("match_key"):
     if g["bookmaker"].nunique() < 3:

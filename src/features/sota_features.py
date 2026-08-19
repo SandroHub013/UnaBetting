@@ -9,6 +9,7 @@ warnings.filterwarnings('ignore')
 # Fonte: Statistiche storiche medie Hawk-Eye & ATP
 # CPR (Court Pace Rating) ITF: 1 (Slow) -> 5 (Fast)
 # Useremo un valore continuo 1-100 per rappresentare la velocità.
+ROME_MASTERS = 'Rome Masters'
 CPI_MAP = {
     # GRAND SLAMS
     'Wimbledon': 72.0,       # Grass (Molto veloce, anche se rallentata negli anni)
@@ -26,7 +27,7 @@ CPI_MAP = {
     
     # MASTERS 1000 - Clay
     'Madrid Masters': 38.0,   # Clay (Veloce per la terra, grazie all'altitudine)
-    'Rome Masters': 30.0,     # Clay (Lento)
+    ROME_MASTERS: 30.0,     # Clay (Lento)
     'Monte Carlo Masters': 25.0, # Clay (Lentissimo)
     
     # ATP FINALS
@@ -111,17 +112,7 @@ def add_points_defending_feature(df):
     # Now, for every match in the dataset, we look back 1 year exactly to find if the player played this tournament
     # and how many points they scored.
     
-    def get_defending_points(player_name, tourney_name, current_year):
-        match = tourney_pts[(tourney_pts['player_name'] == player_name) & 
-                            (tourney_pts['tourney_name'] == tourney_name) & 
-                            (tourney_pts['year'] == current_year - 1)]
-        if not match.empty:
-            return match['points_scored'].values[0]
-        return 0.0
-        
-    # We map this for w_ and l_
-    # This might be slow if using apply row by row, let's optimize it using a merge.
-    
+    # Mapped for w_ and l_ with a merge (row-by-row apply would be too slow).
     # Prepare previous year data
     tourney_pts['target_year_to_defend'] = tourney_pts['year'] + 1
     
@@ -161,7 +152,7 @@ if __name__ == "__main__":
     # Test
     test_df = pd.DataFrame({
         'tourney_date': ['2023-05-10', '2024-05-10'],
-        'tourney_name': ['Rome Masters', 'Rome Masters'],
+        'tourney_name': [ROME_MASTERS, ROME_MASTERS],
         'tourney_level': ['M', 'M'],
         'surface': ['Clay', 'Clay'],
         'round': ['F', 'R32'],

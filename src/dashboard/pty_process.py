@@ -39,7 +39,7 @@ class PosixPtyProcess:
             try:
                 os.chdir(Path(cwd))
                 os.execvp(argv[0], argv)
-            except BaseException as exc:
+            except OSError as exc:
                 message = f"[dashboard] unable to start {argv[0]!r}: {exc}\n"
                 os.write(2, message.encode("utf-8", errors="replace"))
                 os._exit(127)

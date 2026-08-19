@@ -221,7 +221,7 @@ def download_all():
     tml_success = download_tml_database(config)
 
     # 4. Download tennis-data.co.uk odds
-    odds_downloaded, odds_errors = download_tennis_data_co_uk(config)
+    odds_downloaded, _odds_errors = download_tennis_data_co_uk(config)
 
     # Summary
     print("\n" + "=" * 60)
@@ -234,7 +234,7 @@ def download_all():
         print(f"  {status} {name}")
         
     tml_status = "✓" if tml_success else "✗"
-    print(f"\nTML-Database (ATP):")
+    print("\nTML-Database (ATP):")
     print(f"  {tml_status} TML-Database")
 
     print(f"\nQuote tennis-data.co.uk: {odds_downloaded} file scaricati")

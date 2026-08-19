@@ -37,6 +37,13 @@ try:
 except ImportError:  # pygame / pyttsx3 are optional extras
     AudioEngine = None
 
+MATCH_TABLE = "#match-table"
+SCAN_PROGRESS = "#scan-progress"
+THINKING_INDICATOR = "#thinking-indicator"
+GLOBAL_TICKER = "#global-ticker"
+DASH_EMPTY = "  [dim]No data yet[/]\n"
+CELL_EMPTY = "[dim]--[/]"
+
 
 class _NullAudio:
     """Silent stand-in when the optional audio deps (pygame, pyttsx3) are absent."""
@@ -45,13 +52,13 @@ class _NullAudio:
     last_response = ""
 
     def play_music(self):
-        pass
+        pass  # no audio backend: stay silent
 
     def play_sfx(self, name):
-        pass
+        pass  # no audio backend: stay silent
 
     def speak(self, text):
-        pass
+        pass  # no audio backend: stay silent
 
 
 def calc_kelly(prob: float, odds: float) -> float:
@@ -292,7 +299,7 @@ class BloombergTUI(App):
         self._strategy = "balanced"
 
         # ── Setup Markets table ──
-        table = self.query_one("#match-table", DataTable)
+        table = self.query_one(MATCH_TABLE, DataTable)
         table.cursor_type = "row"
         table.zebra_stripes = True
         table.add_columns(
@@ -300,8 +307,8 @@ class BloombergTUI(App):
             "EDGE", "SPREAD (ML/Mkt)", "TOTALS (ML/Mkt)", "KELLY",
         )
 
-        self.query_one("#scan-progress").display = False
-        self.query_one("#thinking-indicator").display = False
+        self.query_one(SCAN_PROGRESS).display = False
+        self.query_one(THINKING_INDICATOR).display = False
 
         # Ticker & summary
         self._update_ticker()
@@ -361,13 +368,13 @@ class BloombergTUI(App):
             cal = "CALIBRATED" if ece < 0.03 else "UNCALIBRATED"
             bankroll = self.db.get_bankroll()
             strategy = STRATEGY_PRESETS.get(self._strategy, {}).get("label", "Balanced")
-            self.query_one("#global-ticker", Static).update(
+            self.query_one(GLOBAL_TICKER, Static).update(
                 f" [SYSTEM ONLINE] | MODEL: {best} {acc:.1f}% ACC (ECE {ece:.4f} {cal}) "
                 f"| BANKROLL: EUR {bankroll:,.0f} | STRATEGY: {strategy} "
             )
         else:
             bankroll = self.db.get_bankroll()
-            self.query_one("#global-ticker", Static).update(
+            self.query_one(GLOBAL_TICKER, Static).update(
                 f" [SYSTEM ONLINE] | MODEL: XGBoost | BANKROLL: EUR {bankroll:,.0f} "
                 f"| Press S to scan "
             )
@@ -399,7 +406,7 @@ class BloombergTUI(App):
     # ==============================================================
 
     def _start_thinking(self) -> None:
-        indicator = self.query_one("#thinking-indicator", Static)
+        indicator = self.query_one(THINKING_INDICATOR, Static)
         indicator.display = True
         self._thinking_dots = 0
         self._update_thinking_dots()
@@ -408,14 +415,14 @@ class BloombergTUI(App):
     def _update_thinking_dots(self) -> None:
         self._thinking_dots = (self._thinking_dots % 3) + 1
         dots = "." * self._thinking_dots + " " * (3 - self._thinking_dots)
-        indicator = self.query_one("#thinking-indicator", Static)
+        indicator = self.query_one(THINKING_INDICATOR, Static)
         indicator.update(f"[bold #FFD700]  Sandro is thinking{dots}[/]")
 
     def _stop_thinking(self) -> None:
         if self._thinking_timer:
             self._thinking_timer.stop()
             self._thinking_timer = None
-        indicator = self.query_one("#thinking-indicator", Static)
+        indicator = self.query_one(THINKING_INDICATOR, Static)
         indicator.display = False
 
     # ==============================================================
@@ -425,7 +432,7 @@ class BloombergTUI(App):
     def _start_typing_effect(self, text: str) -> None:
         self._typing_buffer = text
         self._typing_pos = 0
-        indicator = self.query_one("#thinking-indicator", Static)
+        indicator = self.query_one(THINKING_INDICATOR, Static)
         indicator.display = True
         indicator.update("")
         self._typing_timer = self.set_interval(0.015, self._typing_tick)
@@ -435,7 +442,7 @@ class BloombergTUI(App):
             if self._typing_timer:
                 self._typing_timer.stop()
                 self._typing_timer = None
-            indicator = self.query_one("#thinking-indicator", Static)
+            indicator = self.query_one(THINKING_INDICATOR, Static)
             indicator.display = False
             self.log_msg(self._typing_buffer, "agent")
             return
@@ -443,7 +450,7 @@ class BloombergTUI(App):
         chunk_size = 6
         self._typing_pos = min(self._typing_pos + chunk_size, len(self._typing_buffer))
         partial = self._typing_buffer[:self._typing_pos]
-        indicator = self.query_one("#thinking-indicator", Static)
+        indicator = self.query_one(THINKING_INDICATOR, Static)
         indicator.update(f"[#00FF00]Sandro: {partial}[/]")
 
     # ==============================================================
@@ -455,7 +462,7 @@ class BloombergTUI(App):
         self._scan_pulse_timer = self.set_interval(0.6, self._pulse_tick)
 
     def _pulse_tick(self) -> None:
-        ticker = self.query_one("#global-ticker", Static)
+        ticker = self.query_one(GLOBAL_TICKER, Static)
         self._scan_pulse_on = not self._scan_pulse_on
         if self._scan_pulse_on:
             ticker.add_class("scanning")
@@ -466,7 +473,7 @@ class BloombergTUI(App):
         if self._scan_pulse_timer:
             self._scan_pulse_timer.stop()
             self._scan_pulse_timer = None
-        ticker = self.query_one("#global-ticker", Static)
+        ticker = self.query_one(GLOBAL_TICKER, Static)
         ticker.remove_class("scanning")
 
     # ==============================================================
@@ -484,10 +491,10 @@ class BloombergTUI(App):
 
     def action_scan_markets(self) -> None:
         self.log_msg("Initiating market scan...", "system")
-        self.query_one("#global-ticker", Static).update(
+        self.query_one(GLOBAL_TICKER, Static).update(
             " [SCANNING] | Fetching live data from Bookmakers... "
         )
-        pb = self.query_one("#scan-progress", ProgressBar)
+        pb = self.query_one(SCAN_PROGRESS, ProgressBar)
         pb.display = True
         pb.update(progress=0)
         self._start_scan_pulse()
@@ -497,7 +504,7 @@ class BloombergTUI(App):
     def run_background_scan(self):
         try:
             env = {**os.environ, "PYTHONUTF8": "1"}
-            run_opts = dict(check=True, cwd=PROJECT_ROOT, env=env)
+            run_opts = {"check": True, "cwd": PROJECT_ROOT, "env": env}
             subprocess.run([sys.executable, "-X", "utf8", "-m", "src.data.scraper"], **run_opts)
             self.call_from_thread(self._update_progress, 45)
             subprocess.run([sys.executable, "-X", "utf8", "-m", "src.live.inference"], **run_opts)
@@ -507,11 +514,11 @@ class BloombergTUI(App):
             self.call_from_thread(self.on_scan_complete, False, str(e))
 
     def _update_progress(self, value: int) -> None:
-        self.query_one("#scan-progress", ProgressBar).update(progress=value)
+        self.query_one(SCAN_PROGRESS, ProgressBar).update(progress=value)
 
     def on_scan_complete(self, success: bool, error: str = "") -> None:
         self._stop_scan_pulse()
-        pb = self.query_one("#scan-progress", ProgressBar)
+        pb = self.query_one(SCAN_PROGRESS, ProgressBar)
         pb.update(progress=100)
         pb.display = False
         if success:
@@ -533,7 +540,7 @@ class BloombergTUI(App):
         else:
             self.audio.play_sfx("error")
             self.log_msg(f"Scan failed: {error}", "error")
-            self.query_one("#global-ticker", Static).update(
+            self.query_one(GLOBAL_TICKER, Static).update(
                 " [SYSTEM ONLINE] | ERROR SCANNING MARKETS "
             )
 
@@ -594,7 +601,7 @@ class BloombergTUI(App):
                 min_edge = float(edge_text) / 100.0
             else:
                 min_edge = strategy["min_edge"] if self._strategy != "custom" else 0.0
-        except (ValueError, Exception):
+        except Exception:
             min_edge = strategy["min_edge"] if self._strategy != "custom" else 0.0
 
         if min_edge > 0:
@@ -631,7 +638,7 @@ class BloombergTUI(App):
         self._update_summary_bar()
 
     def _populate_table(self, preds: list) -> None:
-        table = self.query_one("#match-table", DataTable)
+        table = self.query_one(MATCH_TABLE, DataTable)
         table.clear()
 
         strategy = self._get_strategy()
@@ -670,7 +677,7 @@ class BloombergTUI(App):
                 n_src = len(sources) if isinstance(sources, list) else 0
                 news_markup = f"[dim]0pp ({n_src}src)[/]"
             else:
-                news_markup = "[dim]--[/]"
+                news_markup = CELL_EMPTY
 
             # Edge
             edge_str = f"P{side} {edge*100:+.1f}%"
@@ -722,7 +729,7 @@ class BloombergTUI(App):
                 else:
                     kelly_markup = f"[cyan]EUR {stake:.0f} ({kelly_pct:.0f}%)[/]"
             else:
-                kelly_markup = "[dim]--[/]"
+                kelly_markup = CELL_EMPTY
 
             # Match name
             name_markup = f"[dim]{match_name}[/]" if low_conf else match_name
@@ -766,7 +773,7 @@ class BloombergTUI(App):
         if event.data_table.id != "match-table":
             return
 
-        table = self.query_one("#match-table", DataTable)
+        table = self.query_one(MATCH_TABLE, DataTable)
         try:
             row_data = table.get_row(event.row_key)
         except Exception:
@@ -985,7 +992,7 @@ class BloombergTUI(App):
         elif streak < 0:
             streak_str = f"[bold red]L{abs(streak)}[/]"
         else:
-            streak_str = "[dim]--[/]"
+            streak_str = CELL_EMPTY
 
         best = stats.get("best_bet")
         worst = stats.get("worst_bet")
@@ -1003,7 +1010,7 @@ class BloombergTUI(App):
                 f"WR {wr:5.1f}%  |  ROI {sr:+6.1f}%  |  P&L EUR {s['profit']:+,.0f}\n"
             )
         if not surf_lines:
-            surf_lines = "  [dim]No data yet[/]\n"
+            surf_lines = DASH_EMPTY
 
         # Edge range section
         edge_lines = ""
@@ -1016,7 +1023,7 @@ class BloombergTUI(App):
                     f"WR {wr:5.1f}%  |  ROI {er:+6.1f}%  |  P&L EUR {e['profit']:+,.0f}\n"
                 )
         if not edge_lines:
-            edge_lines = "  [dim]No data yet[/]\n"
+            edge_lines = DASH_EMPTY
 
         # Monthly section
         monthly_lines = ""
@@ -1031,7 +1038,7 @@ class BloombergTUI(App):
                     f"[{pnl_color}]P&L EUR {m['profit']:+,.0f}[/]\n"
                 )
         if not monthly_lines:
-            monthly_lines = "  [dim]No data yet[/]\n"
+            monthly_lines = DASH_EMPTY
 
         scan_count = self.db.get_scan_count()
         decision_count = self.db.get_decision_count()
@@ -1179,7 +1186,7 @@ class BloombergTUI(App):
     @work(exclusive=True, thread=True)
     def run_background_backtest(self):
         self.call_from_thread(self.log_msg, "Running backtest (non-blocking)...", "system")
-        pb = self.query_one("#scan-progress", ProgressBar)
+        pb = self.query_one(SCAN_PROGRESS, ProgressBar)
         self.call_from_thread(setattr, pb, "display", True)
         try:
             env = {**os.environ, "PYTHONUTF8": "1"}

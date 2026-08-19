@@ -10,7 +10,8 @@ features_path = 'G:/tennis betting/data/features/atp_features.csv'
 df = pd.read_csv(features_path, low_memory=False)
 
 # Prepare data (this includes randomization)
-X_train, y_train, _X_val, _y_val, X_test, y_test, scaler, feature_names, _medians = prepare_training_data(df, config)
+(X_train, _P_train, y_train, _X_val, _P_val, _y_val, X_test, _P_test, y_test,
+ _scaler, feature_names, _medians, _player_mapping) = prepare_training_data(df, config)
 
 # Load the best model (let's use XGBoost if available, else LR)
 model_path = 'G:/tennis betting/models/atp_xgboost.pkl'
@@ -29,7 +30,7 @@ if certain_mask.any():
     print(f"Found {certain_mask.sum()} matches with >99.9% certainty!")
     
     # Get indices of the most certain matches
-    idx = np.where(certain_mask)[0][:5]
+    idx = np.nonzero(certain_mask)[0][:5]
     
     for i in idx:
         p = probs[i]

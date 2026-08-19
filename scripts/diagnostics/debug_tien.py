@@ -99,7 +99,7 @@ def debug_tien_sinner():
             col_idx = feature_cols.index(f)
             z = X_scaled_fixed[0, col_idx]
             print(f"  {f:<22}: Importance={imp:.4f} | Val={val} | Z={z:.2f}")
-        except:
+        except (ValueError, IndexError):
             print(f"  {f:<22} NOT FOUND")
 
 if __name__ == "__main__":

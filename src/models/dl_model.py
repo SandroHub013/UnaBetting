@@ -52,13 +52,14 @@ def load_and_scale_data():
     df = pd.read_csv(features_path)
     config = load_config()
     
-    X_train_scaled, y_train, _X_val, _y_val, X_test_scaled, y_test, scaler, numeric_cols, _medians = prepare_training_data(df, config)
+    (X_train_scaled, _P_train, y_train, _X_val, _P_val, _y_val, X_test_scaled, _P_test, y_test,
+     _scaler, _numeric_cols, _medians, _player_mapping) = prepare_training_data(df, config)
     
     # Riempi eventuali NaNs rimasti causati da scaling
     X_train_scaled = np.nan_to_num(X_train_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
     X_test_scaled = np.nan_to_num(X_test_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
     
-    return X_train_scaled, y_train.values, X_test_scaled, y_test.values
+    return X_train_scaled, y_train["target"].values, X_test_scaled, y_test["target"].values
 
 def train_dl_model():
     print("🧠 Inizializzando Architettura Deep Learning (PyTorch)...")
@@ -75,7 +76,7 @@ def train_dl_model():
     
     # DataLoader
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
     
     # Inizializza Modello
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -134,7 +135,7 @@ def train_dl_model():
     ll = log_loss(y_test, preds_prob)
     auc = roc_auc_score(y_test, preds_prob)
     
-    print(f"\n📊 Deep Learning Performance:")
+    print("\n📊 Deep Learning Performance:")
     print(f"Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {auc:.4f}")
 
 if __name__ == "__main__":
