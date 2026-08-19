@@ -1,6 +1,6 @@
 # 🎾 UnaBetting — Tennis Analytics & Honest ML
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/code-MIT-green)
 ![Data](https://img.shields.io/badge/data-CC%20BY--NC--SA-orange)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
