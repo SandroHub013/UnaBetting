@@ -52,13 +52,14 @@ def load_and_scale_data():
     df = pd.read_csv(features_path)
     config = load_config()
     
-    X_train_scaled, y_train, _X_val, _y_val, X_test_scaled, y_test, _scaler, _numeric_cols, _medians = prepare_training_data(df, config)
+    (X_train_scaled, _P_train, y_train, _X_val, _P_val, _y_val, X_test_scaled, _P_test, y_test,
+     _scaler, _numeric_cols, _medians, _player_mapping) = prepare_training_data(df, config)
     
     # Riempi eventuali NaNs rimasti causati da scaling
     X_train_scaled = np.nan_to_num(X_train_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
     X_test_scaled = np.nan_to_num(X_test_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
     
-    return X_train_scaled, y_train.values, X_test_scaled, y_test.values
+    return X_train_scaled, y_train["target"].values, X_test_scaled, y_test["target"].values
 
 def train_dl_model():
     print("🧠 Inizializzando Architettura Deep Learning (PyTorch)...")

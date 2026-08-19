@@ -6,11 +6,12 @@ from src.models.train import load_config, prepare_training_data
 
 config = load_config()
 df = pd.read_csv('G:/tennis betting/data/features/atp_features.csv', low_memory=False)
-X_train, y_train, _X_val, _y_val, X_test, y_test, _, feature_names, _medians = prepare_training_data(df, config)
+(X_train, _P_train, y_train, _X_val, _P_val, _y_val, X_test, _P_test, y_test,
+ _scaler, feature_names, _medians, _player_mapping) = prepare_training_data(df, config)
 
 print(f"Testing {len(feature_names)} features individually...\n")
 print("Target distribution (y_test):")
-print(y_test.value_counts(normalize=True))
+print(y_test["target"].value_counts(normalize=True))
 
 results = []
 for feat in feature_names:
@@ -22,8 +23,8 @@ for feat in feature_names:
     # Check mean - it should be near zero for 'diff_' features if randomization worked
     f_mean = X_f_test[feat].mean()
     
-    model.fit(X_f_train, y_train)
-    acc = accuracy_score(y_test, model.predict(X_f_test))
+    model.fit(X_f_train, y_train["target"])
+    acc = accuracy_score(y_test["target"], model.predict(X_f_test))
     results.append((feat, acc, f_mean))
 
 results.sort(key=lambda x: x[1], reverse=True)

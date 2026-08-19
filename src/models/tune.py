@@ -26,7 +26,8 @@ def load_data():
     config = load_config()
 
     # New signature: train, val, test
-    X_train, y_train_all, X_val, y_val_all, _X_test, _y_test_all, _scaler, _numeric_cols, _medians = prepare_training_data(df, config)
+    (X_train, _P_train, y_train_all, X_val, _P_val, y_val_all, _X_test, _P_test, _y_test_all,
+     _scaler, _numeric_cols, _medians, _player_mapping) = prepare_training_data(df, config)
 
     y_train = y_train_all["target"]
     y_val = y_val_all["target"]

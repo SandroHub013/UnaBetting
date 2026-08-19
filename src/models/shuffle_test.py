@@ -30,16 +30,17 @@ def run_shuffle_test():
     df['target'] = np.random.choice([0, 1], size=len(df))
     
     # Prepare data
-    X_train, y_train, _X_val, _y_val, X_test, y_test, scaler, feature_names, _medians = prepare_training_data(df, config)
+    (X_train, _P_train, y_train, _X_val, _P_val, _y_val, X_test, _P_test, y_test,
+     _scaler, feature_names, _medians, _player_mapping) = prepare_training_data(df, config)
     
     # Train XGBoost
     print("\n🚀 Training model on GARBAGE data...")
     model = xgb.XGBClassifier(n_estimators=100, max_depth=6, random_state=42, eval_metric="logloss")
-    model.fit(X_train, y_train)
+    model.fit(X_train, y_train["target"])
     
     # Evaluate
     y_pred = model.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
+    acc = accuracy_score(y_test["target"], y_pred)
     
     print(f"\n📊 RESULT:")
     print(f"   Accuracy on SHUFFLED data: {acc:.4f}")
