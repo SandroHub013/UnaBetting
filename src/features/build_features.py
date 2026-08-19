@@ -42,7 +42,7 @@ def build_all_features(tour="atp"):
     input_path = PROJECT_ROOT / config["paths"]["processed_data"] / f"{tour}_unified.csv"
     if not input_path.exists():
         print(f"  ✗ Dataset non trovato: {input_path}")
-        print(f"  → Esegui prima: python -m src.data.clean")
+        print("  → Esegui prima: python -m src.data.clean")
         return pd.DataFrame()
 
     print("\n1. Caricamento dataset unificato...")
@@ -258,7 +258,7 @@ def _add_contextual_features(df):
                 if pd.api.types.is_numeric_dtype(df[c]) and pd.api.types.is_numeric_dtype(df[l_col]):
                     df[diff_col] = df[c] - df[l_col]
 
-    print(f"  ✓ Feature contestuali aggiunte (+ totals combinatorie + diffs automatiche)")
+    print("  ✓ Feature contestuali aggiunte (+ totals combinatorie + diffs automatiche)")
     return df
 
 
@@ -353,7 +353,7 @@ def _add_weather_features(df):
     df['precipitation'] = df['precipitation'].fillna(0.0)
     df['wind_speed'] = df['wind_speed'].fillna(10.0)
     
-    print(f"  ✓ Feature Ambientali SOTA integrate")
+    print("  ✓ Feature Ambientali SOTA integrate")
     return df
 
 def _prepare_feature_matrix(df):

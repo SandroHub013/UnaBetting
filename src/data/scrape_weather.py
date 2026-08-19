@@ -61,7 +61,7 @@ def geocode_tournaments(df, top_n=200):
             else:
                 # Se fallisce, usiamo una città fittizia (media globale) o skippiamo
                 location_dict[t] = (None, None)
-        except Exception as e:
+        except Exception:
             location_dict[t] = (None, None)
             
     return location_dict

@@ -220,7 +220,7 @@ class AudioEngine:
         text = re.sub(r'\[/?[a-zA-Z0-9 #_\-\.]+\]', '', text)
         # Star ratings
         text = re.sub(r'[★⭐]+', lambda m: f"{len(m.group())} stelle", text)
-        text = re.sub(r'[☆]', '', text)
+        text = re.sub('☆', '', text)
         # Emoji (broad Unicode ranges)
         text = re.sub(r'[\U0001F300-\U0001F9FF\U00002600-\U000027BF\U0001FA00-\U0001FA6F]', '', text)
         # Markdown formatting

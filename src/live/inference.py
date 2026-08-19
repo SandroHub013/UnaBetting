@@ -330,7 +330,7 @@ def run_inference():
                     'clutch_tb_win_pct': cr.get('clutch_tb_win_pct', 0.5),
                 }
 
-    config, elo_engine, stats_engine, models, scaler, feature_cols, medians = load_resources()
+    _config, elo_engine, stats_engine, models, scaler, feature_cols, medians = load_resources()
     
     predictions = []
     
@@ -426,7 +426,6 @@ def run_inference():
 
         # Match context
         input_data["best_of_5"] = 1 if tourney_level == 'G' else 0
-        round_map = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7, "RR": 4}
         # Default to R32 (ordinal 3) since we don't know the exact round from odds API
         input_data["round_ordinal"] = 3
 
@@ -645,7 +644,7 @@ def run_inference():
         print(f"  [Agent] WARNING: Agentic research failed: {e}")
 
     if not news_applied:
-        print(f"  [Agent] No adjustments applied — trying passive news fallback...")
+        print("  [Agent] No adjustments applied — trying passive news fallback...")
         try:
             from src.live.news_adjustment import run_news_adjustment
             predictions = run_news_adjustment(predictions)

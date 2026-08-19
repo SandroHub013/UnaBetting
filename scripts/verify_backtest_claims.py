@@ -78,7 +78,7 @@ MIN_EDGE = 0.03
 bet_w = (edge_w > MIN_EDGE) & (edge_w > edge_l)
 bet_l = (edge_l > MIN_EDGE) & (edge_l > edge_w) & ~bet_w
 n_w, n_l = int(bet_w.sum()), int(bet_l.sum())
-print(f"\n[3] backtest bet decomposition:")
+print("\n[3] backtest bet decomposition:")
 print(f"    bets on p1 (auto-WIN):  {n_w}")
 print(f"    bets on p2 (auto-LOSE): {n_l}")
 if n_w + n_l:

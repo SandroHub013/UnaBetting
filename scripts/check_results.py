@@ -11,7 +11,6 @@ import csv
 import json
 import re
 import sqlite3
-import sys
 import unicodedata
 import urllib.request
 from datetime import datetime, timedelta
@@ -56,7 +55,7 @@ def main():
 
     if not DB.exists():
         print("no betanalytix.db")
-        return 0
+        return
     conn = sqlite3.connect(f"file:{DB.as_posix()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     since = (datetime.now() - timedelta(days=args.days)).isoformat()
@@ -67,7 +66,7 @@ def main():
     conn.close()
     if not decisions:
         print("no recent decisions to check")
-        return 0
+        return
 
     # already-checked decision ids (idempotent)
     seen = set()
@@ -96,7 +95,7 @@ def main():
             continue
         h = last_name(ev.get("homeTeam", {}).get("name", ""))
         a = last_name(ev.get("awayTeam", {}).get("name", ""))
-        w = ev.get("winnerCode")  # 1 = home, 2 = away
+        w = ev.get("winnerCode")  # sofascore: home is 1, away is 2
         if h and a and w in (1, 2):
             finished[frozenset((h, a))] = (h if w == 1 else a)
 
@@ -141,8 +140,8 @@ def main():
         acc_news = sum(int(r.get("news_correct", 0)) for r in allr) / tot * 100 if tot else 0
         print(f"storico feedback: {tot} match — ML {acc:.1f}% | ML+news {acc_news:.1f}%"
               f" (riferimento test offline: 66.3%)")
-    return 0
+    return
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

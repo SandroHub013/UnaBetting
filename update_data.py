@@ -106,7 +106,9 @@ def update_odds(config):
                         
                         new_size = len(resp.content)
                         delta = new_size - old_size
-                        delta_str = f" (+{delta:,} bytes)" if delta > 0 else f" ({delta:,} bytes)" if delta < 0 else ""
+                        delta_str = ""
+                        if delta:
+                            delta_str = f" ({delta:+,} bytes)"
                         print(f"  ✓ {tour_prefix.upper()} {year}: {new_size:,} bytes{delta_str}")
                         break
                 except requests.RequestException:
@@ -114,7 +116,7 @@ def update_odds(config):
             time.sleep(0.3)
 
 
-def rebuild_pipeline(config, retrain=False):
+def rebuild_pipeline(retrain=False):
     """Rebuild the data pipeline: clean → features → (optional) train."""
     print("\n" + "=" * 60)
     print("🔧 REBUILD PIPELINE")
@@ -172,7 +174,7 @@ def check_data_freshness(config):
         
         if isinstance(days_old, int) and days_old > 14:
             print(f"\n  ⚠ ATTENZIONE: dati vecchi di {days_old} giorni!")
-            print(f"  → Esegui: python update_data.py --retrain")
+            print("  → Esegui: python update_data.py --retrain")
     else:
         print("  ✗ Dataset unificato non trovato")
 
@@ -205,7 +207,7 @@ if __name__ == "__main__":
         update_odds(config)
     
     if not args.skip_rebuild:
-        rebuild_pipeline(config, retrain=args.retrain)
+        rebuild_pipeline(retrain=args.retrain)
     
     check_data_freshness(config)
     

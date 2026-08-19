@@ -126,6 +126,7 @@ def _call_llm_for_adjustments(context: str) -> list[dict]:
     ]
 
     ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     import time as _time
     import re as _re
 
@@ -229,7 +230,6 @@ def _apply_adjustments(predictions: list, adjustments: list) -> list:
 
         # Apply symmetrically
         new_p1 = p["prob_1"] + effective_adj
-        new_p2 = 1.0 - new_p1
 
         # Clamp
         new_p1 = max(MIN_PROB, min(MAX_PROB, new_p1))

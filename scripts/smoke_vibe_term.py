@@ -2,11 +2,19 @@
 import asyncio
 import json
 import re
-import subprocess
 
 import websockets
 
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[()][0-9A-B]")
+
+
+async def wsl(cmd):
+    """Run a bash command inside WSL without blocking the event loop."""
+    proc = await asyncio.create_subprocess_exec(
+        "wsl.exe", "-e", "bash", "-lc", cmd,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    return stdout.decode(errors="replace"), stderr.decode(errors="replace")
 
 
 async def main():
@@ -27,15 +35,13 @@ async def main():
     print("tail:", repr(clean[-300:]))
 
     # tmux session must exist (and survive the closed websocket)
-    r = subprocess.run(["wsl.exe", "-e", "bash", "-lc", "tmux ls"],
-                       capture_output=True, text=True, timeout=30)
-    print("tmux ls ->", r.stdout.strip() or r.stderr.strip())
-    ok = "vibe-codex" in r.stdout
+    stdout, stderr = await wsl("tmux ls")
+    print("tmux ls ->", stdout.strip() or stderr.strip())
+    ok = "vibe-codex" in stdout
     print("session vibe-codex:", "OK" if ok else "MISSING")
 
     # cleanup: kill the test session so no agent is left running
-    subprocess.run(["wsl.exe", "-e", "bash", "-lc", "tmux kill-session -t vibe-codex"],
-                   capture_output=True, text=True, timeout=30)
+    await wsl("tmux kill-session -t vibe-codex")
     raise SystemExit(0 if (ok and len(out) > 0) else 1)
 
 asyncio.run(main())

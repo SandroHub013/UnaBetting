@@ -160,6 +160,7 @@ button { cursor: pointer; background: transparent; border: none; }
   display: flex; align-items: center; gap: 8px; padding: 0 12px;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-dim);
   border-right: 1px solid var(--line); white-space: nowrap;
+  transition: background 0.15s ease;
 }
 .tab:hover { background: var(--surface); }
 .tab.active { background: var(--bg); color: var(--ink); border-top: 2px solid var(--accent-2); }
@@ -293,6 +294,7 @@ td.dim { color: var(--ink-faint); }
   background: var(--term-bg); color: var(--term-fg); font-family: var(--font-mono);
   font-size: 12px; padding: 12px; height: calc(100% - 60px); overflow-y: auto;
   border: 2px solid var(--ink); white-space: pre-wrap; word-break: break-all;
+  user-select: text; /* selezione testo permessa nell'output pipeline */
 }
 
 /* editor */
@@ -370,6 +372,7 @@ td.dim { color: var(--ink-faint); }
   max-width: 72%; padding: 10px 14px; font-size: 13.5px; line-height: 1.5;
   white-space: pre-wrap; word-break: break-word;
   border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+  animation: msgIn 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 .chat-msg.me { align-self: flex-end; background: var(--ink); color: var(--bg); }
 .chat-msg.bot { align-self: flex-start; background: var(--surface); }
@@ -505,8 +508,6 @@ td.dim { color: var(--ink-faint); }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.err { border-left-color: var(--warning); }
 
-/* selezione testo permessa nell'output pipeline */
-.cli-box { user-select: text; }
 
 /* theme selector */
 .theme-sel {
@@ -531,10 +532,8 @@ td.dim { color: var(--ink-faint); }
 .blk-row .blk:nth-child(1) { animation-delay: 0.05s; } .blk-row .blk:nth-child(2) { animation-delay: 0.1s; }
 .blk-row .blk:nth-child(3) { animation-delay: 0.15s; } .blk-row .blk:nth-child(4) { animation-delay: 0.2s; }
 .blk-row .blk:nth-child(5) { animation-delay: 0.25s; } .blk-row .blk:nth-child(6) { animation-delay: 0.3s; }
-.chat-msg { animation: msgIn 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .sb-item, .sb-cmd { transition: transform 0.1s ease, background 0.12s ease; }
 .sb-item:active, .sb-cmd:active, .btn:active, .row-act:active { transform: scale(0.97); }
-.tab { transition: background 0.15s ease; }
 
 .typing { display: inline-flex; gap: 4px; align-items: center; }
 .typing span {

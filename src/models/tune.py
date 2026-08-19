@@ -26,7 +26,8 @@ def load_data():
     config = load_config()
 
     # New signature: train, val, test
-    X_train, y_train_all, X_val, y_val_all, X_test, y_test_all, scaler, numeric_cols, medians = prepare_training_data(df, config)
+    (X_train, _P_train, y_train_all, X_val, _P_val, y_val_all, _X_test, _P_test, _y_test_all,
+     _scaler, _numeric_cols, _medians, _player_mapping) = prepare_training_data(df, config)
 
     y_train = y_train_all["target"]
     y_val = y_val_all["target"]
@@ -98,7 +99,7 @@ def tune_models():
     print("[TUNE] Avviando Hyperparameter Tuning con Optuna...")
     X_train, y_train, X_val, y_val = load_data()
     print(f"Dati caricati. Train shape: {X_train.shape}, Val shape: {X_val.shape}")
-    print(f"[TUNE] NOTA: Test set NON usato durante il tuning (anti data-leakage)")
+    print("[TUNE] NOTA: Test set NON usato durante il tuning (anti data-leakage)")
 
     # Ottimizzazione LightGBM
     print("\n[TUNE] Tuning LightGBM...")

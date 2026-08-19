@@ -214,7 +214,7 @@ const I18N = {
   },
 };
 let LANG = localStorage.getItem('mc-lang') || 'en';
-const t = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
+const t = (k) => I18N[LANG]?.[k] || I18N.en[k] || k;
 
 const $ = (s) => document.querySelector(s);
 const escHtml = SafeHtml.escape;
@@ -231,10 +231,20 @@ const textEl = (tag, cls, text) => {
 };
 const fmt = (v, d = 2) => (v === null || v === undefined) ? '—' : Number(v).toFixed(d);
 
+// Charts live on canvases that get replaced on every pane render; keep the
+// instance so the previous one is destroyed instead of leaking in Chart's registry.
+const BET_STATUS_CLASS = { won: 'pos', lost: 'neg' };
+const CHARTS = {};
+const mkChart = (sel, cfg) => {
+  if (CHARTS[sel]) CHARTS[sel].destroy();
+  CHARTS[sel] = new Chart($(sel), cfg);
+  return CHARTS[sel];
+};
+
 async function getJSON(url) {
   const r = await fetch(url);
   const data = await r.json().catch(() => ({}));
-  if (!r.ok || (data && data.error)) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
+  if (!r.ok || data?.error) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
   return data;
 }
 
@@ -372,7 +382,8 @@ function makeTable(container, cols, rows, opts = {}) {
     if (!rows.length) { table.innerHTML = `<tr><td class="dim">${t('nodata')}</td></tr>`; return; }
     const head = '<tr>' + cols.map(c => {
       const sorted = state.sortKey === c.key;
-      const arrow = sorted ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
+      const dirArrow = state.sortDir === 1 ? ' ▲' : ' ▼';
+      const arrow = sorted ? dirArrow : '';
       return `<th data-key="${escHtml(c.key)}" class="${sorted ? 'sorted' : ''}">${escHtml(c.label)}${arrow}</th>`;
     }).join('') + '</tr>';
     const body = data.map(r => '<tr>' + cols.map(c => {
@@ -386,7 +397,7 @@ function makeTable(container, cols, rows, opts = {}) {
 
   table.addEventListener('click', (e) => {
     const th = e.target.closest('th');
-    if (!th || !th.dataset.key) return;
+    if (!th?.dataset.key) return;
     if (state.sortKey === th.dataset.key) state.sortDir *= -1;
     else { state.sortKey = th.dataset.key; state.sortDir = -1; }  // primo click: decrescente
     draw();
@@ -445,7 +456,7 @@ function applyTheme(th) {
     x.term.options.theme = { background: cssVar('--term-bg'), foreground: cssVar('--term-fg'), cursor: cssVar('--highlight') };
   });
   // pannello attivo: ri-renderizza coi colori nuovi
-  if (activeTab && activeTab.startsWith('panel:')) {
+  if (activeTab?.startsWith('panel:')) {
     const name = activeTab.split(':')[1];
     if (PANELS[name]) { closeTab(activeTab); openPanel(name); }
   }
@@ -503,7 +514,7 @@ const PANELS = {
     const bins = [-0.3, -0.2, -0.1, -0.05, 0, 0.05, 0.1, 0.2, 0.3, 0.5];
     const counts = new Array(bins.length - 1).fill(0);
     edges.forEach(e => { for (let i = 0; i < bins.length - 1; i++) if (e >= bins[i] && e < bins[i + 1]) { counts[i]++; break; } });
-    new Chart($('#ch-edge'), {
+    mkChart('#ch-edge', {
       type: 'bar',
       data: { labels: bins.slice(0, -1).map((b, i) => `${b}–${bins[i + 1]}`),
               datasets: [{ data: counts, backgroundColor: bins.slice(0, -1).map(b => b >= 0 ? GRASS : CLAY), borderColor: INK, borderWidth: 1.5 }] },
@@ -527,12 +538,12 @@ const PANELS = {
         const best1 = Math.max(...dd.rows.map(r => r.price_1 || 0));
         const best2 = Math.max(...dd.rows.map(r => r.price_2 || 0));
         row.querySelector('.t-o').textContent = `${best1.toFixed(2)} / ${best2.toFixed(2)}`;
-      } catch (e) { row.querySelector('.t-o').textContent = '—'; }
+      } catch { row.querySelector('.t-o').textContent = '—'; }  // no odds for this match
     });
 
     // metrics history
     const hist = mo.history || [];
-    new Chart($('#ch-hist'), {
+    mkChart('#ch-hist', {
       type: 'line',
       data: { labels: hist.map(h => String(h.trained_at).slice(5, 16).replace('T', ' ')),
         datasets: [
@@ -547,7 +558,7 @@ const PANELS = {
 
     // per-model accuracy
     const models = Object.entries(c.models || {}).filter(([k]) => k.startsWith('target_'));
-    new Chart($('#ch-models'), {
+    mkChart('#ch-models', {
       type: 'bar',
       data: { labels: models.map(([k]) => k.replace('target_', '')),
               datasets: [{ data: models.map(([, v]) => v.accuracy * 100), backgroundColor: models.map(([k]) => k === c.best_model ? SUN : INK), borderColor: INK, borderWidth: 1.5 }] },
@@ -571,8 +582,11 @@ const PANELS = {
       sortKey: 'timestamp', sortDir: -1,
       controls: [makeCheck(t('f_edgepos'), r => r.edge > 0),
                  makeCheck(t('f_lowconf'), r => !r.low_confidence)],
-      cellClass: (k, r) => k === 'edge' ? (r.edge > 0 ? 'pos' : 'neg')
-                         : k === 'low_confidence' ? (r.low_confidence ? 'neg' : 'dim') : '',
+      cellClass: (k, r) => {
+        if (k === 'edge') return r.edge > 0 ? 'pos' : 'neg';
+        if (k === 'low_confidence') return r.low_confidence ? 'neg' : 'dim';
+        return '';
+      },
     });
   }},
   bet: { title: 'Bet', render: async (pane) => {
@@ -608,7 +622,7 @@ const PANELS = {
       </div>
       <div class="tbl-host"></div></div>`;
 
-    new Chart($('#ch-bank'), {
+    mkChart('#ch-bank', {
       type: 'line',
       data: { labels: bank.map(b => dt(b.resolved_at)),
         datasets: [{ label: 'bankroll €', data: bank.map(b => b.bankroll_after),
@@ -648,8 +662,11 @@ const PANELS = {
       sortKey: 'timestamp', sortDir: -1,
       controls: [makeSelect([['', t('allstatus')], ['pending', t('st_pending')], ['won', t('st_won')], ['lost', t('st_lost')]],
                             v => r => r.status === v)],
-      cellClass: (k, r) => k === 'status' ? (r.status === 'won' ? 'pos' : (r.status === 'lost' ? 'neg' : 'dim'))
-                         : (k === 'profit' && r.profit !== null) ? (r.profit > 0 ? 'pos' : 'neg') : '',
+      cellClass: (k, r) => {
+        if (k === 'status') return BET_STATUS_CLASS[r.status] || 'dim';
+        if (k === 'profit' && r.profit !== null) return r.profit > 0 ? 'pos' : 'neg';
+        return '';
+      },
     });
     host.addEventListener('click', async (e) => {
       const b = e.target.closest('.row-act');
@@ -680,7 +697,10 @@ const PANELS = {
     ], d.rows || [], {
       sortKey: 'clv', sortDir: -1,
       controls: [makeCheck(t('f_clvpos'), r => r.clv !== null && r.clv > 0)],
-      cellClass: (k, r) => k === 'clv' && r.clv !== null ? (r.clv > 0 ? 'pos' : 'neg') : '',
+      cellClass: (k, r) => {
+        if (k !== 'clv' || r.clv === null) return '';
+        return r.clv > 0 ? 'pos' : 'neg';
+      },
     });
   }},
   quote: { title: 'Quote', render: async (pane) => {
@@ -1197,7 +1217,7 @@ function activateTerminal(id) {
 function closeTerminal(id) {
   const t = terms[id];
   if (!t) return;
-  try { t.ws.close(); } catch (e) { /* già chiusa */ }
+  try { t.ws.close(); } catch { /* già chiusa */ }
   t.term.dispose(); t.tab.remove(); t.pane.remove();
   delete terms[id];
   const left = Object.keys(terms);
@@ -1366,12 +1386,11 @@ async function loadChatSettings(pane) {
         const option = document.createElement('option');
         option.value = name;
         const model = models.find(item => item.name === name);
-        option.textContent = model
-          ? `${name} — ${chatFitLabel(model.fit)}${model.recommended ? ' · ' + t('chat_recommended') : ''}`
-          : name;
+        const recommended = model?.recommended ? ' · ' + t('chat_recommended') : '';
+        option.textContent = model ? `${name} — ${chatFitLabel(model.fit)}${recommended}` : name;
         localModel.appendChild(option);
       });
-      localModel.value = selected || (data.recommendation && data.recommendation.model) || names[0];
+      localModel.value = selected || data.recommendation?.model || names[0];
       const hardware = data.hardware;
       const hardwareText = hardware
         ? `${t('chat_hardware')}: ${hardware.gpu_name || 'GPU'} · VRAM ${chatMemory(hardware.total_vram_bytes)} · RAM ${chatMemory(hardware.total_ram_bytes)}`
@@ -1441,7 +1460,7 @@ async function loadChatSettings(pane) {
   };
   form.onsubmit = async event => {
     event.preventDefault();
-    try { await saveSettings(); } catch (_) {}
+    try { await saveSettings(); } catch { /* settings are best-effort here */ }
   };
   testButton.onclick = async () => {
     try {
@@ -1483,7 +1502,7 @@ function openChat() {
 function chatTemplates(data) {
   let html = '';
   const tm = data.get_today_matches;
-  if (tm && tm.matches && tm.matches.length) {
+  if (tm?.matches?.length) {
     html += '<div class="chat-cards">' + tm.matches.slice(0, 10).map(m =>
       `<div class="chat-card"><span class="cc-main">🎾 ${escHtml(m.match)}</span>
        <span class="cc-badge">${escHtml(m.best_quota_p1)} / ${escHtml(m.best_quota_p2)}</span></div>`).join('') + '</div>';
@@ -1495,7 +1514,7 @@ function chatTemplates(data) {
        <span class="cc-badge ${s.edge > 0 ? 'pos' : 'neg'}">edge ${(s.edge * 100).toFixed(1)}%</span></div>`).join('') + '</div>';
   }
   const mm = data.get_model_metrics;
-  if (mm && mm.current) {
+  if (mm?.current) {
     const c = mm.current;
     html += `<div class="chat-kpis">
       <div class="chat-kpi"><div class="k">Accuracy</div><div class="v">${(c.accuracy * 100).toFixed(1)}%</div></div>
@@ -1663,7 +1682,7 @@ function applyLang(lang) {
   // ri-renderizza i pannelli-cockpit aperti (titoli + contenuti localizzati)
   Object.keys(tabs).filter(id => id.startsWith('panel:')).forEach(id => {
     const name = id.split(':')[1];
-    if (PANELS[name]) { const wasActive = activeTab === id; closeTab(id); openPanel(name); if (!wasActive) {} }
+    if (PANELS[name]) { closeTab(id); openPanel(name); }
   });
 }
 
@@ -1671,16 +1690,17 @@ function applyLang(lang) {
 async function checkUpdate(manual = false) {
   let d;
   try { d = await getJSON('/api/update/check'); }
-  catch (e) { if (manual) toast('update check failed: ' + e.message, true); return; }
-  if (!d.available) { if (manual) toast(t('upd_done').includes('✓') ? 'up to date ✓' : 'up to date'); return; }
+  catch (e) { if (manual) { toast('update check failed: ' + e.message, true); } return; }
+  if (!d.available) { if (manual) { toast(t('upd_done').includes('✓') ? 'up to date ✓' : 'up to date'); } return; }
   showUpdateModal(d);
 }
 
 function showUpdateModal(d) {
   if ($('.upd-overlay')) return;
   const ov = el('div', 'upd-overlay');
+  const plural = d.behind > 1 ? 's' : '';
   const meta = d.mode === 'git'
-    ? `${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · +${escHtml(d.behind)} commit${d.behind > 1 ? 's' : ''} · ${escHtml(dt(d.latest_date))}`
+    ? `${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · +${escHtml(d.behind)} commit${plural} · ${escHtml(dt(d.latest_date))}`
     : `v${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · ${escHtml(dt(d.latest_date))}`;
   ov.innerHTML = `<div class="upd-card">
     <h3>↻ ${t('upd_title')}</h3>

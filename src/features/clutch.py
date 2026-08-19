@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import glob
-import yaml
 from tqdm import tqdm
 
 def parse_pbp_match(match_row):
@@ -99,9 +98,6 @@ def parse_pbp_match(match_row):
 
 
 def process_all_pbp(config_path):
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-        
     project_root = Path(config_path).resolve().parent.parent
     pbp_dir = project_root / "data" / "raw" / "sackmann" / "tennis_pointbypoint"
     
@@ -142,8 +138,8 @@ def process_all_pbp(config_path):
                 r2['player_name'] = p2
                 r2['date'] = date
                 records.append(r2)
-            except Exception as e:
-                pass # Skip problematic rows
+            except Exception:
+                pass  # Skip problematic rows
                 
     out_df = pd.DataFrame(records)
     out_df = out_df.sort_values('date').reset_index(drop=True)
