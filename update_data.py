@@ -172,7 +172,7 @@ def check_data_freshness(config):
         
         if isinstance(days_old, int) and days_old > 14:
             print(f"\n  ⚠ ATTENZIONE: dati vecchi di {days_old} giorni!")
-            print(f"  → Esegui: python update_data.py --retrain")
+            print("  → Esegui: python update_data.py --retrain")
     else:
         print("  ✗ Dataset unificato non trovato")
 

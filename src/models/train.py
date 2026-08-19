@@ -606,7 +606,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
     features_path = PROJECT_ROOT / config["paths"]["features"] / f"{tour}_features.csv"
     if not features_path.exists():
         print(f"  [X] Features non trovate: {features_path}")
-        print(f"  --> Esegui prima: python -m src.features.build_features")
+        print("  --> Esegui prima: python -m src.features.build_features")
         return None, None
         
     df = pd.read_csv(features_path, low_memory=False)

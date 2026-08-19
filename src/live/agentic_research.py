@@ -721,7 +721,7 @@ class AgenticResearcher:
                     "content": result[:3000],
                 })
 
-        print(f"  [Agent] Max iterations. Forcing completion...")
+        print("  [Agent] Max iterations. Forcing completion...")
         return self._force_completion(messages)
 
     def _build_initial_context(self, predictions: list) -> str:

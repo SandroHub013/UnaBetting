@@ -379,7 +379,7 @@ class EloRating:
         result = pd.concat([matches_df.reset_index(drop=True), elo_df], axis=1)
 
         print(f"  ✓ ELO calcolato per {len(result):,} partite")
-        print(f"  📊 Top 10 giocatori (ELO globale):")
+        print("  📊 Top 10 giocatori (ELO globale):")
 
         top_players = sorted(
             self.global_ratings.items(),

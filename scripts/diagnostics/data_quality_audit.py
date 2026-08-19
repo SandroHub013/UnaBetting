@@ -26,7 +26,7 @@ def run_audit(tour="atp"):
     
     # Check if for any tournament, a higher round_rank has a lower match_num (potential leak)
     # We'll just check if it's generally sorted
-    print(f"2. Sorting Check: matches are sorted by ['tourney_date', 'match_num'].")
+    print("2. Sorting Check: matches are sorted by ['tourney_date', 'match_num'].")
     
     # 3. Missing Stats Check
     stats_cols = ["w_pct_1st_in_50", "w_pct_1st_won_50", "w_pct_2nd_won_50", "w_ace_rate_50", "w_df_rate_50"]

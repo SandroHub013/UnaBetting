@@ -234,7 +234,7 @@ def download_all():
         print(f"  {status} {name}")
         
     tml_status = "✓" if tml_success else "✗"
-    print(f"\nTML-Database (ATP):")
+    print("\nTML-Database (ATP):")
     print(f"  {tml_status} TML-Database")
 
     print(f"\nQuote tennis-data.co.uk: {odds_downloaded} file scaricati")

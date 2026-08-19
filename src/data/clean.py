@@ -608,7 +608,7 @@ def build_unified_dataset(tour="atp", min_year=2000, save=True):
             if len(gap_odds) > 0:
                 print(f"\n  🔔 Sackmann termina il {sackmann_max_date.strftime('%Y-%m-%d')}, "
                       f"tennis-data ha {len(gap_odds)} match successivi")
-                print(f"  → Integrazione dati recenti da tennis-data.co.uk...")
+                print("  → Integrazione dati recenti da tennis-data.co.uk...")
                 gap_matches = _convert_odds_to_match_format(gap_odds, matches)
                 if not gap_matches.empty:
                     # Clean the gap matches with the same pipeline
@@ -649,7 +649,7 @@ def build_unified_dataset(tour="atp", min_year=2000, save=True):
 
         # Print surface distribution
         if "surface" in unified.columns:
-            print(f"\n  Distribuzione superfici:")
+            print("\n  Distribuzione superfici:")
             for surface, count in unified["surface"].value_counts().items():
                 pct = count / len(unified) * 100
                 print(f"    {surface}: {count:,} ({pct:.1f}%)")

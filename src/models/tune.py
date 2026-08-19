@@ -98,7 +98,7 @@ def tune_models():
     print("[TUNE] Avviando Hyperparameter Tuning con Optuna...")
     X_train, y_train, X_val, y_val = load_data()
     print(f"Dati caricati. Train shape: {X_train.shape}, Val shape: {X_val.shape}")
-    print(f"[TUNE] NOTA: Test set NON usato durante il tuning (anti data-leakage)")
+    print("[TUNE] NOTA: Test set NON usato durante il tuning (anti data-leakage)")
 
     # Ottimizzazione LightGBM
     print("\n[TUNE] Tuning LightGBM...")

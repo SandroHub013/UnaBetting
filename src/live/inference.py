@@ -645,7 +645,7 @@ def run_inference():
         print(f"  [Agent] WARNING: Agentic research failed: {e}")
 
     if not news_applied:
-        print(f"  [Agent] No adjustments applied — trying passive news fallback...")
+        print("  [Agent] No adjustments applied — trying passive news fallback...")
         try:
             from src.live.news_adjustment import run_news_adjustment
             predictions = run_news_adjustment(predictions)

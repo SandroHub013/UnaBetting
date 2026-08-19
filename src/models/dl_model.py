@@ -134,7 +134,7 @@ def train_dl_model():
     ll = log_loss(y_test, preds_prob)
     auc = roc_auc_score(y_test, preds_prob)
     
-    print(f"\n📊 Deep Learning Performance:")
+    print("\n📊 Deep Learning Performance:")
     print(f"Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {auc:.4f}")
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ df = pd.read_csv('G:/tennis betting/data/features/atp_features.csv', low_memory=
 X_train, y_train, _X_val, _y_val, X_test, y_test, _, feature_names, _medians = prepare_training_data(df, config)
 
 print(f"Testing {len(feature_names)} features individually...\n")
-print(f"Target distribution (y_test):")
+print("Target distribution (y_test):")
 print(y_test.value_counts(normalize=True))
 
 results = []
