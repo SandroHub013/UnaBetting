@@ -58,7 +58,7 @@ sent back.
 
 | Tool | Notes |
 |---|---|
-| Python 3.10+ | the pipeline and app both run on it |
+| Python 3.11+ | the pipeline and app both run on it |
 | git | with access to your fork |
 | Windows: WebView2 | ships with modern Windows; the desktop app uses it |
 | Linux/macOS | run the app in `--browser` mode (no WebView2 needed) |
