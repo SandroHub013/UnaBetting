@@ -8,6 +8,8 @@ import urllib.error
 import pandas as pd
 import yaml
 from datetime import datetime
+
+USER_AGENT = 'Mozilla/5.0'
 import dateutil.parser
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,7 +25,7 @@ def fetch_active_tennis_sports(api_key):
     url = f"https://api.the-odds-api.com/v4/sports?apiKey={api_key}&all=true"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
         with urllib.request.urlopen(req, timeout=10) as response:
             sports = json.loads(response.read().decode('utf-8'))
             # Get ALL tennis keys, not just active ones
@@ -54,7 +56,7 @@ def _iter_tennis_events(api_key, regions, markets, bookmakers=None):
         scope = f"bookmakers={bookmakers}" if bookmakers else f"regions={regions}"
         url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds?apiKey={api_key}&{scope}&markets={markets}"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
             with urllib.request.urlopen(req, timeout=15) as response:
                 events = json.loads(response.read().decode('utf-8'))
             for event in events or []:
@@ -169,7 +171,7 @@ def fetch_all_tennis_odds():
         url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds?apiKey={api_key}&{scope}&markets={markets}"
 
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
             with urllib.request.urlopen(req, timeout=15) as response:
                 events = json.loads(response.read().decode('utf-8'))
                 if not events:

@@ -20,6 +20,8 @@ from . import chat, config
 
 router = APIRouter(prefix="/api")
 
+_SIDE_ERROR = "side must be 0, 1, or 2"
+
 MEDIA_TYPES = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
     ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
@@ -244,15 +246,15 @@ def _finite_number(body, name, *, default=None):
 def _bet_side(body):
     value = body.get("side", 0)
     if isinstance(value, bool):
-        raise ValueError("side must be 0, 1, or 2")
+        raise ValueError(_SIDE_ERROR)
     if isinstance(value, int):
         side = value
     elif isinstance(value, str) and value.strip() in {"0", "1", "2"}:
         side = int(value)
     else:
-        raise ValueError("side must be 0, 1, or 2")
+        raise ValueError(_SIDE_ERROR)
     if side not in {0, 1, 2}:
-        raise ValueError("side must be 0, 1, or 2")
+        raise ValueError(_SIDE_ERROR)
     return side
 
 
@@ -817,8 +819,11 @@ def _latest_release():
 def _os_installer_tag():
     """Asset-name infix for this platform's installer (matches release.yml)."""
     import sys as _s
-    return ("windows" if _s.platform.startswith("win")
-            else "macos" if _s.platform == "darwin" else "linux")
+    if _s.platform.startswith("win"):
+        return "windows"
+    if _s.platform == "darwin":
+        return "macos"
+    return "linux"
 
 
 @router.get("/update/check")
@@ -875,6 +880,7 @@ _MAX_BUNDLE_BYTES = 500 * 1024 * 1024
 _PROTECTED_NAMES = ("betanalytix.db", "settings.json")
 _PROTECTED_PREFIXES = ("data/live/",)
 _CONFIG_MEMBER = "config/config.yaml"
+MANIFEST_NAME = "manifest.json"
 _CONFIG_DEFAULTS_SNAPSHOT = "config/.runtime-default.yaml"
 _MISSING = object()
 
@@ -1053,7 +1059,7 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
         raise ValueError("not a valid zip bundle") from None
     with zf:
         try:
-            raw_manifest = zf.read("manifest.json")
+            raw_manifest = zf.read(MANIFEST_NAME)
             manifest = json.loads(raw_manifest)
         except KeyError:
             raise ValueError("bundle has no manifest.json — refusing to extract") from None
@@ -1088,7 +1094,7 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
         # (Windows normalizes backslash/absolute names, which would otherwise trip the
         # manifest-absent check first) and even if it were also listed in the manifest.
         for m in zf.namelist():
-            if m.endswith("/") or m == "manifest.json":
+            if m.endswith("/") or m == MANIFEST_NAME:
                 continue
             if not (root / m).resolve().is_relative_to(root):
                 raise ValueError(f"unsafe path in bundle: {m}")
@@ -1101,7 +1107,7 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
         to_write = []  # validate-all-then-write: (dst, blob)
         config_blob = None
         for m in zf.namelist():
-            if m.endswith("/") or m == "manifest.json":
+            if m.endswith("/") or m == MANIFEST_NAME:
                 continue
             dst = (root / m).resolve()
             if not dst.is_relative_to(root):

@@ -11,6 +11,13 @@ import numpy as np
 import yaml
 from pathlib import Path
 from collections import defaultdict
+
+# tennis-data.co.uk labels, repeated across the series and round maps below
+GRAND_SLAM = "Grand Slam"
+MASTERS_1000 = "Masters 1000"
+FIRST_ROUND = "1st Round"
+SECOND_ROUND = "2nd Round"
+THE_FINAL = "The Final"
 from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -236,20 +243,20 @@ def _convert_odds_to_match_format(gap_df, matches_df):
         return pd.DataFrame()
 
     # Series -> tourney_level
-    series_map = {"Grand Slam": "G", "Masters 1000": "M", "ATP500": "500", "ATP250": "250"}
+    series_map = {GRAND_SLAM: "G", MASTERS_1000: "M", "ATP500": "500", "ATP250": "250"}
 
     # Round mapping (draw-size-aware)
     round_map_gs = {
-        "1st Round": "R128", "2nd Round": "R64", "3rd Round": "R32",
-        "4th Round": "R16", "Quarterfinals": "QF", "Semifinals": "SF", "The Final": "F",
+        FIRST_ROUND: "R128", SECOND_ROUND: "R64", "3rd Round": "R32",
+        "4th Round": "R16", "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
     }
     round_map_m = {
-        "1st Round": "R64", "2nd Round": "R32", "3rd Round": "R16",
-        "Quarterfinals": "QF", "Semifinals": "SF", "The Final": "F",
+        FIRST_ROUND: "R64", SECOND_ROUND: "R32", "3rd Round": "R16",
+        "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
     }
     round_map_other = {
-        "1st Round": "R32", "2nd Round": "R16",
-        "Quarterfinals": "QF", "Semifinals": "SF", "The Final": "F",
+        FIRST_ROUND: "R32", SECOND_ROUND: "R16",
+        "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
     }
 
     rows = []
@@ -270,10 +277,10 @@ def _convert_odds_to_match_format(gap_df, matches_df):
         score = " ".join(score_parts) if score_parts else np.nan
 
         # Round mapping
-        td_round = r.get("Round", "1st Round")
-        if series == "Grand Slam":
+        td_round = r.get("Round", FIRST_ROUND)
+        if series == GRAND_SLAM:
             rnd = round_map_gs.get(td_round, td_round)
-        elif series == "Masters 1000":
+        elif series == MASTERS_1000:
             rnd = round_map_m.get(td_round, td_round)
         else:
             rnd = round_map_other.get(td_round, td_round)
@@ -408,8 +415,8 @@ def clean_sackmann_matches(df):
 
     # Tournament level mapping
     level_map = {
-        "G": "Grand Slam",
-        "M": "Masters 1000",
+        "G": GRAND_SLAM,
+        "M": MASTERS_1000,
         "A": "ATP Tour",
         "D": "Davis Cup",
         "F": "Tour Finals",

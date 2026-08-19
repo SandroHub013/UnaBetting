@@ -40,6 +40,7 @@ Odds: we only consider pinnacle (sharp reference) + williamhill, sport888, marat
 MAX_TOOL_ROUNDS = 4
 CHAT_SETTINGS_KEYS = {"provider", "model", "base_url", "api_key_env"}
 CHAT_PROVIDERS = {"ollama", "openai", "openrouter"}
+JSON_CONTENT_TYPE = "application/json"
 ENV_NAME_RE = re.compile(r"^[A-Za-z_]\w*$", re.ASCII)
 SELF_TEST_TOOL = "get_model_metrics"
 GIB = 1024 ** 3
@@ -405,9 +406,9 @@ def save_chat_settings(value, path=None):
 def _ollama_request(settings, endpoint, payload=None, timeout=30):
     url = f"{settings['base_url']}{endpoint}"
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Accept": "application/json", "User-Agent": "UnaBettingOS"}
+    headers = {"Accept": JSON_CONTENT_TYPE, "User-Agent": "UnaBettingOS"}
     if data is not None:
-        headers["Content-Type"] = "application/json"
+        headers["Content-Type"] = JSON_CONTENT_TYPE
     request = urllib.request.Request(url, data=data, headers=headers)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         result = json.loads(response.read())
@@ -431,9 +432,9 @@ def _openai_compatible_request(settings, payload, timeout=300):
     if not api_key:
         raise ValueError(f"environment variable {api_key_env} is not set")
     headers = {
-        "Accept": "application/json",
+        "Accept": JSON_CONTENT_TYPE,
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
+        "Content-Type": JSON_CONTENT_TYPE,
         "User-Agent": "UnaBettingOS",
     }
     if settings["provider"] == "openrouter":

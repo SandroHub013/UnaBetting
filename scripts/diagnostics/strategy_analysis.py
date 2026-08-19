@@ -570,7 +570,8 @@ for lo, hi in cal_bins:
     pred_avg = sub["model_prob"].mean() * 100
     actual_avg = sub["won"].mean() * 100
     gap = actual_avg - pred_avg
-    cal_status = "OK" if abs(gap) < 3 else ("OVER" if gap > 0 else "UNDER")
+    over_under = "OVER" if gap > 0 else "UNDER"
+    cal_status = "OK" if abs(gap) < 3 else over_under
     print(f"  {f'{lo:.2f}-{hi:.2f}':<18} {len(sub):>6} {pred_avg:>10.1f}% {actual_avg:>8.1f}% {gap:>+6.1f}% {cal_status:>12}")
 print(f"  {'-'*70}")
 

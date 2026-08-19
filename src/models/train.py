@@ -60,10 +60,11 @@ class PreFittedEnsemble:
 # Alias the running module under the canonical name so the class object is
 # identical on both save (training) and load (inference).
 import sys as _sys
-PreFittedEnsemble.__module__ = "src.models.train"
-_canon = _sys.modules.get("src.models.train")
+_MODULE_NAME = "src.models.train"
+PreFittedEnsemble.__module__ = _MODULE_NAME
+_canon = _sys.modules.get(_MODULE_NAME)
 if _canon is None:
-    _sys.modules["src.models.train"] = _sys.modules[__name__]
+    _sys.modules[_MODULE_NAME] = _sys.modules[__name__]
 elif _canon is not _sys.modules[__name__]:
     _canon.PreFittedEnsemble = PreFittedEnsemble
 

@@ -35,6 +35,8 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+JSON_CONTENT_TYPE = "application/json"
+
 log = logging.getLogger("agentic")
 
 load_dotenv()
@@ -168,7 +170,7 @@ class AgentTools:
         url = "https://api.search.brave.com/res/v1/news/search"
         params = {"q": query, "count": max_results + 5, "freshness": "pw"}
         headers = {
-            "Accept": "application/json",
+            "Accept": JSON_CONTENT_TYPE,
             "Accept-Encoding": "gzip",
             "X-Subscription-Token": self._brave_key,
         }
@@ -249,7 +251,7 @@ class AgentTools:
         url = "https://api.search.brave.com/res/v1/web/search"
         params = {"q": query, "count": max_results}
         headers = {
-            "Accept": "application/json",
+            "Accept": JSON_CONTENT_TYPE,
             "Accept-Encoding": "gzip",
             "X-Subscription-Token": self._brave_key,
         }
@@ -759,7 +761,7 @@ class AgenticResearcher:
         data = json.dumps(payload).encode("utf-8")
         headers = {
             "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
+            "Content-Type": JSON_CONTENT_TYPE,
             "X-Title": "Tennis Pro Terminal - Agentic Research",
         }
         ctx = ssl.create_default_context()

@@ -233,6 +233,7 @@ const fmt = (v, d = 2) => (v === null || v === undefined) ? '—' : Number(v).to
 
 // Charts live on canvases that get replaced on every pane render; keep the
 // instance so the previous one is destroyed instead of leaking in Chart's registry.
+const BET_STATUS_CLASS = { won: 'pos', lost: 'neg' };
 const CHARTS = {};
 const mkChart = (sel, cfg) => {
   if (CHARTS[sel]) CHARTS[sel].destroy();
@@ -381,7 +382,8 @@ function makeTable(container, cols, rows, opts = {}) {
     if (!rows.length) { table.innerHTML = `<tr><td class="dim">${t('nodata')}</td></tr>`; return; }
     const head = '<tr>' + cols.map(c => {
       const sorted = state.sortKey === c.key;
-      const arrow = sorted ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
+      const dirArrow = state.sortDir === 1 ? ' ▲' : ' ▼';
+      const arrow = sorted ? dirArrow : '';
       return `<th data-key="${escHtml(c.key)}" class="${sorted ? 'sorted' : ''}">${escHtml(c.label)}${arrow}</th>`;
     }).join('') + '</tr>';
     const body = data.map(r => '<tr>' + cols.map(c => {
@@ -580,8 +582,11 @@ const PANELS = {
       sortKey: 'timestamp', sortDir: -1,
       controls: [makeCheck(t('f_edgepos'), r => r.edge > 0),
                  makeCheck(t('f_lowconf'), r => !r.low_confidence)],
-      cellClass: (k, r) => k === 'edge' ? (r.edge > 0 ? 'pos' : 'neg')
-                         : k === 'low_confidence' ? (r.low_confidence ? 'neg' : 'dim') : '',
+      cellClass: (k, r) => {
+        if (k === 'edge') return r.edge > 0 ? 'pos' : 'neg';
+        if (k === 'low_confidence') return r.low_confidence ? 'neg' : 'dim';
+        return '';
+      },
     });
   }},
   bet: { title: 'Bet', render: async (pane) => {
@@ -657,8 +662,11 @@ const PANELS = {
       sortKey: 'timestamp', sortDir: -1,
       controls: [makeSelect([['', t('allstatus')], ['pending', t('st_pending')], ['won', t('st_won')], ['lost', t('st_lost')]],
                             v => r => r.status === v)],
-      cellClass: (k, r) => k === 'status' ? (r.status === 'won' ? 'pos' : (r.status === 'lost' ? 'neg' : 'dim'))
-                         : (k === 'profit' && r.profit !== null) ? (r.profit > 0 ? 'pos' : 'neg') : '',
+      cellClass: (k, r) => {
+        if (k === 'status') return BET_STATUS_CLASS[r.status] || 'dim';
+        if (k === 'profit' && r.profit !== null) return r.profit > 0 ? 'pos' : 'neg';
+        return '';
+      },
     });
     host.addEventListener('click', async (e) => {
       const b = e.target.closest('.row-act');
@@ -689,7 +697,10 @@ const PANELS = {
     ], d.rows || [], {
       sortKey: 'clv', sortDir: -1,
       controls: [makeCheck(t('f_clvpos'), r => r.clv !== null && r.clv > 0)],
-      cellClass: (k, r) => k === 'clv' && r.clv !== null ? (r.clv > 0 ? 'pos' : 'neg') : '',
+      cellClass: (k, r) => {
+        if (k !== 'clv' || r.clv === null) return '';
+        return r.clv > 0 ? 'pos' : 'neg';
+      },
     });
   }},
   quote: { title: 'Quote', render: async (pane) => {
@@ -1375,9 +1386,8 @@ async function loadChatSettings(pane) {
         const option = document.createElement('option');
         option.value = name;
         const model = models.find(item => item.name === name);
-        option.textContent = model
-          ? `${name} — ${chatFitLabel(model.fit)}${model.recommended ? ' · ' + t('chat_recommended') : ''}`
-          : name;
+        const recommended = model?.recommended ? ' · ' + t('chat_recommended') : '';
+        option.textContent = model ? `${name} — ${chatFitLabel(model.fit)}${recommended}` : name;
         localModel.appendChild(option);
       });
       localModel.value = selected || data.recommendation?.model || names[0];
@@ -1688,8 +1698,9 @@ async function checkUpdate(manual = false) {
 function showUpdateModal(d) {
   if ($('.upd-overlay')) return;
   const ov = el('div', 'upd-overlay');
+  const plural = d.behind > 1 ? 's' : '';
   const meta = d.mode === 'git'
-    ? `${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · +${escHtml(d.behind)} commit${d.behind > 1 ? 's' : ''} · ${escHtml(dt(d.latest_date))}`
+    ? `${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · +${escHtml(d.behind)} commit${plural} · ${escHtml(dt(d.latest_date))}`
     : `v${escHtml(d.current)} → <b>${escHtml(d.latest)}</b> · ${escHtml(dt(d.latest_date))}`;
   ov.innerHTML = `<div class="upd-card">
     <h3>↻ ${t('upd_title')}</h3>

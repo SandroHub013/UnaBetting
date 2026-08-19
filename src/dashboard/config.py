@@ -19,10 +19,11 @@ WINDOW_TITLE = "UnaBetting"
 DB_PATH = DATA_ROOT / "data" / "betanalytix.db"
 ODDS_HISTORY = DATA_ROOT / "data" / "live" / "odds_history.csv"
 SIGNALS_LOG = DATA_ROOT / "data" / "live" / "signals_log.csv"
+CONFIG_NAME = "config.yaml"
 # Prefer a user-updated config in DATA_ROOT; fall back to the bundled default.
-CONFIG_YAML = (DATA_ROOT / "config" / "config.yaml")
-if not CONFIG_YAML.exists() and (BUNDLE_DIR / "config" / "config.yaml").exists():
-    CONFIG_YAML = BUNDLE_DIR / "config" / "config.yaml"
+CONFIG_YAML = (DATA_ROOT / "config" / CONFIG_NAME)
+if not CONFIG_YAML.exists() and (BUNDLE_DIR / "config" / CONFIG_NAME).exists():
+    CONFIG_YAML = BUNDLE_DIR / "config" / CONFIG_NAME
 # Static UI assets are read-only and always shipped with the code.
 STATIC_DIR = (BUNDLE_DIR / "src" / "dashboard" / "static")
 if not STATIC_DIR.exists():

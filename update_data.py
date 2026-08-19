@@ -106,7 +106,9 @@ def update_odds(config):
                         
                         new_size = len(resp.content)
                         delta = new_size - old_size
-                        delta_str = f" (+{delta:,} bytes)" if delta > 0 else f" ({delta:,} bytes)" if delta < 0 else ""
+                        delta_str = ""
+                        if delta:
+                            delta_str = f" ({delta:+,} bytes)"
                         print(f"  ✓ {tour_prefix.upper()} {year}: {new_size:,} bytes{delta_str}")
                         break
                 except requests.RequestException:
