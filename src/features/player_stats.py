@@ -13,8 +13,8 @@ def _num(v):
     (NaN is truthy in Python), so the old `m.get(k, 0) or 0` pattern let a SINGLE
     stat-less match in a rolling window poison the whole sum -> the entire _50
     serve/return aggregate became NaN. With ~6% of matches lacking serve stats,
-    a 50-match window hit a NaN ~95% of the time. `v != v` is True only for NaN."""
-    return 0 if v is None or v != v else v
+    a 50-match window hit a NaN ~95% of the time. `pd.isna` covers None, NaN and NaT."""
+    return 0 if pd.isna(v) else v
 
 
 class PlayerStatsEngine:

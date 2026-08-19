@@ -126,6 +126,7 @@ def _call_llm_for_adjustments(context: str) -> list[dict]:
     ]
 
     ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     import time as _time
     import re as _re
 

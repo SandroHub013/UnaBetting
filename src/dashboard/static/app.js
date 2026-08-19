@@ -231,6 +231,15 @@ const textEl = (tag, cls, text) => {
 };
 const fmt = (v, d = 2) => (v === null || v === undefined) ? '—' : Number(v).toFixed(d);
 
+// Charts live on canvases that get replaced on every pane render; keep the
+// instance so the previous one is destroyed instead of leaking in Chart's registry.
+const CHARTS = {};
+const mkChart = (sel, cfg) => {
+  if (CHARTS[sel]) CHARTS[sel].destroy();
+  CHARTS[sel] = new Chart($(sel), cfg);
+  return CHARTS[sel];
+};
+
 async function getJSON(url) {
   const r = await fetch(url);
   const data = await r.json().catch(() => ({}));
@@ -503,7 +512,7 @@ const PANELS = {
     const bins = [-0.3, -0.2, -0.1, -0.05, 0, 0.05, 0.1, 0.2, 0.3, 0.5];
     const counts = new Array(bins.length - 1).fill(0);
     edges.forEach(e => { for (let i = 0; i < bins.length - 1; i++) if (e >= bins[i] && e < bins[i + 1]) { counts[i]++; break; } });
-    new Chart($('#ch-edge'), {
+    mkChart('#ch-edge', {
       type: 'bar',
       data: { labels: bins.slice(0, -1).map((b, i) => `${b}–${bins[i + 1]}`),
               datasets: [{ data: counts, backgroundColor: bins.slice(0, -1).map(b => b >= 0 ? GRASS : CLAY), borderColor: INK, borderWidth: 1.5 }] },
@@ -532,7 +541,7 @@ const PANELS = {
 
     // metrics history
     const hist = mo.history || [];
-    new Chart($('#ch-hist'), {
+    mkChart('#ch-hist', {
       type: 'line',
       data: { labels: hist.map(h => String(h.trained_at).slice(5, 16).replace('T', ' ')),
         datasets: [
@@ -547,7 +556,7 @@ const PANELS = {
 
     // per-model accuracy
     const models = Object.entries(c.models || {}).filter(([k]) => k.startsWith('target_'));
-    new Chart($('#ch-models'), {
+    mkChart('#ch-models', {
       type: 'bar',
       data: { labels: models.map(([k]) => k.replace('target_', '')),
               datasets: [{ data: models.map(([, v]) => v.accuracy * 100), backgroundColor: models.map(([k]) => k === c.best_model ? SUN : INK), borderColor: INK, borderWidth: 1.5 }] },
@@ -608,7 +617,7 @@ const PANELS = {
       </div>
       <div class="tbl-host"></div></div>`;
 
-    new Chart($('#ch-bank'), {
+    mkChart('#ch-bank', {
       type: 'line',
       data: { labels: bank.map(b => dt(b.resolved_at)),
         datasets: [{ label: 'bankroll €', data: bank.map(b => b.bankroll_after),

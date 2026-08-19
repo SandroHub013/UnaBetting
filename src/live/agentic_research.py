@@ -763,6 +763,7 @@ class AgenticResearcher:
             "X-Title": "Tennis Pro Terminal - Agentic Research",
         }
         ctx = ssl.create_default_context()
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
         self._last_error = None  # surface to run_agentic_research for failure reason
         for attempt in range(3):

@@ -147,8 +147,8 @@ def compute_clv(signals_df, odds_history_df):
                     close_fair_odds = 1.0 / fp
                     clv = s["odds"] / close_fair_odds - 1.0
         r = s.to_dict()
-        r["closing_fair_odds"] = round(close_fair_odds, 3) if close_fair_odds == close_fair_odds else None
-        r["clv"] = round(clv, 4) if clv == clv else None
+        r["closing_fair_odds"] = round(close_fair_odds, 3) if pd.notna(close_fair_odds) else None
+        r["clv"] = round(clv, 4) if pd.notna(clv) else None
         rows.append(r)
     return pd.DataFrame(rows)
 
