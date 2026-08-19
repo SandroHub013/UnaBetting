@@ -188,7 +188,7 @@ def fetch_all_tennis_odds():
                             dt = dateutil.parser.isoparse(commence_time)
                             time_display = dt.strftime("%H:%M")
                             commence_iso = dt.strftime("%Y-%m-%dT%H:%M:%S")
-                        except:
+                        except (ValueError, TypeError):
                             time_display = "Upcoming"
                             commence_iso = ""
 

@@ -75,7 +75,7 @@ def train_dl_model():
     
     # DataLoader
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
     
     # Inizializza Modello
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

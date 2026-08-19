@@ -41,7 +41,7 @@ def run_feature_selection(tour="atp", top_k=70):
     
     # 2. Train Random Forest for importance
     print("2. Calcolo importanza via Random Forest (300 alberi)...")
-    rf = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1)
+    rf = RandomForestClassifier(n_estimators=300, min_samples_leaf=1, max_features="sqrt", random_state=42, n_jobs=-1)
     rf.fit(X_train, y_train)
     
     # 3. Rank features

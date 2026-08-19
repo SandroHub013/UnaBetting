@@ -438,10 +438,10 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
     if is_regression:
         from sklearn.ensemble import RandomForestRegressor
         print(f"\n  [>] Random Forest Regressor for {target_col} ({segment})...")
-        rf = RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
+        rf = RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_leaf=20, max_features=1.0, random_state=42, n_jobs=-1)
     else:
         print(f"\n  [>] Random Forest Classifier for {target_col} ({segment})...")
-        rf = RandomForestClassifier(n_estimators=300, max_depth=10, min_samples_leaf=20, random_state=42, n_jobs=-1)
+        rf = RandomForestClassifier(n_estimators=300, max_depth=10, min_samples_leaf=20, max_features="sqrt", random_state=42, n_jobs=-1)
 
     if len(X_train) > 0:
         rf.fit(X_train, y_train)
@@ -526,8 +526,8 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
         train_dataset = TennisDataset(P_train['p1_id'], P_train['p2_id'], X_train, y_train)
         val_dataset = TennisDataset(P_val['p1_id'], P_val['p2_id'], X_val, y_val)
         
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
+        val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=0)
         
         num_players = len(player_mapping) + 1
         emb_dim = 32
@@ -542,7 +542,7 @@ def _train_segment(target_col, segment, config, is_regression, X_train, y_train,
         if len(X_test) > 0:
             nn_model.eval()
             test_dataset = TennisDataset(P_test['p1_id'], P_test['p2_id'], X_test, y_test)
-            test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
+            test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=0)
             
             y_prob_pt = []
             with torch.no_grad():
@@ -657,7 +657,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
         if m_te.sum() > 0:
             best_model_key = f"{target_col}_{segment}_ensemble"
             if best_model_key in seg_models:
-                m_te_idx = np.where(m_te)[0]
+                m_te_idx = np.nonzero(m_te)[0]
                 if is_regression:
                     preds = seg_models[best_model_key].predict(X_test[m_te])
                     y_test_pred_combined[m_te_idx] = preds

@@ -789,7 +789,7 @@ class AgenticResearcher:
                 log.error("llm_http_final code=%s body=%s", e.code, body[:150])
                 self._last_error = f"http_{e.code}"
                 return None
-            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            except OSError as e:
                 if attempt < 2:
                     log.warning("llm_network attempt=%d err=%r", attempt + 1, e)
                     time.sleep(3)

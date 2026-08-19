@@ -277,7 +277,7 @@ async def place_bet(request: Request):
             raise ValueError("odds must be greater than 1 and stake must be positive")
         if not 0 <= model_prob <= 1:
             raise ValueError("model_prob must be between 0 and 1")
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
+    except (TypeError, ValueError) as e:
         return _err(400, "bad_request", e)
     db = _portfolio()
     try:
@@ -301,7 +301,7 @@ async def resolve_bet(bet_id: str, request: Request):
         if not isinstance(body, dict) or type(body.get("won")) is not bool:
             raise ValueError("won must be a JSON boolean")
         won = body["won"]
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
+    except (TypeError, ValueError) as e:
         return _err(400, "bad_request", e)
     db = _portfolio()
     try:
@@ -1241,7 +1241,7 @@ async def put_chat_config(request: Request):
     try:
         body = await request.json()
         return chat.save_chat_settings(body)
-    except (ValueError, json.JSONDecodeError) as e:
+    except ValueError as e:
         return _err(400, "invalid_chat_config", e)
     except OSError as e:
         return _err(500, "chat_config_write_error", e)
@@ -1263,7 +1263,7 @@ def get_chat_models(
             total_ram_bytes=int(ram_gb * chat.GIB) if ram_gb is not None else None,
             total_vram_bytes=int(vram_gb * chat.GIB) if vram_gb is not None else None,
         )
-    except (OSError, ValueError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         return _chat_unavailable(e)
 
 
@@ -1271,5 +1271,5 @@ def get_chat_models(
 def test_chat_model():
     try:
         return chat.run_chat_self_test()
-    except (OSError, ValueError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         return _chat_unavailable(e)

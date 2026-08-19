@@ -376,7 +376,7 @@ def load_chat_settings(path=None):
     try:
         value = json.loads(settings_path.read_text(encoding="utf-8"))
         return validate_chat_settings(value)
-    except (OSError, json.JSONDecodeError, ValueError):
+    except (OSError, ValueError):
         logger.warning(
             "Invalid chat settings at %s; using defaults", settings_path, exc_info=True)
         return validate_chat_settings(default_chat_settings())
@@ -539,7 +539,7 @@ def _detect_nvidia_vram():
             check=False,
             **kwargs,
         )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode != 0:
         return None
@@ -879,7 +879,7 @@ async def ws_chat(ws: WebSocket):
                                     result = await tool["fn"](**kwargs)
                                 else:
                                     result = await loop.run_in_executor(
-                                        None, lambda: tool["fn"](**args))
+                                        None, lambda fn=tool["fn"], kw=args: fn(**kw))
                             except Exception as e:
                                 result = {"error": str(e)}
                         await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "done"}))

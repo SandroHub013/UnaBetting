@@ -209,7 +209,7 @@ class AgentLLM:
                 try:
                     with open(predictions_path, "r") as f:
                         predictions = json.load(f)
-                except (json.JSONDecodeError, ValueError):
+                except ValueError:
                     predictions = []
 
             # Build user message based on query type

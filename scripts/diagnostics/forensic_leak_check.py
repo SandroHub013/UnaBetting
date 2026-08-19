@@ -29,7 +29,7 @@ if certain_mask.any():
     print(f"Found {certain_mask.sum()} matches with >99.9% certainty!")
     
     # Get indices of the most certain matches
-    idx = np.where(certain_mask)[0][:5]
+    idx = np.nonzero(certain_mask)[0][:5]
     
     for i in idx:
         p = probs[i]

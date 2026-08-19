@@ -45,13 +45,13 @@ class _NullAudio:
     last_response = ""
 
     def play_music(self):
-        pass
+        pass  # no audio backend: stay silent
 
     def play_sfx(self, name):
-        pass
+        pass  # no audio backend: stay silent
 
     def speak(self, text):
-        pass
+        pass  # no audio backend: stay silent
 
 
 def calc_kelly(prob: float, odds: float) -> float:
@@ -594,7 +594,7 @@ class BloombergTUI(App):
                 min_edge = float(edge_text) / 100.0
             else:
                 min_edge = strategy["min_edge"] if self._strategy != "custom" else 0.0
-        except (ValueError, Exception):
+        except Exception:
             min_edge = strategy["min_edge"] if self._strategy != "custom" else 0.0
 
         if min_edge > 0:
