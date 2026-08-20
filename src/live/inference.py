@@ -203,75 +203,507 @@ def _json_float(value, default=0.0):
         return default
 
 
-def build_scan_summary(predictions, generated_at=None, top_n=5):
-    """Build a compact live-scan summary for agents and UI surfaces."""
-    generated_at = generated_at or datetime.now(timezone.utc)
-    generated_at_iso = generated_at.isoformat().replace("+00:00", "Z")
+def _value_player(pred, value_side):
+    """Name of the side the model likes, if it picked one."""
+    forensics = pred.get("forensics") or {}
+    if value_side == 1:
+        return str(forensics.get("p1_name") or "")
+    if value_side == 2:
+        return str(forensics.get("p2_name") or "")
+    return ""
 
-    surface_counts = {}
-    confidence_flags = {}
-    positive_edges = 0
-    low_confidence = 0
-    news_adjusted = 0
-    coverage_total = 0.0
-    coverage_points = 0
-    ranked = []
 
-    for pred in predictions:
+class _ScanTally:
+    """Running counts over a scan, plus the ranked row for each prediction."""
+
+    def __init__(self):
+        self.surface_counts = {}
+        self.confidence_flags = {}
+        self.positive_edges = 0
+        self.low_confidence = 0
+        self.news_adjusted = 0
+        self._coverage_total = 0.0
+        self._coverage_points = 0
+
+    def add(self, pred):
         surface = str(pred.get("surface") or "Unknown")
-        surface_counts[surface] = surface_counts.get(surface, 0) + 1
+        self.surface_counts[surface] = self.surface_counts.get(surface, 0) + 1
 
         flag = pred.get("confidence_flag")
         if flag:
-            confidence_flags[flag] = confidence_flags.get(flag, 0) + 1
-
+            self.confidence_flags[flag] = self.confidence_flags.get(flag, 0) + 1
         if pred.get("low_confidence"):
-            low_confidence += 1
+            self.low_confidence += 1
 
         adjustment = pred.get("news_adjustment")
         if isinstance(adjustment, dict) and adjustment.get("applied"):
-            news_adjusted += 1
+            self.news_adjusted += 1
 
         for key in ("coverage_p1", "coverage_p2"):
             if key in pred:
-                coverage_total += _json_float(pred.get(key))
-                coverage_points += 1
+                self._coverage_total += _json_float(pred.get(key))
+                self._coverage_points += 1
 
         edge = _json_float(pred.get("edge"))
         if edge > 0:
-            positive_edges += 1
+            self.positive_edges += 1
 
-        forensics = pred.get("forensics") or {}
         value_side = int(_json_float(pred.get("value_side"), 0))
-        value_player = ""
-        if value_side == 1:
-            value_player = str(forensics.get("p1_name") or "")
-        elif value_side == 2:
-            value_player = str(forensics.get("p2_name") or "")
-
-        ranked.append({
+        return {
             "match": str(pred.get("match") or ""),
             "commence_time": str(pred.get("commence_time") or ""),
             "surface": surface,
             "edge": round(edge, 4),
             "value_side": value_side,
-            "value_player": value_player,
+            "value_player": _value_player(pred, value_side),
             "confidence_flag": flag,
-        })
+        }
 
+    def average_coverage(self):
+        if not self._coverage_points:
+            return 0.0
+        return round(self._coverage_total / self._coverage_points, 3)
+
+
+def build_scan_summary(predictions, generated_at=None, top_n=5):
+    """Build a compact live-scan summary for agents and UI surfaces."""
+    generated_at = generated_at or datetime.now(timezone.utc)
+    generated_at_iso = generated_at.isoformat().replace("+00:00", "Z")
+
+    tally = _ScanTally()
+    ranked = [tally.add(pred) for pred in predictions]
     ranked.sort(key=lambda item: item["edge"], reverse=True)
 
     return {
         "generated_at": generated_at_iso,
         "match_count": len(predictions),
-        "positive_edge_count": positive_edges,
-        "low_confidence_count": low_confidence,
-        "news_adjusted_count": news_adjusted,
-        "average_coverage": round(coverage_total / coverage_points, 3) if coverage_points else 0.0,
-        "surface_counts": dict(sorted(surface_counts.items())),
-        "confidence_flags": dict(sorted(confidence_flags.items())),
+        "positive_edge_count": tally.positive_edges,
+        "low_confidence_count": tally.low_confidence,
+        "news_adjusted_count": tally.news_adjusted,
+        "average_coverage": tally.average_coverage(),
+        "surface_counts": dict(sorted(tally.surface_counts.items())),
+        "confidence_flags": dict(sorted(tally.confidence_flags.items())),
         "top_edges": ranked[:top_n],
     }
+
+
+#: rolling windows the totals sums are built over
+_ROLL_WINDOWS = (10, 20, 50)
+_TOTALS_SUMS = ("ace_rate", "bp_save_pct", "avg_total_games", "hold_pct",
+                "tiebreak_rate", "deciding_set_pct")
+_CLUTCH_KEYS = ("clutch_bp_saved_pct", "clutch_bp_converted_pct",
+                "clutch_deuce_win_pct", "clutch_tb_win_pct")
+_LEVEL_KEYS = ("level_G", "level_M", "level_A", "level_C",
+               "level_S", "level_F", "level_D")
+
+#: layoffs beyond this many days sit outside the range the model was trained on
+CAP_DAYS = 90
+#: below this share of known features, shrink the model's confidence toward 0.5
+COVERAGE_THRESHOLD = 0.5
+
+
+def _load_history():
+    """Name->id and id->latest rank lookups, plus the newest match date on file."""
+    unified_path = PROJECT_ROOT / "data" / "processed" / "atp_unified.csv"
+    df_hist = pd.read_csv(unified_path, usecols=[
+        'winner_id', 'winner_name', 'loser_id', 'loser_name',
+        'winner_rank', 'loser_rank', 'tourney_date'])
+    df_hist['tourney_date'] = pd.to_datetime(df_hist['tourney_date'], errors='coerce')
+    last_db_date = df_hist['tourney_date'].max()
+    print(f"  [ML] Last DB match: "
+          f"{last_db_date.strftime('%Y-%m-%d') if not pd.isna(last_db_date) else 'N/A'}")
+
+    name_to_id = {}
+    for _, row in df_hist.drop_duplicates('winner_name').iterrows():
+        name_to_id[row['winner_name'].lower()] = str(row['winner_id'])
+    for _, row in df_hist.drop_duplicates('loser_name').iterrows():
+        name_to_id[row['loser_name'].lower()] = str(row['loser_id'])
+
+    id_to_rank = {}
+    for _, r in df_hist.sort_values('tourney_date').iterrows():
+        if pd.notna(r.get('winner_rank')):
+            id_to_rank[str(r['winner_id'])] = float(r['winner_rank'])
+        if pd.notna(r.get('loser_rank')):
+            id_to_rank[str(r['loser_id'])] = float(r['loser_rank'])
+
+    return name_to_id, id_to_rank, last_db_date
+
+
+def _load_clutch_lookup():
+    """Latest clutch stats per player, empty when the file has not been built."""
+    clutch_path = PROJECT_ROOT / "data" / "processed" / "player_clutch_stats.csv"
+    lookup = {}
+    if not clutch_path.exists():
+        return lookup
+    clutch_df = pd.read_csv(clutch_path)
+    clutch_df['date'] = pd.to_datetime(clutch_df['date'], errors='coerce')
+    for _, cr in clutch_df.sort_values('date').iterrows():
+        pid = str(cr.get('player_id', ''))
+        if pid:
+            lookup[pid] = {
+                'clutch_bp_saved_pct': cr.get('clutch_bp_saved_pct', 0.6),
+                'clutch_bp_converted_pct': cr.get('clutch_bp_converted_pct', 0.4),
+                'clutch_deuce_win_pct': cr.get('clutch_deuce_win_pct', 0.5),
+                'clutch_tb_win_pct': cr.get('clutch_tb_win_pct', 0.5),
+            }
+    return lookup
+
+
+def _coverage(feats):
+    """Share of a player's features that are known and non-zero."""
+    if not feats:
+        return 0.0
+    vals = [v for v in feats.values() if v is not None]
+    if not vals:
+        return 0.0
+    return sum(1 for v in vals if v != 0) / max(len(vals), 1)
+
+
+def _effective_match_date(last_db_date):
+    """A stale database would otherwise read as weeks of rust for everyone."""
+    real_now = pd.Timestamp.now()
+    if not pd.isna(last_db_date) and (real_now - last_db_date).days > 30:
+        return last_db_date + pd.Timedelta(days=3)
+    return real_now
+
+
+def _player_features_block(p1_feats, p2_feats):
+    block = {}
+    for k, v in p1_feats.items():
+        block[f"w_{k}"] = v
+    for k, v in p2_feats.items():
+        block[f"l_{k}"] = v
+    for k in p1_feats:
+        if k in p2_feats:
+            block[f"diff_{k}"] = (p1_feats[k] or 0) - (p2_feats[k] or 0)
+    return block
+
+
+def _elo_values(elo_engine, p1_id, p2_id, surface):
+    """(global, surface) ELO for both players, defaulting to the initial rating."""
+    initial = elo_engine.initial_rating
+    w_elo = w_s_elo = l_elo = l_s_elo = initial
+    if p1_id:
+        w_elo = elo_engine.global_ratings.get(p1_id, initial)
+        w_s_elo = elo_engine.get_combined_rating(p1_id, surface)
+    if p2_id:
+        l_elo = elo_engine.global_ratings.get(p2_id, initial)
+        l_s_elo = elo_engine.get_combined_rating(p2_id, surface)
+    return w_elo, l_elo, w_s_elo, l_s_elo
+
+
+def _market_block(o1, o2):
+    margin = (1.0 / o1) + (1.0 / o2)
+    w_implied = (1.0 / o1) / margin
+    l_implied = (1.0 / o2) / margin
+    return {"w_implied_prob": w_implied, "l_implied_prob": l_implied,
+            "diff_implied_prob": w_implied - l_implied}
+
+
+def _context_block(tourney_name, tourney_level, surface, p1_rank, p2_rank):
+    block = {"cpi": map_cpi(tourney_name, surface)}
+    level_key = f"level_{tourney_level}"
+    for l_key in _LEVEL_KEYS:
+        block[l_key] = 1 if l_key == level_key else 0
+    block["rank_diff"] = p2_rank - p1_rank  # positive = P1 ranked higher
+    block["rank_ratio"] = p2_rank / max(p1_rank, 1)
+    block["best_of_5"] = 1 if tourney_level == 'G' else 0
+    # the odds API does not tell us the round; R32 is the median draw position
+    block["round_ordinal"] = 3
+    return block
+
+
+def _add_totals_sums(input_data):
+    for w in _ROLL_WINDOWS:
+        for stat in _TOTALS_SUMS:
+            w_val = input_data.get(f"w_{stat}_{w}", 0) or 0
+            l_val = input_data.get(f"l_{stat}_{w}", 0) or 0
+            input_data[f"sum_{stat}_{w}"] = w_val + l_val
+            if stat == "avg_total_games":
+                input_data[f"min_{stat}_{w}"] = min(w_val, l_val) if (w_val and l_val) else 0
+
+
+def _clutch_block(clutch_lookup, p1_id, p2_id, medians):
+    p1_clutch = clutch_lookup.get(p1_id, {}) if p1_id else {}
+    p2_clutch = clutch_lookup.get(p2_id, {}) if p2_id else {}
+    block = {}
+    for ckey in _CLUTCH_KEYS:
+        block[f"w_{ckey}"] = p1_clutch.get(ckey, medians.get(f"w_{ckey}", 0.5))
+        block[f"l_{ckey}"] = p2_clutch.get(ckey, medians.get(f"l_{ckey}", 0.5))
+    return block
+
+
+def _fill_missing(X, feature_cols, medians):
+    """Training medians first, then sane per-family fallbacks."""
+    for col in feature_cols:
+        if col in X.columns and not pd.isna(X.at[0, col]):
+            continue
+        if col in medians:
+            X.at[0, col] = medians[col]
+        elif any(x in col.lower() for x in ["pct", "win_rate", "win_prob", "prob_"]):
+            X.at[0, col] = 0.5
+        elif "days_since_last" in col.lower():
+            X.at[0, col] = 7
+        else:
+            X.at[0, col] = 0
+
+
+def _neutralise_staleness(X):
+    """Cap the layoff columns and recompute their diff from the capped values.
+
+    Capping preserves a genuine inactivity signal while keeping the model inside
+    the range it saw in training. The raw values are read first so a 400-day
+    absence can still be flagged instead of looking like a 90-day one.
+    """
+    w_col, l_col, d_col = "w_days_since_last", "l_days_since_last", "diff_days_since_last"
+    raw_w = float(X.at[0, w_col]) if w_col in X.columns else 0.0
+    raw_l = float(X.at[0, l_col]) if l_col in X.columns else 0.0
+    if w_col in X.columns:
+        X.at[0, w_col] = min(raw_w, CAP_DAYS)
+    if l_col in X.columns:
+        X.at[0, l_col] = min(raw_l, CAP_DAYS)
+    if d_col in X.columns and w_col in X.columns and l_col in X.columns:
+        X.at[0, d_col] = float(X.at[0, w_col]) - float(X.at[0, l_col])
+    return max(raw_w, raw_l) > CAP_DAYS
+
+
+def _align_columns(X, feature_cols, medians, scaler):
+    """Reindex to the scaler's fit order — the order every model expects.
+
+    The model bundle's feature_cols may be stored in a different order, which
+    trips scaler.transform's feature-name check.
+    """
+    for col in feature_cols:
+        if col in X.columns and pd.isna(X.at[0, col]):
+            X.at[0, col] = medians.get(col, 0)
+    order = list(getattr(scaler, "feature_names_in_", feature_cols))
+    X = X.reindex(columns=order)
+    assert list(X.columns) == order, "Inference column order mismatch"
+    if X.isna().any().any():
+        for c in X.columns[X.isna().any()].tolist():
+            X.at[0, c] = medians.get(c, 0)
+    return X
+
+
+def _clamp_for_coverage(prob_1, low_confidence, coverage_p1, coverage_p2, ood_layoff):
+    """Shrink toward 0.5 when a player is barely known; flag a long layoff.
+
+    Without this, default propagation (ELO 1500 plus medians) yields 90/10 on
+    players the engine has never seen.
+    """
+    min_cov = min(coverage_p1, coverage_p2)
+    if low_confidence or min_cov < COVERAGE_THRESHOLD:
+        cov_weight = min(min_cov / COVERAGE_THRESHOLD, 1.0)
+        return 0.5 + (prob_1 - 0.5) * cov_weight, "LOW_COVERAGE"
+    if ood_layoff:
+        # the model was fed the capped value, so warn rather than adjust
+        return prob_1, "OOD_LAYOFF"
+    return prob_1, None
+
+
+def _spread_edge_label(exp_game_diff, spread_line):
+    if spread_line == 0 or exp_game_diff == 0:
+        return None
+    if exp_game_diff > spread_line + 1.0:
+        return "P1"
+    return "P2" if exp_game_diff < spread_line - 1.0 else None
+
+
+def _totals_edge_label(exp_total_games, total_line):
+    if total_line <= 0 or exp_total_games <= 0:
+        return None
+    if exp_total_games > total_line + 0.5:
+        return "OVER"
+    return "UNDER" if exp_total_games < total_line - 0.5 else None
+
+
+def _build_feature_row(ctx):
+    """Every model input for one match, before alignment and scaling."""
+    input_data = _player_features_block(ctx["p1_feats"], ctx["p2_feats"])
+    w_elo, l_elo, w_s_elo, l_s_elo = ctx["elos"]
+    input_data["w_elo"] = w_elo
+    input_data["l_elo"] = l_elo
+    input_data["w_surface_elo"] = w_s_elo
+    input_data["l_surface_elo"] = l_s_elo
+    input_data["elo_win_prob"] = ctx["elo_engine"].expected_score(w_s_elo, l_s_elo)
+    input_data.update(_market_block(ctx["o1"], ctx["o2"]))
+    input_data.update(_context_block(ctx["tourney_name"], ctx["tourney_level"],
+                                     ctx["surface"], ctx["p1_rank"], ctx["p2_rank"]))
+    input_data["abs_elo_prob_diff"] = abs(input_data["elo_win_prob"] - 0.5)
+    input_data["abs_implied_prob_diff"] = abs(input_data["diff_implied_prob"])
+    _add_totals_sums(input_data)
+    input_data.update(_clutch_block(ctx["clutch_lookup"], ctx["p1_id"], ctx["p2_id"],
+                                    ctx["medians"]))
+    return input_data
+
+
+def _forensics(ctx, market, exp_game_diff, exp_total_games, value_side):
+    p1_feats, p2_feats = ctx["p1_feats"], ctx["p2_feats"]
+    w_elo, l_elo, w_s_elo, l_s_elo = ctx["elos"]
+    return {
+        "p1_id": ctx["p1_id"],
+        "p2_id": ctx["p2_id"],
+        "p1_name": ctx["p1_name"],
+        "p2_name": ctx["p2_name"],
+        "value_side": value_side,
+        "surface": ctx["surface"],
+        "tourney_name": ctx["tourney_name"],
+        "tourney_level": ctx["tourney_level"],
+        "p1_rank": int(ctx["p1_rank"]),
+        "p2_rank": int(ctx["p2_rank"]),
+        "exp_game_diff": round(exp_game_diff, 1),
+        "exp_total_games": round(exp_total_games, 1),
+        "market_spread": float(market["spread_line"]) if market["spread_line"] else 0.0,
+        "market_total": float(market["total_line"]) if market["total_line"] else 0.0,
+        "spread_odds_1": float(market["spread_o1"]),
+        "spread_odds_2": float(market["spread_o2"]),
+        "total_over_odds": float(market["total_over"]),
+        "total_under_odds": float(market["total_under"]),
+        "spread_edge": _spread_edge_label(exp_game_diff, market["spread_line"]),
+        "totals_edge": _totals_edge_label(exp_total_games, market["total_line"]),
+        "p1_elo": round(w_elo),
+        "p2_elo": round(l_elo),
+        "p1_surface_elo": round(w_s_elo),
+        "p2_surface_elo": round(l_s_elo),
+        "p1_form": f"{p1_feats.get('win_rate_10', 0):.0%}" if ctx["p1_id"] else "N/A",
+        "p2_form": f"{p2_feats.get('win_rate_10', 0):.0%}" if ctx["p2_id"] else "N/A",
+        "p1_h2h": p1_feats.get('h2h_wins', 0) if ctx["p1_id"] else 0,
+        "p2_h2h": p1_feats.get('h2h_losses', 0) if ctx["p1_id"] else 0,
+    }
+
+
+def _market_lines(row):
+    return {
+        "spread_line": row.get('spread_line', 0),
+        "spread_o1": row.get('spread_odds_1', 1.9),
+        "spread_o2": row.get('spread_odds_2', 1.9),
+        "total_line": row.get('total_line', 0),
+        "total_over": row.get('total_over', 1.9),
+        "total_under": row.get('total_under', 1.9),
+    }
+
+
+def _match_context(row, resources, lookups):
+    """Everything one match needs, or None when neither player can be identified."""
+    players = _players_from_odds_row(row)
+    if not players:
+        return None
+    p1_name, p2_name = players
+    name_to_id, id_to_rank, last_db_date, clutch_lookup = lookups
+    elo_engine, stats_engine, medians = resources
+
+    p1_id = fuzzy_find_player_id(p1_name, name_to_id)
+    p2_id = fuzzy_find_player_id(p2_name, name_to_id)
+    surface, tourney_level, tourney_name = detect_surface_and_level(
+        row['match'], str(row.get('sport_key', '')), str(row.get('sport_title', '')))
+    match_date = _effective_match_date(last_db_date)
+
+    p1_feats = stats_engine.get_player_features(p1_id, surface, p2_id, match_date) if p1_id else {}
+    p2_feats = stats_engine.get_player_features(p2_id, surface, p1_id, match_date) if p2_id else {}
+    return {
+        "p1_name": p1_name, "p2_name": p2_name,
+        "p1_id": p1_id, "p2_id": p2_id,
+        "p1_feats": p1_feats, "p2_feats": p2_feats,
+        "low_confidence": not p1_id or not p2_id or not p1_feats or not p2_feats,
+        "coverage_p1": _coverage(p1_feats) if p1_id else 0.0,
+        "coverage_p2": _coverage(p2_feats) if p2_id else 0.0,
+        "surface": surface, "tourney_level": tourney_level, "tourney_name": tourney_name,
+        "o1": float(row['odds_1']), "o2": float(row['odds_2']),
+        "p1_rank": id_to_rank.get(p1_id, 100) if p1_id else 100,
+        "p2_rank": id_to_rank.get(p2_id, 100) if p2_id else 100,
+        "elo_engine": elo_engine,
+        "elos": _elo_values(elo_engine, p1_id, p2_id, surface),
+        "clutch_lookup": clutch_lookup,
+        "medians": medians,
+    }
+
+
+def _predict_match(row, ctx, models, scaler, feature_cols, medians):
+    """Model output plus market comparison for one match."""
+    X = pd.DataFrame([_build_feature_row(ctx)])
+    _fill_missing(X, feature_cols, medians)
+    ood_layoff = _neutralise_staleness(X)
+    X = _align_columns(X, feature_cols, medians, scaler)
+
+    # cap the scaled vector so an extreme z-score cannot break the trees
+    x_scaled = np.clip(scaler.transform(X), -4, 4)
+
+    prob_1 = float(models['h2h'].predict_proba(x_scaled)[0, 1])
+    prob_1, confidence_flag = _clamp_for_coverage(
+        prob_1, ctx["low_confidence"], ctx["coverage_p1"], ctx["coverage_p2"], ood_layoff)
+    prob_2 = 1.0 - prob_1
+
+    exp_game_diff = float(models['spread'].predict(x_scaled)[0])
+    exp_total_games = float(models['totals'].predict(x_scaled)[0])
+
+    o1, o2 = ctx["o1"], ctx["o2"]
+    edge_1 = (o1 * prob_1) - 1
+    edge_2 = (o2 * prob_2) - 1
+    best_edge, value_side = (edge_1, 1) if edge_1 > edge_2 else (edge_2, 2)
+
+    market = _market_lines(row)
+    return {
+        "match": row['match'],
+        "commence_time": str(row.get('commence_time', '')),
+        "surface": ctx["surface"],
+        "odds_1": float(o1),
+        "odds_2": float(o2),
+        "prob_1": float(prob_1),
+        "prob_2": float(prob_2),
+        "exp_game_diff": float(exp_game_diff),
+        "exp_total_games": float(exp_total_games),
+        "market_spread": float(market["spread_line"]) if market["spread_line"] else 0.0,
+        "market_total": float(market["total_line"]) if market["total_line"] else 0.0,
+        "spread_odds_1": float(market["spread_o1"]),
+        "spread_odds_2": float(market["spread_o2"]),
+        "total_over_odds": float(market["total_over"]),
+        "total_under_odds": float(market["total_under"]),
+        "edge": float(best_edge),
+        "value_side": int(value_side),
+        "low_confidence": bool(ctx["low_confidence"]),
+        "confidence_flag": confidence_flag,
+        "coverage_p1": round(ctx["coverage_p1"], 3),
+        "coverage_p2": round(ctx["coverage_p2"], 3),
+        "forensics": _forensics(ctx, market, exp_game_diff, exp_total_games, value_side),
+    }
+
+
+def _apply_news(predictions):
+    """ReAct agent first; fall back to the passive pipeline if it adjusts nothing."""
+    news_applied = False
+    try:
+        from src.live.agentic_research import run_agentic_research
+        predictions = run_agentic_research(predictions)
+        news_applied = any(p.get("news_adjustment", {}).get("applied") for p in predictions)
+    except Exception as e:
+        print(f"  [Agent] WARNING: Agentic research failed: {e}")
+
+    if not news_applied:
+        print("  [Agent] No adjustments applied — trying passive news fallback...")
+        try:
+            from src.live.news_adjustment import run_news_adjustment
+            predictions = run_news_adjustment(predictions)
+        except Exception as e2:
+            print(f"  [News] WARNING: Fallback news adjustment also skipped: {e2}")
+    return predictions
+
+
+def _persist(predictions):
+    live_dir = PROJECT_ROOT / "data" / "live"
+    with open(live_dir / "predictions.json", "w", encoding="utf-8") as f:
+        json.dump(predictions, f, indent=2,
+                  default=lambda x: float(x) if hasattr(x, 'item') else str(x))
+    with open(live_dir / "scan_summary.json", "w", encoding="utf-8") as f:
+        json.dump(build_scan_summary(predictions), f, indent=2)
+
+    try:
+        from src.betting.portfolio import BetAnalytix
+        db = BetAnalytix()
+        scan_id = db.log_decisions(predictions)
+        db.close()
+        print(f"[DB] Logged {len(predictions)} decisions to BetAnalytix [{scan_id}]")
+    except Exception as e:
+        print(f"[DB] WARNING: BetAnalytix logging failed: {e}")
 
 
 def run_inference():
@@ -287,389 +719,25 @@ def run_inference():
         print("[ML] No matches to analyze.")
         return
 
-    # Load unified data for name mapping + rankings
-    unified_path = PROJECT_ROOT / "data" / "processed" / "atp_unified.csv"
-    df_hist = pd.read_csv(unified_path, usecols=['winner_id', 'winner_name', 'loser_id', 'loser_name', 'winner_rank', 'loser_rank', 'tourney_date'])
-
-    # Detect most recent match date to handle staleness
-    df_hist['tourney_date'] = pd.to_datetime(df_hist['tourney_date'], errors='coerce')
-    last_db_date = df_hist['tourney_date'].max()
-    print(f"  [ML] Last DB match: {last_db_date.strftime('%Y-%m-%d') if not pd.isna(last_db_date) else 'N/A'}")
-    name_to_id = {}
-    for _, row in df_hist.drop_duplicates('winner_name').iterrows():
-        name_to_id[row['winner_name'].lower()] = str(row['winner_id'])
-    for _, row in df_hist.drop_duplicates('loser_name').iterrows():
-        name_to_id[row['loser_name'].lower()] = str(row['loser_id'])
-
-    # Build latest-known ranking lookup (most recent match per player)
-    id_to_rank = {}
-    df_hist_sorted = df_hist.sort_values('tourney_date')
-    for _, r in df_hist_sorted.iterrows():
-        wid = str(r['winner_id'])
-        lid = str(r['loser_id'])
-        if pd.notna(r.get('winner_rank')):
-            id_to_rank[wid] = float(r['winner_rank'])
-        if pd.notna(r.get('loser_rank')):
-            id_to_rank[lid] = float(r['loser_rank'])
-
-    # Load clutch stats if available
-    clutch_path = PROJECT_ROOT / "data" / "processed" / "player_clutch_stats.csv"
-    clutch_lookup = {}
-    if clutch_path.exists():
-        clutch_df = pd.read_csv(clutch_path)
-        clutch_df['date'] = pd.to_datetime(clutch_df['date'], errors='coerce')
-        clutch_df = clutch_df.sort_values('date')
-        # Keep latest clutch stats per player
-        for _, cr in clutch_df.iterrows():
-            pid = str(cr.get('player_id', ''))
-            if pid:
-                clutch_lookup[pid] = {
-                    'clutch_bp_saved_pct': cr.get('clutch_bp_saved_pct', 0.6),
-                    'clutch_bp_converted_pct': cr.get('clutch_bp_converted_pct', 0.4),
-                    'clutch_deuce_win_pct': cr.get('clutch_deuce_win_pct', 0.5),
-                    'clutch_tb_win_pct': cr.get('clutch_tb_win_pct', 0.5),
-                }
-
+    name_to_id, id_to_rank, last_db_date = _load_history()
+    clutch_lookup = _load_clutch_lookup()
     _config, elo_engine, stats_engine, models, scaler, feature_cols, medians = load_resources()
 
+    resources = (elo_engine, stats_engine, medians)
+    lookups = (name_to_id, id_to_rank, last_db_date, clutch_lookup)
+
     predictions = []
-
     for _, row in df_odds.iterrows():
-        match_str = row['match']
-        o1 = float(row['odds_1'])
-        o2 = float(row['odds_2'])
-
-        players = _players_from_odds_row(row)
-        if not players:
+        ctx = _match_context(row, resources, lookups)
+        if ctx is None:
             continue
-        p1_name, p2_name = players
+        predictions.append(
+            _predict_match(row, ctx, models, scaler, feature_cols, medians))
 
-        p1_id = fuzzy_find_player_id(p1_name, name_to_id)
-        p2_id = fuzzy_find_player_id(p2_name, name_to_id)
-
-        # Dynamic surface/level detection from sport_key/sport_title + match string
-        sport_key = str(row.get('sport_key', ''))
-        sport_title = str(row.get('sport_title', ''))
-        surface, tourney_level, tourney_name = detect_surface_and_level(match_str, sport_key, sport_title)
-
-        # Adjust match_date to avoid artificial rust if DB is old
-        # If DB is more than 30 days old, we pretend today is DB date + 3 days
-        real_now = pd.Timestamp.now()
-        if not pd.isna(last_db_date) and (real_now - last_db_date).days > 30:
-            match_date = last_db_date + pd.Timedelta(days=3)
-        else:
-            match_date = real_now
-
-        p1_feats = stats_engine.get_player_features(p1_id, surface, p2_id, match_date) if p1_id else {}
-        p2_feats = stats_engine.get_player_features(p2_id, surface, p1_id, match_date) if p2_id else {}
-        low_confidence = not p1_id or not p2_id or not p1_feats or not p2_feats
-
-        # Coverage score per side — fraction of non-null, non-zero feature values.
-        # Drives the prob clamp below (P0-2): unknown players must not yield 90/10 output.
-        def _coverage(feats):
-            if not feats:
-                return 0.0
-            vals = [v for v in feats.values() if v is not None]
-            if not vals:
-                return 0.0
-            nonzero = sum(1 for v in vals if v != 0)
-            return nonzero / max(len(vals), 1)
-        coverage_p1 = _coverage(p1_feats) if p1_id else 0.0
-        coverage_p2 = _coverage(p2_feats) if p2_id else 0.0
-
-        # Build vector
-        input_data = {}
-        for k, v in p1_feats.items(): input_data[f"w_{k}"] = v
-        for k, v in p2_feats.items(): input_data[f"l_{k}"] = v
-        for k in p1_feats:
-            if k in p2_feats:
-                input_data[f"diff_{k}"] = (p1_feats[k] or 0) - (p2_feats[k] or 0)
-
-        # ELO
-        w_elo = elo_engine.initial_rating
-        l_elo = elo_engine.initial_rating
-        w_s_elo = elo_engine.initial_rating
-        l_s_elo = elo_engine.initial_rating
-
-        if p1_id:
-            w_elo = elo_engine.global_ratings.get(p1_id, elo_engine.initial_rating)
-            w_s_elo = elo_engine.get_combined_rating(p1_id, surface)
-        if p2_id:
-            l_elo = elo_engine.global_ratings.get(p2_id, elo_engine.initial_rating)
-            l_s_elo = elo_engine.get_combined_rating(p2_id, surface)
-
-        input_data["w_elo"] = w_elo
-        input_data["l_elo"] = l_elo
-        input_data["w_surface_elo"] = w_s_elo
-        input_data["l_surface_elo"] = l_s_elo
-        input_data["elo_win_prob"] = elo_engine.expected_score(w_s_elo, l_s_elo)
-
-        # Market
-        margin = (1.0/o1) + (1.0/o2)
-        input_data["w_implied_prob"] = (1.0/o1) / margin
-        input_data["l_implied_prob"] = (1.0/o2) / margin
-        input_data["diff_implied_prob"] = input_data["w_implied_prob"] - input_data["l_implied_prob"]
-
-        # Dynamic context based on detected tournament
-        input_data["cpi"] = map_cpi(tourney_name, surface)
-        level_key = f'level_{tourney_level}'
-        for l_key in ['level_G', 'level_M', 'level_A', 'level_C', 'level_S', 'level_F', 'level_D']:
-            input_data[l_key] = 1 if l_key == level_key else 0
-
-        # === CONTEXTUAL FEATURES (missing from raw player stats) ===
-
-        # Rankings
-        p1_rank = id_to_rank.get(p1_id, 100) if p1_id else 100
-        p2_rank = id_to_rank.get(p2_id, 100) if p2_id else 100
-        input_data["rank_diff"] = p2_rank - p1_rank  # Positive = P1 ranked higher
-        input_data["rank_ratio"] = p2_rank / max(p1_rank, 1)
-
-        # Match context
-        input_data["best_of_5"] = 1 if tourney_level == 'G' else 0
-        # Default to R32 (ordinal 3) since we don't know the exact round from odds API
-        input_data["round_ordinal"] = 3
-
-        # Competitiveness features
-        input_data["abs_elo_prob_diff"] = abs(input_data["elo_win_prob"] - 0.5)
-        input_data["abs_implied_prob_diff"] = abs(input_data["diff_implied_prob"])
-
-        # Additive (sum) features for totals prediction
-        for w in [10, 20, 50]:
-            for stat in ["ace_rate", "bp_save_pct", "avg_total_games", "hold_pct",
-                         "tiebreak_rate", "deciding_set_pct"]:
-                w_key = f"w_{stat}_{w}"
-                l_key = f"l_{stat}_{w}"
-                w_val = input_data.get(w_key, 0) or 0
-                l_val = input_data.get(l_key, 0) or 0
-                input_data[f"sum_{stat}_{w}"] = w_val + l_val
-                if stat == "avg_total_games":
-                    input_data[f"min_{stat}_{w}"] = min(w_val, l_val) if (w_val and l_val) else 0
-
-        # Clutch features
-        p1_clutch = clutch_lookup.get(p1_id, {}) if p1_id else {}
-        p2_clutch = clutch_lookup.get(p2_id, {}) if p2_id else {}
-        for ckey in ['clutch_bp_saved_pct', 'clutch_bp_converted_pct',
-                     'clutch_deuce_win_pct', 'clutch_tb_win_pct']:
-            input_data[f"w_{ckey}"] = p1_clutch.get(ckey, medians.get(f"w_{ckey}", 0.5))
-            input_data[f"l_{ckey}"] = p2_clutch.get(ckey, medians.get(f"l_{ckey}", 0.5))
-
-        # MLP / Ensembling columns alignment
-        X = pd.DataFrame([input_data])
-
-        # SMARTER FILLING: Use EXACT training medians for alignment
-        for col in feature_cols:
-            if col not in X.columns or pd.isna(X.at[0, col]):
-                # 1. Try training medians
-                if col in medians:
-                    X.at[0, col] = medians[col]
-                # 2. Hardcoded fallbacks for sanity
-                elif any(x in col.lower() for x in ["pct", "win_rate", "win_prob", "prob_"]):
-                    X.at[0, col] = 0.5
-                elif "days_since_last" in col.lower():
-                    X.at[0, col] = 7
-                else:
-                    X.at[0, col] = 0
-
-        # STALENESS NEUTRALIZATION:
-        # Cap raw w_/l_ days_since_last at 90 days (preserves genuine inactivity signal
-        # while preventing extreme outliers the model hasn't seen in training).
-        # Then RECALCULATE diff_ from the capped values (not cap independently).
-        # P1-10: record *raw* pre-cap values so we can surface OOD_LAYOFF to TUI
-        # (prevents a 400-day layoff from looking identical to a 90-day one).
-        CAP_DAYS = 90
-        w_dsl_col = "w_days_since_last"
-        l_dsl_col = "l_days_since_last"
-        d_dsl_col = "diff_days_since_last"
-        raw_w_dsl = float(X.at[0, w_dsl_col]) if w_dsl_col in X.columns else 0.0
-        raw_l_dsl = float(X.at[0, l_dsl_col]) if l_dsl_col in X.columns else 0.0
-        ood_layoff = max(raw_w_dsl, raw_l_dsl) > CAP_DAYS
-        if w_dsl_col in X.columns:
-            X.at[0, w_dsl_col] = min(raw_w_dsl, CAP_DAYS)
-        if l_dsl_col in X.columns:
-            X.at[0, l_dsl_col] = min(raw_l_dsl, CAP_DAYS)
-        if d_dsl_col in X.columns and w_dsl_col in X.columns and l_dsl_col in X.columns:
-            X.at[0, d_dsl_col] = float(X.at[0, w_dsl_col]) - float(X.at[0, l_dsl_col])
-
-        # Use training medians for any remaining NaNs (not 0, which distorts win_rates)
-        for col in feature_cols:
-            if col in X.columns and pd.isna(X.at[0, col]):
-                X.at[0, col] = medians.get(col, 0)
-        # Authoritative column order = the scaler's fit order (the order the scaler AND
-        # the models were fitted on). The model-bundle feature_cols may be saved in a
-        # different order, which trips scaler.transform's feature-name check; align to
-        # the scaler so the scaled vector matches what every model expects.
-        order = list(getattr(scaler, "feature_names_in_", feature_cols))
-        X = X.reindex(columns=order)
-        assert list(X.columns) == order, "Inference column order mismatch"
-        if X.isna().any().any():
-            missing = X.columns[X.isna().any()].tolist()
-            for c in missing:
-                X.at[0, c] = medians.get(c, 0)
-
-        # Scaled input
-        x_scaled = scaler.transform(X)
-
-        # SAFETY CAPPING: Prevent extreme outliers (Z-scores) from breaking the trees
-        x_scaled = np.clip(x_scaled, -4, 4)
-
-        # 1. Prediction H2H
-        prob_1 = float(models['h2h'].predict_proba(x_scaled)[0, 1])
-        prob_2 = 1.0 - prob_1
-
-        # P0-2 clamp: when one or both sides have low coverage, shrink confidence
-        # toward 0.5 proportionally. Prevents default-propagation (ELO=1500 + medians)
-        # from yielding 90/10 on unknown players.
-        COVERAGE_THRESHOLD = 0.5
-        min_cov = min(coverage_p1, coverage_p2)
-        confidence_flag = None
-        if low_confidence or min_cov < COVERAGE_THRESHOLD:
-            cov_weight = min(min_cov / COVERAGE_THRESHOLD, 1.0)
-            prob_1 = 0.5 + (prob_1 - 0.5) * cov_weight
-            prob_2 = 1.0 - prob_1
-            confidence_flag = "LOW_COVERAGE"
-        elif ood_layoff:
-            # Layoff exceeds training-seen range. Keep model output (already capped
-            # as input) but warn the user — a 400-day absence isn't truly equivalent
-            # to a 90-day one, even though the model sees them identically.
-            confidence_flag = "OOD_LAYOFF"
-
-        # 2. Prediction Spread (Expected Game Diff P1 - P2)
-        exp_game_diff = float(models['spread'].predict(x_scaled)[0])
-
-        # 3. Prediction Totals (Expected Total Games)
-        exp_total_games = float(models['totals'].predict(x_scaled)[0])
-
-        # Edge calculation for both sides (H2H)
-        edge_1 = (o1 * prob_1) - 1
-        edge_2 = (o2 * prob_2) - 1
-
-        # Determine which side has the actual value
-        if edge_1 > edge_2:
-            best_edge = edge_1
-            value_side = 1
-        else:
-            best_edge = edge_2
-            value_side = 2
-
-        # Forensic details for TUI
-        spread_line = row.get('spread_line', 0)
-        spread_o1 = row.get('spread_odds_1', 1.9)
-        spread_o2 = row.get('spread_odds_2', 1.9)
-        total_line = row.get('total_line', 0)
-        total_over = row.get('total_over', 1.9)
-        total_under = row.get('total_under', 1.9)
-
-        # Determine spread/totals edge indicators
-        spread_edge_label = None
-        if spread_line != 0 and exp_game_diff != 0:
-            if exp_game_diff > spread_line + 1.0:
-                spread_edge_label = "P1"
-            elif exp_game_diff < spread_line - 1.0:
-                spread_edge_label = "P2"
-
-        totals_edge_label = None
-        if total_line > 0 and exp_total_games > 0:
-            if exp_total_games > total_line + 0.5:
-                totals_edge_label = "OVER"
-            elif exp_total_games < total_line - 0.5:
-                totals_edge_label = "UNDER"
-
-        forensics = {
-            "p1_id": p1_id,
-            "p2_id": p2_id,
-            "p1_name": p1_name,
-            "p2_name": p2_name,
-            "value_side": value_side,
-            "surface": surface,
-            "tourney_name": tourney_name,
-            "tourney_level": tourney_level,
-            "p1_rank": int(p1_rank),
-            "p2_rank": int(p2_rank),
-            "exp_game_diff": round(exp_game_diff, 1),
-            "exp_total_games": round(exp_total_games, 1),
-            "market_spread": float(spread_line) if spread_line else 0.0,
-            "market_total": float(total_line) if total_line else 0.0,
-            "spread_odds_1": float(spread_o1),
-            "spread_odds_2": float(spread_o2),
-            "total_over_odds": float(total_over),
-            "total_under_odds": float(total_under),
-            "spread_edge": spread_edge_label,
-            "totals_edge": totals_edge_label,
-            "p1_elo": round(w_elo),
-            "p2_elo": round(l_elo),
-            "p1_surface_elo": round(w_s_elo),
-            "p2_surface_elo": round(l_s_elo),
-            "p1_form": f"{p1_feats.get('win_rate_10', 0):.0%}" if p1_id else "N/A",
-            "p2_form": f"{p2_feats.get('win_rate_10', 0):.0%}" if p2_id else "N/A",
-            "p1_h2h": p1_feats.get('h2h_wins', 0) if p1_id else 0,
-            "p2_h2h": p1_feats.get('h2h_losses', 0) if p1_id else 0,
-        }
-
-        predictions.append({
-            "match": match_str,
-            "commence_time": str(row.get('commence_time', '')),
-            "surface": surface,
-            "odds_1": float(o1),
-            "odds_2": float(o2),
-            "prob_1": float(prob_1),
-            "prob_2": float(prob_2),
-            "exp_game_diff": float(exp_game_diff),
-            "exp_total_games": float(exp_total_games),
-            "market_spread": float(spread_line) if spread_line else 0.0,
-            "market_total": float(total_line) if total_line else 0.0,
-            "spread_odds_1": float(spread_o1),
-            "spread_odds_2": float(spread_o2),
-            "total_over_odds": float(total_over),
-            "total_under_odds": float(total_under),
-            "edge": float(best_edge),
-            "value_side": int(value_side),
-            "low_confidence": bool(low_confidence),
-            "confidence_flag": confidence_flag,
-            "coverage_p1": round(coverage_p1, 3),
-            "coverage_p2": round(coverage_p2, 3),
-            "forensics": forensics
-        })
-
-    # Agentic Research (v2.0) — ReAct agent with tool-use
-    # Fallback to old passive pipeline if agentic produces 0 adjustments.
-    news_applied = False
-    try:
-        from src.live.agentic_research import run_agentic_research
-        predictions = run_agentic_research(predictions)
-        news_applied = any(
-            p.get("news_adjustment", {}).get("applied")
-            for p in predictions
-        )
-    except Exception as e:
-        print(f"  [Agent] WARNING: Agentic research failed: {e}")
-
-    if not news_applied:
-        print("  [Agent] No adjustments applied — trying passive news fallback...")
-        try:
-            from src.live.news_adjustment import run_news_adjustment
-            predictions = run_news_adjustment(predictions)
-        except Exception as e2:
-            print(f"  [News] WARNING: Fallback news adjustment also skipped: {e2}")
-
-    # Save to JSON for TUI (ensure all numpy types are converted)
-    with open(PROJECT_ROOT / "data" / "live" / "predictions.json", "w", encoding="utf-8") as f:
-        json.dump(predictions, f, indent=2, default=lambda x: float(x) if hasattr(x, 'item') else str(x))
-
-    summary = build_scan_summary(predictions)
-    with open(PROJECT_ROOT / "data" / "live" / "scan_summary.json", "w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2)
-
-    # Auto-log decisions to BetAnalytix DB
-    try:
-        from src.betting.portfolio import BetAnalytix
-        db = BetAnalytix()
-        scan_id = db.log_decisions(predictions)
-        db.close()
-        print(f"[DB] Logged {len(predictions)} decisions to BetAnalytix [{scan_id}]")
-    except Exception as e:
-        print(f"[DB] WARNING: BetAnalytix logging failed: {e}")
-
+    predictions = _apply_news(predictions)
+    _persist(predictions)
     print(f"[ML] Inference complete for {len(predictions)} matches.")
+
 
 if __name__ == "__main__":
     run_inference()
