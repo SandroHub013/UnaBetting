@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 def parse_pbp_match(match_row):
     """

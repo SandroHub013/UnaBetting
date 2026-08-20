@@ -3,16 +3,11 @@ Tennis Prediction Model - Data Download Script
 Downloads all data sources: JeffSackmann repos, tennis-data.co.uk odds, etc.
 """
 
-import os
-import sys
 import subprocess
 import requests
-import zipfile
-import io
 import yaml
 import time
 from pathlib import Path
-from tqdm import tqdm
 
 # Project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

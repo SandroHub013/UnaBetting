@@ -1,9 +1,8 @@
 import pandas as pd
-import numpy as np
 import optuna
 import lightgbm as lgb
 import xgboost as xgb
-from sklearn.metrics import log_loss, accuracy_score
+from sklearn.metrics import log_loss
 from pathlib import Path
 import yaml
 import warnings

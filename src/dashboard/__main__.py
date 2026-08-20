@@ -8,7 +8,6 @@ import socket
 import sys
 import threading
 import time
-import os
 
 if sys.stdout is None:
     sys.stdout = open("dashboard_gui.log", "w", encoding="utf-8")

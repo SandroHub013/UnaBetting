@@ -28,7 +28,7 @@ def parse_score_games(score):
                 w_games += int(parts[0])
                 l_games += int(parts[1])
             except ValueError:
-                pass
+                pass  # walkover/retirement markers are not scores; skip the set
     return w_games, l_games
 
 

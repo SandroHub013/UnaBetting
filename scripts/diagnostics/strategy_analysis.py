@@ -11,10 +11,8 @@ import pandas as pd
 import numpy as np
 import yaml
 import joblib
-import sys
 import warnings
 from pathlib import Path
-from collections import OrderedDict
 
 warnings.filterwarnings("ignore")
 
@@ -609,9 +607,8 @@ if both_valid.sum() > 0:
 
     # True (devigged) probability comparison
     print("\n  De-vig Analysis (removing margin):")
-    true_prob_w = (1.0 / orig_b365w[both_valid]) / overround[both_valid]
-    model_prob_subset = df.loc[both_valid[both_valid].index, "model_prob"]
-    # This comparison needs perspective-aware logic; skip if too complex
+    # Needs perspective-aware alignment before it means anything, so it is not
+    # computed here.
     print("  (Note: de-vig comparison requires aligning with randomized perspective)")
 else:
     print("  Could not compute overround - missing B365L data")

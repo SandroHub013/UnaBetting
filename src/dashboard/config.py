@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 
-from src.runtime_paths import BUNDLE_DIR, DATA_ROOT, FROZEN
+from src.runtime_paths import BUNDLE_DIR, DATA_ROOT
 
 # Writable, persistent data lives under DATA_ROOT (repo root in dev; the per-OS
 # app-data dir in a packaged build). Read-only shipped resources (static assets,
@@ -36,9 +36,9 @@ COMMAND_WHITELIST = {
     # full live scan: fetch fresh odds (the-odds-api -> current_odds.csv), then
     # run model+news inference on them. NOTE: consumes paid API credits per run.
     "scan": [PYTHON, "-X", "utf8", "-c",
-             "from src.data.scraper import fetch_all_tennis_odds, save_to_csv; "
-             "save_to_csv(fetch_all_tennis_odds()); "
-             "from src.live.inference import run_inference; run_inference()"],
+             ("from src.data.scraper import fetch_all_tennis_odds, save_to_csv; "
+              + "save_to_csv(fetch_all_tennis_odds()); "
+              + "from src.live.inference import run_inference; run_inference()")],
     "download":  [PYTHON, "-X", "utf8", "-m", "src.data.download"],
     "clean":     [PYTHON, "-X", "utf8", "-m", "src.data.clean"],
     "features":  [PYTHON, "-X", "utf8", "-m", "src.features.build_features"],

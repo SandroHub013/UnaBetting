@@ -506,7 +506,7 @@ async def screenshot(request: Request):
     the real screen, save it to reports/screenshots/ and copy it to the
     clipboard so the user can paste it anywhere."""
     import ctypes
-    from ctypes import wintypes
+    import ctypes.wintypes
     from datetime import datetime
 
     try:
@@ -523,11 +523,12 @@ async def screenshot(request: Request):
     try:
         user32.SetProcessDPIAware()
     except Exception:
+        # DPI awareness is best-effort and may fail on older platforms or if already set
         pass
     hwnd = user32.FindWindowW(None, config.WINDOW_TITLE)
     if not hwnd:
         return _err(404, "no_window", "finestra dell'app non trovata")
-    pt = wintypes.POINT(0, 0)
+    pt = ctypes.wintypes.POINT(0, 0)
     user32.ClientToScreen(hwnd, ctypes.byref(pt))
 
     bbox = (pt.x + round(x * dpr), pt.y + round(y * dpr),
@@ -600,6 +601,7 @@ def model():
                            for k, v in am.items()},
             }
         except Exception:
+            # Corrupt or partial metrics file is ignored; defaults to empty model info
             pass
     hpath = config.PROJECT_ROOT / "reports" / "metrics_history.csv"
     if hpath.exists():
@@ -608,6 +610,7 @@ def model():
             with open(hpath, newline="") as f:
                 out["history"] = list(_csv.DictReader(f))
         except Exception:
+            # Corrupt or unreadable history CSV is ignored; defaults to empty history
             pass
     return out
 

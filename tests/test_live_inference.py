@@ -117,6 +117,7 @@ def test_load_resources_returns_expected_tuple_shape():
     from src.live.inference import load_resources
 
     # Try to load resources; skip if model artifacts aren't present
+    result = None
     try:
         result = load_resources()
     except FileNotFoundError as e:

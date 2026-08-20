@@ -75,23 +75,23 @@ class PosixPtyProcess:
         try:
             os.killpg(self.pid, sig)
         except ProcessLookupError:
-            pass
+            pass  # process group already gone
         except OSError:
             try:
                 os.kill(self.pid, sig)
             except ProcessLookupError:
-                pass
+                pass  # process already gone
         finally:
             self._closed = True
             try:
                 os.close(self.fd)
             except OSError:
-                pass
+                pass  # descriptor already closed
 
         try:
             os.waitpid(self.pid, 0)
         except ChildProcessError:
-            pass
+            pass  # already reaped
 
 
 def spawn_terminal(

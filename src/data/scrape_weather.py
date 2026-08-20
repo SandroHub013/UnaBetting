@@ -1,6 +1,4 @@
 import pandas as pd
-import numpy as np
-import time
 from pathlib import Path
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter

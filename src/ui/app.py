@@ -18,7 +18,6 @@ import subprocess
 import sys
 import json
 from datetime import datetime
-from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, VerticalScroll

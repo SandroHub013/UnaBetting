@@ -1,6 +1,5 @@
 import pandas as pd
 import joblib
-from pathlib import Path
 from src.features.player_stats import PlayerStatsEngine
 from src.features.elo import EloRating
 

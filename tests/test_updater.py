@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 import src.dashboard.data_api as data_api
-from src.dashboard.data_api import _extract_runtime_bundle
+_extract_runtime_bundle = data_api._extract_runtime_bundle
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization

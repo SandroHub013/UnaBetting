@@ -1,8 +1,6 @@
 
 import pandas as pd
-import numpy as np
 import yaml
-import joblib
 from pathlib import Path
 from src.models.train import prepare_training_data, _evaluate_model
 import xgboost as xgb

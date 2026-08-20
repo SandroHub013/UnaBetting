@@ -117,5 +117,6 @@ async def ws_term(ws: WebSocket, shell: str = "", agent: str = ""):
         with suppress(Exception):
             pty.terminate(force=True)
         reader.cancel()
+        # awaited so the cancelled task is reaped instead of left pending
         with suppress(asyncio.CancelledError):
             await reader

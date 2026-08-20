@@ -104,7 +104,7 @@ def predict_winner_prob(df, models_dir=None):
     return (p_win + (1.0 - p_lose)) / 2.0  # orientation-invariant P(actual winner)
 
 
-def _best_bet(row, with_favourite=False):
+def _best_bet(row):
     """Highest-edge side of a match, or None when neither clears the filters.
 
     Edge is measured against the REAL price, so the bookmaker's vig is included.
@@ -122,7 +122,7 @@ def _best_bet(row, with_favourite=False):
             best = (p, odds, is_win, is_fav, edge)
     if best is None:
         return None
-    return best if with_favourite else (best[0], best[1], best[2], best[4])
+    return best
 
 
 def _kelly_stake(p, odds, bankroll):
@@ -214,7 +214,7 @@ def _bet_season(df_year):
     agree_bets = disagree_bets = 0
 
     for _, row in df_year.iterrows():
-        best = _best_bet(row, with_favourite=True)
+        best = _best_bet(row)
         if best is None:
             continue
         p, odds, is_win, is_fav = best[0], best[1], best[2], best[3]

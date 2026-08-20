@@ -172,7 +172,7 @@ class AudioEngine:
             channel.play(drone, loops=-1)
             channel.set_volume(self.vol_music)
         except Exception:
-            pass
+            pass  # ambient audio is optional; the TUI runs fine without it
 
     def play_sfx(self, sfx_type: str = "scan_complete"):
         """Play a programmatic sound effect."""
@@ -183,7 +183,7 @@ class AudioEngine:
             try:
                 sound.play()
             except Exception:
-                pass
+                pass  # a dropped sound effect must never interrupt the TUI
 
     def speak(self, text: str):
         """TTS synthesis in background thread with markup cleaning."""
@@ -199,7 +199,7 @@ class AudioEngine:
                         self._tts_engine.say(clean)
                         self._tts_engine.runAndWait()
                 except Exception:
-                    pass
+                    pass  # TTS backends fail unpredictably; speech is best-effort
 
         threading.Thread(target=_talk, daemon=True).start()
 
@@ -214,7 +214,7 @@ class AudioEngine:
             pygame.mixer.stop()
             pygame.mixer.quit()
         except Exception:
-            pass
+            pass  # shutdown path: a mixer that never started has nothing to stop
 
     # ------------------------------------------------------------------
     # Text cleaning for TTS

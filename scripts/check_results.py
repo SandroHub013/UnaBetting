@@ -12,7 +12,6 @@ import json
 import re
 import sqlite3
 import unicodedata
-import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -39,8 +38,8 @@ def fetch_day(date_str):
     url = f"https://api.sofascore.com/api/v1/sport/tennis/scheduled-events/{date_str}"
     r = subprocess.run(
         ["curl.exe", "-s", "--compressed", "-m", "25", url,
-         "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-               "AppleWebKit/537.36 Chrome/137.0.0.0 Safari/537.36",
+         "-H", ("User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                + "AppleWebKit/537.36 Chrome/137.0.0.0 Safari/537.36"),
          "-H", "Accept: */*", "-H", "Referer: https://www.sofascore.com/"],
         capture_output=True, timeout=40)
     if r.returncode != 0 or not r.stdout:

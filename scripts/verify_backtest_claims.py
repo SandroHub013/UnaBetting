@@ -5,7 +5,6 @@ Checks, on the 2025+ period used by src/models/backtest.py:
 2. Model accuracy on perspective-randomized rows  -> honest accuracy
 3. Replicates the backtest bet-selection logic    -> win rate decomposition
 """
-import json
 from pathlib import Path
 
 import joblib
