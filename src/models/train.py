@@ -91,6 +91,70 @@ def load_config():
         return yaml.safe_load(f)
 
 
+#: column-name fragments that mark a bookmaker price
+_ODDS_TOKENS = ("B365", "PS", "MAX", "AVG")
+
+#: everything that is metadata or a label rather than a feature
+_META_COLS = ("tourney_date", "tourney_name", "surface", "tourney_level",
+              "winner_name", "loser_name", "winner_id", "loser_id", "score",
+              "target", "game_diff", "total_games")
+
+
+def _select_feature_cols(df, skip_selection, tour):
+    """Feature columns, optionally narrowed by the saved selection file."""
+    meta_cols = list(_META_COLS)
+    meta_cols += [c for c in df.columns
+                  if any(bk in c.upper() for bk in _ODDS_TOKENS)]
+    feature_cols = [c for c in df.columns if c not in meta_cols]
+    if skip_selection:
+        return feature_cols
+
+    selection_path = PROJECT_ROOT / "config" / f"selected_features_{tour}.txt"
+    if not selection_path.exists():
+        selection_path = PROJECT_ROOT / "config" / "selected_features_atp.txt"
+    if not selection_path.exists():
+        return feature_cols
+
+    with open(selection_path, "r") as f:
+        selected = [line.strip() for line in f if line.strip()]
+    original_count = len(feature_cols)
+    feature_cols = [c for c in feature_cols if c in selected]
+    if len(feature_cols) < original_count:
+        print(f"  [+] Feature Selection: Ridotte da {original_count} a {len(feature_cols)}")
+    return feature_cols
+
+
+def _temporal_masks(df, test_year, val_years):
+    """Train / validation / test row masks, split strictly by season."""
+    year_col = df["tourney_date"].dt.year
+    test_mask = year_col >= test_year
+    if val_years:
+        return year_col < min(val_years), year_col.isin(val_years), test_mask
+    # no separate validation set
+    return year_col < test_year, pd.Series(False, index=df.index), test_mask
+
+
+def _scale_split(scaler, X, fit=False):
+    """Scale one split. An empty validation set is legitimate (walk-forward CV
+    passes validation_years=[]) but sklearn's transform rejects 0-row arrays.
+    """
+    if len(X) == 0:
+        return pd.DataFrame(columns=X.columns, index=X.index)
+    arr = scaler.fit_transform(X) if fit else scaler.transform(X)
+    return pd.DataFrame(arr, columns=X.columns, index=X.index)
+
+
+def _add_player_ids(df, train_mask):
+    """Embed indices for the PyTorch model, fitted on train only (0 is UNK)."""
+    p1_raw = np.where(df["target"] == 1, df["winner_id"], df["loser_id"])
+    p2_raw = np.where(df["target"] == 1, df["loser_id"], df["winner_id"])
+    train_players = np.unique(np.concatenate([p1_raw[train_mask], p2_raw[train_mask]]))
+    player_mapping = {pid: i + 1 for i, pid in enumerate(train_players)}
+    df["p1_id"] = np.array([player_mapping.get(p, 0) for p in p1_raw])
+    df["p2_id"] = np.array([player_mapping.get(p, 0) for p in p2_raw])
+    return player_mapping
+
+
 def prepare_training_data(features_df, config, skip_selection=False, tour="atp"):
     """
     Prepare train / validation / test sets using temporal split.
@@ -109,33 +173,7 @@ def prepare_training_data(features_df, config, skip_selection=False, tour="atp")
     # Drop rows with NaN targets (critical for regression)
     df = df.dropna(subset=["target", "game_diff", "total_games"])
 
-    # Identifica le colonne delle feature (escludendo metadati, target e ODDS)
-    meta_cols = ["tourney_date", "tourney_name", "surface", "tourney_level",
-                 "winner_name", "loser_name", "winner_id", "loser_id", "score",
-                 "target", "game_diff", "total_games"]
-
-    odds_cols = [c for c in df.columns if any(
-        bk in c.upper() for bk in ["B365", "PS", "MAX", "AVG"]
-    )]
-    meta_cols.extend(odds_cols)
-
-    feature_cols = [c for c in df.columns if c not in meta_cols]
-
-    # --- Feature Selection (Optimization) ---
-    if not skip_selection:
-        selection_path = PROJECT_ROOT / "config" / f"selected_features_{tour}.txt"
-        if not selection_path.exists():
-            selection_path = PROJECT_ROOT / "config" / "selected_features_atp.txt"
-
-        if selection_path.exists():
-            with open(selection_path, "r") as f:
-                selected = [line.strip() for line in f if line.strip()]
-
-            # Filter feature_cols to only those in the selection list
-            original_count = len(feature_cols)
-            feature_cols = [c for c in feature_cols if c in selected]
-            if len(feature_cols) < original_count:
-                print(f"  [+] Feature Selection: Ridotte da {original_count} a {len(feature_cols)}")
+    feature_cols = _select_feature_cols(df, skip_selection, tour)
 
     # CRITICAL: enforce perspective-pair completeness. A w_X feature whose l_X
     # partner is absent is never swapped by _randomize_perspective, so it keeps
@@ -159,19 +197,8 @@ def prepare_training_data(features_df, config, skip_selection=False, tour="atp")
     # Temporal split: train / validation / test
     test_year = config["model"]["test_start_year"]
     val_years = config["model"].get("validation_years", [])
-
-    year_col = df["tourney_date"].dt.year
-
-    if val_years:
-        val_start = min(val_years)
-        train_mask = year_col < val_start
-        val_mask = year_col.isin(val_years)
-        test_mask = year_col >= test_year
-    else:
-        # Fallback: no separate validation set
-        train_mask = year_col < test_year
-        val_mask = pd.Series(False, index=df.index)
-        test_mask = year_col >= test_year
+    val_start = min(val_years) if val_years else None
+    train_mask, val_mask, test_mask = _temporal_masks(df, test_year, val_years)
 
     x_train = df.loc[train_mask, feature_cols].copy()
     y_train = df.loc[train_mask, y_cols].copy()
@@ -194,37 +221,12 @@ def prepare_training_data(features_df, config, skip_selection=False, tour="atp")
     x_val = x_val.fillna(medians_series)
     x_test = x_test.fillna(medians_series)
 
-    # Scale features (fit on train only). Guard empty splits: sklearn's
-    # transform rejects 0-row arrays, but an empty validation set is valid
-    # (e.g. walk-forward CV passes validation_years=[]).
     scaler = StandardScaler()
+    x_train_scaled = _scale_split(scaler, x_train, fit=True)
+    x_val_scaled = _scale_split(scaler, x_val)
+    x_test_scaled = _scale_split(scaler, x_test)
 
-    def _scale(X, fit=False):
-        if len(X) == 0:
-            return pd.DataFrame(columns=X.columns, index=X.index)
-        arr = scaler.fit_transform(X) if fit else scaler.transform(X)
-        return pd.DataFrame(arr, columns=X.columns, index=X.index)
-
-    x_train_scaled = _scale(x_train, fit=True)
-    x_val_scaled = _scale(x_val)
-    x_test_scaled = _scale(x_test)
-
-    # PyTorch Player IDs preparation
-    # Extract IDs based on the randomized target
-    p1_raw = np.where(df["target"] == 1, df["winner_id"], df["loser_id"])
-    p2_raw = np.where(df["target"] == 1, df["loser_id"], df["winner_id"])
-
-    # Fit mapping on train set only to avoid leakage
-    train_players = np.unique(np.concatenate([p1_raw[train_mask], p2_raw[train_mask]]))
-    # 0 is UNK
-    player_mapping = {pid: i + 1 for i, pid in enumerate(train_players)}
-
-    def map_players(p_raw):
-        return np.array([player_mapping.get(p, 0) for p in p_raw])
-
-    df["p1_id"] = map_players(p1_raw)
-    df["p2_id"] = map_players(p2_raw)
-
+    player_mapping = _add_player_ids(df, train_mask)
     p_train = df.loc[train_mask, ["p1_id", "p2_id"]].copy()
     p_val = df.loc[val_mask, ["p1_id", "p2_id"]].copy()
     p_test = df.loc[test_mask, ["p1_id", "p2_id"]].copy()
@@ -307,6 +309,62 @@ def _assert_no_unpaired_perspective(columns):
         )
 
 
+#: scalar comparisons that invert when the two players swap places
+_SIGNED_DIFF_COLS = ("rank_diff", "age_diff", "height_diff")
+#: probabilities that become their complement
+_PROB_COLS = ("elo_win_prob", "elo_surface_win_prob")
+
+
+def _swap_perspective_pairs(x_flipped, X, flip_mask):
+    """Exchange every w_X with its l_X partner on the flipped rows."""
+    for wc in [c for c in X.columns if c.startswith("w_")]:
+        lc = "l_" + wc[2:]
+        if lc in X.columns:
+            # atomic swap via .values so pandas cannot re-align the two columns
+            x_flipped.loc[flip_mask, [wc, lc]] = X.loc[flip_mask, [lc, wc]].values
+
+
+def _negate_differentials(x_flipped, X, flip_mask):
+    """diff_ features and the signed comparisons change sign; a ratio inverts."""
+    for dc in [c for c in X.columns if c.startswith("diff_")]:
+        x_flipped.loc[flip_mask, dc] = -X.loc[flip_mask, dc]
+    for col in _SIGNED_DIFF_COLS:
+        if col in X.columns:
+            x_flipped.loc[flip_mask, col] = -X.loc[flip_mask, col]
+    if "rank_ratio" in X.columns:
+        x_flipped.loc[flip_mask, "rank_ratio"] = 1.0 / X.loc[flip_mask, "rank_ratio"]
+
+
+def _swap_odds_columns(x_flipped, X, flip_mask):
+    """B365W <-> B365L, MaxW <-> MaxL, ... skipping the w_/l_ families above."""
+    all_cols = list(X.columns)
+    for cw in all_cols:
+        if not cw.endswith("W") or cw.startswith(("w_", "l_", "diff_")):
+            continue
+        cl = cw[:-1] + "L"
+        if cl in all_cols:
+            x_flipped.loc[flip_mask, [cw, cl]] = X.loc[flip_mask, [cl, cw]].values
+
+
+def _complement_probabilities(x_flipped, X, flip_mask):
+    for col in _PROB_COLS:
+        if col in X.columns:
+            x_flipped.loc[flip_mask, col] = 1.0 - X.loc[flip_mask, col]
+
+
+def _flip_targets(y, flip_mask):
+    """target inverts, game_diff changes sign, total_games is invariant."""
+    y_flipped = y.copy()
+    if hasattr(y, 'columns'):
+        if "target" in y.columns:
+            y_flipped.loc[flip_mask, "target"] = 1 - y.loc[flip_mask, "target"]
+        if "game_diff" in y.columns:
+            y_flipped.loc[flip_mask, "game_diff"] = -y.loc[flip_mask, "game_diff"]
+    elif y.name == "target":
+        y_flipped.loc[flip_mask] = 1 - y_flipped.loc[flip_mask]
+    return y_flipped
+
+
 def _randomize_perspective(X, y, seed=42, flip_mask=None):
     """
     Randomly swap player 1 and player 2 to avoid the model learning
@@ -324,58 +382,11 @@ def _randomize_perspective(X, y, seed=42, flip_mask=None):
         flip_mask = rng.random(n) > 0.5
 
     x_flipped = X.copy()
-    y_flipped = y.copy()
-
-    # Swap w_ and l_ prefixed features
-    w_cols = [c for c in X.columns if c.startswith("w_")]
-    for wc in w_cols:
-        lc = "l_" + wc[2:]
-        if lc in X.columns:
-            # ATOMIC SWAP using .values to avoid alignment issues
-            x_flipped.loc[flip_mask, [wc, lc]] = X.loc[flip_mask, [lc, wc]].values
-
-    # Flip diff_ features
-    diff_cols = [c for c in X.columns if c.startswith("diff_")]
-    for dc in diff_cols:
-        x_flipped.loc[flip_mask, dc] = -X.loc[flip_mask, dc]
-
-    # Flip rank_diff, age_diff, height_diff
-    for col in ["rank_diff", "rank_ratio", "age_diff", "height_diff"]:
-        if col in X.columns:
-            if col == "rank_ratio":
-                # For ratios, flip means inversion (1/x)
-                x_flipped.loc[flip_mask, col] = 1.0 / X.loc[flip_mask, col]
-            else:
-                x_flipped.loc[flip_mask, col] = -X.loc[flip_mask, col]
-
-    # Swap betting odds (e.g., B365W <-> B365L, MaxW <-> MaxL)
-    all_cols = list(X.columns)
-    for cw in all_cols:
-        # Avoid re-swapping columns already handled by w_/l_ logic
-        if cw.endswith("W") and not cw.startswith(("w_", "l_", "diff_")):
-            cl = cw[:-1] + "L"
-            if cl in all_cols:
-                x_flipped.loc[flip_mask, [cw, cl]] = X.loc[flip_mask, [cl, cw]].values
-
-    # Flip ELO win probabilities
-    for col in ["elo_win_prob", "elo_surface_win_prob"]:
-        if col in X.columns:
-            x_flipped.loc[flip_mask, col] = 1.0 - X.loc[flip_mask, col]
-
-    # Flip target H2H
-    if hasattr(y, 'columns') and "target" in y.columns:
-        y_flipped.loc[flip_mask, "target"] = 1 - y.loc[flip_mask, "target"]
-    elif "target" == y.name:
-        # y is a Series with name "target"
-        y_flipped = y_flipped.copy()
-        y_flipped.loc[flip_mask] = 1 - y_flipped.loc[flip_mask]
-
-    # Flip game_diff (Winner Games - Loser Games becomes Loser - Winner)
-    if hasattr(y, 'columns') and "game_diff" in y.columns:
-        y_flipped.loc[flip_mask, "game_diff"] = -y.loc[flip_mask, "game_diff"]
-
-    # total_games is invariant (P1 games + P2 games)
-
+    _swap_perspective_pairs(x_flipped, X, flip_mask)
+    _negate_differentials(x_flipped, X, flip_mask)
+    _swap_odds_columns(x_flipped, X, flip_mask)
+    _complement_probabilities(x_flipped, X, flip_mask)
+    y_flipped = _flip_targets(y, flip_mask)
     return x_flipped, y_flipped
 
 
@@ -410,179 +421,284 @@ class TennisDataset(Dataset):
         }
 
 
-def _train_segment(target_col, segment, config, is_regression, x_train, y_train, p_train, x_val, y_val, p_val, x_test, y_test, p_test, player_mapping):
-    has_val = len(x_val) > 0
-    print(f"\n2. Training modelli {segment.upper()} per {target_col}...")
-    models = {}
-    raw_models = {}  # uncalibrated, for feature importance
-    results = {}
+class _SegmentTrainer:
+    """Fit, calibrate and score every model family for one (target, segment)."""
 
-    # --- Logistic Regression / Linear Regression ---
-    if is_regression:
-        from sklearn.linear_model import Ridge
-        print(f"\n  [>] Ridge Regression for {target_col} ({segment})...")
-        model_lr = Ridge(alpha=1.0)
-    else:
-        model_lr = LogisticRegression(max_iter=1000, C=1.0, random_state=42)
-        print(f"\n  [>] Logistic Regression for {target_col} ({segment})...")
+    def __init__(self, target_col, segment, config, is_regression,
+                 splits, player_mapping):
+        self.target_col = target_col
+        self.segment = segment
+        self.config = config
+        self.is_regression = is_regression
+        (self.x_train, self.y_train, self.p_train,
+         self.x_val, self.y_val, self.p_val,
+         self.x_test, self.y_test, self.p_test) = splits
+        self.player_mapping = player_mapping
+        self.has_val = len(self.x_val) > 0
+        self.has_train = len(self.x_train) > 0
+        self.has_test = len(self.x_test) > 0
+        self.models = {}
+        self.raw_models = {}  # uncalibrated, for feature importance
+        self.results = {}
 
-    if len(x_train) > 0:
-        model_lr.fit(x_train, y_train)
-        raw_models[f"{target_col}_{segment}_lr"] = model_lr
-        if not is_regression and has_val:
-            model_lr = _calibrate_classifier(model_lr, x_val, y_val, "LR")
-        models[f"{target_col}_{segment}_lr"] = model_lr
-        if len(x_test) > 0:
-            results[f"{target_col}_{segment}_lr"] = _evaluate_model(model_lr, x_test, y_test, f"LR {target_col} {segment}", is_regression)
+    def key(self, name):
+        return f"{self.target_col}_{self.segment}_{name}"
 
-    # --- Random Forest ---
-    if is_regression:
-        from sklearn.ensemble import RandomForestRegressor
-        print(f"\n  [>] Random Forest Regressor for {target_col} ({segment})...")
-        rf = RandomForestRegressor(n_estimators=300, max_depth=10, min_samples_leaf=20, max_features=1.0, random_state=42, n_jobs=-1)
-    else:
-        print(f"\n  [>] Random Forest Classifier for {target_col} ({segment})...")
-        rf = RandomForestClassifier(n_estimators=300, max_depth=10, min_samples_leaf=20, max_features="sqrt", random_state=42, n_jobs=-1)
+    def _fit_family(self, name, model, label, calibration="isotonic"):
+        """Fit, calibrate against the validation split, and score on test."""
+        if not self.has_train:
+            return
+        model.fit(self.x_train, self.y_train)
+        self.raw_models[self.key(name)] = model
+        if not self.is_regression and self.has_val:
+            model = _calibrate_classifier(model, self.x_val, self.y_val, label,
+                                          method=calibration)
+        self.models[self.key(name)] = model
+        if self.has_test:
+            self.results[self.key(name)] = _evaluate_model(
+                model, self.x_test, self.y_test,
+                f"{label} {self.target_col} {self.segment}", self.is_regression)
 
-    if len(x_train) > 0:
-        rf.fit(x_train, y_train)
-        raw_models[f"{target_col}_{segment}_rf"] = rf
-        if not is_regression and has_val:
-            rf = _calibrate_classifier(rf, x_val, y_val, "RF")
-        models[f"{target_col}_{segment}_rf"] = rf
-        if len(x_test) > 0:
-            results[f"{target_col}_{segment}_rf"] = _evaluate_model(rf, x_test, y_test, f"RF {target_col} {segment}", is_regression)
-
-    # --- XGBoost ---
-    if HAS_XGB:
-        print(f"\n  [>] XGBoost for {target_col} ({segment})...")
-        xgb_params = config["model"]["xgboost"]
-        if is_regression:
-            xgb_model = xgb.XGBRegressor(**xgb_params, random_state=42, objective='reg:absoluteerror')
+    def fit_linear(self):
+        if self.is_regression:
+            from sklearn.linear_model import Ridge
+            print(f"\n  [>] Ridge Regression for {self.target_col} ({self.segment})...")
+            model = Ridge(alpha=1.0)
         else:
-            xgb_model = xgb.XGBClassifier(**xgb_params, random_state=42, eval_metric="logloss")
+            model = LogisticRegression(max_iter=1000, C=1.0, random_state=42)
+            print(f"\n  [>] Logistic Regression for {self.target_col} ({self.segment})...")
+        self._fit_family("lr", model, "LR")
 
-        if len(x_train) > 0:
-            xgb_model.fit(x_train, y_train)
-            raw_models[f"{target_col}_{segment}_xgboost"] = xgb_model
-            if not is_regression and has_val:
-                xgb_model = _calibrate_classifier(xgb_model, x_val, y_val, "XGB", method="sigmoid")
-            models[f"{target_col}_{segment}_xgboost"] = xgb_model
-            if len(x_test) > 0:
-                results[f"{target_col}_{segment}_xgboost"] = _evaluate_model(xgb_model, x_test, y_test, f"XGB {target_col} {segment}", is_regression)
-
-    # --- LightGBM ---
-    if HAS_LGB:
-        print(f"\n  [>] LightGBM for {target_col} ({segment})...")
-        lgb_params = config["model"]["lightgbm"]
-        if is_regression:
-            lgb_model = lgb.LGBMRegressor(**lgb_params, random_state=42, verbose=-1, objective='regression_l1')
+    def fit_forest(self):
+        if self.is_regression:
+            from sklearn.ensemble import RandomForestRegressor
+            print(f"\n  [>] Random Forest Regressor for {self.target_col} ({self.segment})...")
+            model = RandomForestRegressor(n_estimators=300, max_depth=10,
+                                          min_samples_leaf=20, max_features=1.0,
+                                          random_state=42, n_jobs=-1)
         else:
-            lgb_model = lgb.LGBMClassifier(**lgb_params, random_state=42, verbose=-1)
+            print(f"\n  [>] Random Forest Classifier for {self.target_col} ({self.segment})...")
+            model = RandomForestClassifier(n_estimators=300, max_depth=10,
+                                           min_samples_leaf=20, max_features="sqrt",
+                                           random_state=42, n_jobs=-1)
+        self._fit_family("rf", model, "RF")
 
-        if len(x_train) > 0:
-            lgb_model.fit(x_train, y_train)
-            raw_models[f"{target_col}_{segment}_lightgbm"] = lgb_model
-            if not is_regression and has_val:
-                lgb_model = _calibrate_classifier(lgb_model, x_val, y_val, "LGB")
-            models[f"{target_col}_{segment}_lightgbm"] = lgb_model
-            if len(x_test) > 0:
-                results[f"{target_col}_{segment}_lightgbm"] = _evaluate_model(lgb_model, x_test, y_test, f"LGB {target_col} {segment}", is_regression)
+    def fit_xgboost(self):
+        if not HAS_XGB:
+            return
+        print(f"\n  [>] XGBoost for {self.target_col} ({self.segment})...")
+        params = self.config["model"]["xgboost"]
+        model = (xgb.XGBRegressor(**params, random_state=42, objective='reg:absoluteerror')
+                 if self.is_regression
+                 else xgb.XGBClassifier(**params, random_state=42, eval_metric="logloss"))
+        self._fit_family("xgboost", model, "XGB", calibration="sigmoid")
 
-    # --- Ensemble ---
-    if len(x_train) > 0 and len(x_test) > 0:
-        if is_regression:
-            print(f"\n  [>] Ensemble (Averaging) for {target_col} ({segment})...")
-            estimators = [models[f"{target_col}_{segment}_rf"]]
-            if HAS_XGB: estimators.append(models[f"{target_col}_{segment}_xgboost"])
-            if HAS_LGB: estimators.append(models[f"{target_col}_{segment}_lightgbm"])
+    def fit_lightgbm(self):
+        if not HAS_LGB:
+            return
+        print(f"\n  [>] LightGBM for {self.target_col} ({self.segment})...")
+        params = self.config["model"]["lightgbm"]
+        model = (lgb.LGBMRegressor(**params, random_state=42, verbose=-1,
+                                   objective='regression_l1')
+                 if self.is_regression
+                 else lgb.LGBMClassifier(**params, random_state=42, verbose=-1))
+        self._fit_family("lightgbm", model, "LGB")
+
+    def _softmax_weights(self, estimators):
+        """Weight each member by exp(-log loss) on the validation split."""
+        if not self.has_val:
+            return None
+        lls = [log_loss(self.y_val, m.predict_proba(self.x_val)) for m in estimators]
+        exp_neg_lls = np.exp(-np.array(lls) - np.max(-np.array(lls)))
+        return exp_neg_lls / exp_neg_lls.sum()
+
+    def build_ensemble(self):
+        if not (self.has_train and self.has_test):
+            return
+        if self.is_regression:
+            print(f"\n  [>] Ensemble (Averaging) for {self.target_col} ({self.segment})...")
+            estimators = [self.models[self.key("rf")]]
+        else:
+            print(f"\n  [>] Ensemble (Softmax -LL Voting) for {self.target_col} ({self.segment})...")
+            estimators = [self.models[self.key("lr")], self.models[self.key("rf")]]
+        if HAS_XGB:
+            estimators.append(self.models[self.key("xgboost")])
+        if HAS_LGB:
+            estimators.append(self.models[self.key("lightgbm")])
+
+        if self.is_regression:
             ensemble = PreFittedEnsemble(estimators, is_regression=True)
         else:
-            print(f"\n  [>] Ensemble (Softmax -LL Voting) for {target_col} ({segment})...")
-            estimators = [models[f"{target_col}_{segment}_lr"], models[f"{target_col}_{segment}_rf"]]
-            if HAS_XGB: estimators.append(models[f"{target_col}_{segment}_xgboost"])
-            if HAS_LGB: estimators.append(models[f"{target_col}_{segment}_lightgbm"])
+            ensemble = PreFittedEnsemble(estimators, is_regression=False,
+                                         weights=self._softmax_weights(estimators))
+        self.models[self.key("ensemble")] = ensemble
+        self.results[self.key("ensemble")] = _evaluate_model(
+            ensemble, self.x_test, self.y_test,
+            f"Ensemble {self.target_col} {self.segment}", self.is_regression)
 
-            weights = None
-            if has_val:
-                lls = []
-                for m in estimators:
-                    preds = m.predict_proba(x_val)
-                    ll = log_loss(y_val, preds)
-                    lls.append(ll)
-                neg_lls = -np.array(lls)
-                exp_neg_lls = np.exp(neg_lls - np.max(neg_lls))
-                weights = exp_neg_lls / exp_neg_lls.sum()
+    def _torch_probabilities(self, nn_model, device):
+        test_dataset = TennisDataset(self.p_test['p1_id'], self.p_test['p2_id'],
+                                     self.x_test, self.y_test)
+        test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False,
+                                 num_workers=0)
+        probs = []
+        with torch.no_grad():
+            for batch in test_loader:
+                outputs = nn_model(batch['p1_id'].to(device),
+                                   batch['p2_id'].to(device),
+                                   batch['numerical_features'].to(device))
+                probs.extend(outputs.cpu().numpy().flatten())
+        return np.array(probs)
 
-            ensemble = PreFittedEnsemble(estimators, is_regression=False, weights=weights)
+    def _score_probabilities(self, y_true, y_prob, tag):
+        y_pred = (y_prob >= 0.5).astype(int)
+        metrics = {
+            "accuracy": accuracy_score(y_true, y_pred),
+            "log_loss": log_loss(y_true, y_prob),
+            "brier": brier_score_loss(y_true, y_prob),
+            "roc_auc": roc_auc_score(y_true, y_prob),
+            "ece": _expected_calibration_error(y_true, y_prob),
+        }
+        print(f"    [{tag}] Accuracy: {metrics['accuracy']:.4f} | "
+              f"Log Loss: {metrics['log_loss']:.4f} | "
+              f"ROC AUC: {metrics['roc_auc']:.4f} | ECE: {metrics['ece']:.4f}")
+        return metrics
 
-        models[f"{target_col}_{segment}_ensemble"] = ensemble
-        results[f"{target_col}_{segment}_ensemble"] = _evaluate_model(ensemble, x_test, y_test, f"Ensemble {target_col} {segment}", is_regression)
+    def fit_torch(self):
+        """Embedding net over player ids; classification only."""
+        if self.is_regression or not self.has_train:
+            return
+        if not HAS_TORCH:
+            print(f"\n  [!] torch not installed — skipping PyTorch Embedding Net "
+                  f"for {self.target_col} ({self.segment})")
+            return
 
-    # --- PyTorch Embedding Net ---
-    if not is_regression and len(x_train) > 0 and not HAS_TORCH:
-        print(f"\n  [!] torch not installed — skipping PyTorch Embedding Net for {target_col} ({segment})")
-    if not is_regression and len(x_train) > 0 and HAS_TORCH:
-        print(f"\n  [>] PyTorch Embedding Net for {target_col} ({segment})...")
-        train_dataset = TennisDataset(p_train['p1_id'], p_train['p2_id'], x_train, y_train)
-        val_dataset = TennisDataset(p_val['p1_id'], p_val['p2_id'], x_val, y_val)
-
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
-        val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=0)
-
-        num_players = len(player_mapping) + 1
-        emb_dim = 32
-        num_features = x_train.shape[1]
+        print(f"\n  [>] PyTorch Embedding Net for {self.target_col} ({self.segment})...")
+        train_loader = DataLoader(
+            TennisDataset(self.p_train['p1_id'], self.p_train['p2_id'],
+                          self.x_train, self.y_train),
+            batch_size=256, shuffle=True, num_workers=0)
+        val_loader = DataLoader(
+            TennisDataset(self.p_val['p1_id'], self.p_val['p2_id'],
+                          self.x_val, self.y_val),
+            batch_size=256, shuffle=False, num_workers=0)
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        nn_model = TennisTransformerNet(num_players, emb_dim, num_features).to(device)
+        nn_model = TennisTransformerNet(len(self.player_mapping) + 1, 32,
+                                        self.x_train.shape[1]).to(device)
+        nn_model = train_tennis_model(nn_model, train_loader, val_loader,
+                                      epochs=10, lr=0.001)
+        self.models[self.key("pytorch")] = nn_model
+        if not self.has_test:
+            return
 
-        nn_model = train_tennis_model(nn_model, train_loader, val_loader, epochs=10, lr=0.001)
-        models[f"{target_col}_{segment}_pytorch"] = nn_model
+        nn_model.eval()
+        y_true = self.y_test.values
+        y_prob_pt = self._torch_probabilities(nn_model, device)
+        self.results[self.key("pytorch")] = self._score_probabilities(
+            y_true, y_prob_pt, "PT")
 
-        if len(x_test) > 0:
-            nn_model.eval()
-            test_dataset = TennisDataset(p_test['p1_id'], p_test['p2_id'], x_test, y_test)
-            test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=0)
+        if HAS_XGB:
+            y_prob_xgb = self.models[self.key("xgboost")].predict_proba(self.x_test)[:, 1]
+            self.results[self.key("deep_ensemble")] = self._score_probabilities(
+                y_true, (y_prob_pt + y_prob_xgb) / 2.0, "DEEP")
 
-            y_prob_pt = []
-            with torch.no_grad():
-                for batch in test_loader:
-                    p1_ids = batch['p1_id'].to(device)
-                    p2_ids = batch['p2_id'].to(device)
-                    num_feats = batch['numerical_features'].to(device)
-                    outputs = nn_model(p1_ids, p2_ids, num_feats)
-                    y_prob_pt.extend(outputs.cpu().numpy().flatten())
+    def run(self):
+        print(f"\n2. Training modelli {self.segment.upper()} per {self.target_col}...")
+        self.fit_linear()
+        self.fit_forest()
+        self.fit_xgboost()
+        self.fit_lightgbm()
+        self.build_ensemble()
+        self.fit_torch()
+        return self.models, self.results
 
-            y_prob_pt = np.array(y_prob_pt)
-            y_pred_pt = (y_prob_pt >= 0.5).astype(int)
-            y_true_pt = y_test.values
 
-            acc_pt = accuracy_score(y_true_pt, y_pred_pt)
-            ll_pt = log_loss(y_true_pt, y_prob_pt)
-            brier_pt = brier_score_loss(y_true_pt, y_prob_pt)
-            roc_pt = roc_auc_score(y_true_pt, y_prob_pt)
-            ece_pt = _expected_calibration_error(y_true_pt, y_prob_pt)
+def _train_segment(target_col, segment, config, is_regression, x_train, y_train,
+                   p_train, x_val, y_val, p_val, x_test, y_test, p_test,
+                   player_mapping):
+    splits = (x_train, y_train, p_train, x_val, y_val, p_val,
+              x_test, y_test, p_test)
+    return _SegmentTrainer(target_col, segment, config, is_regression,
+                           splits, player_mapping).run()
 
-            print(f"    [PT] Accuracy: {acc_pt:.4f} | Log Loss: {ll_pt:.4f} | ROC AUC: {roc_pt:.4f} | ECE: {ece_pt:.4f}")
-            results[f"{target_col}_{segment}_pytorch"] = {"accuracy": acc_pt, "log_loss": ll_pt, "brier": brier_pt, "roc_auc": roc_pt, "ece": ece_pt}
 
-            if HAS_XGB:
-                xgb_model = models[f"{target_col}_{segment}_xgboost"]
-                y_prob_xgb = xgb_model.predict_proba(x_test)[:, 1]
-                y_prob_deep = (y_prob_pt + y_prob_xgb) / 2.0
-                y_pred_deep = (y_prob_deep >= 0.5).astype(int)
+class _RoutedPredictions:
+    """Test-set predictions stitched back together from the per-segment models."""
 
-                acc_deep = accuracy_score(y_true_pt, y_pred_deep)
-                ll_deep = log_loss(y_true_pt, y_prob_deep)
-                brier_deep = brier_score_loss(y_true_pt, y_prob_deep)
-                roc_deep = roc_auc_score(y_true_pt, y_prob_deep)
-                ece_deep = _expected_calibration_error(y_true_pt, y_prob_deep)
+    def __init__(self, n_test, is_regression):
+        self.is_regression = is_regression
+        self.pred = np.zeros(n_test)
+        self.prob = None if is_regression else np.zeros(n_test)
 
-                print(f"    [DEEP] Accuracy: {acc_deep:.4f} | Log Loss: {ll_deep:.4f} | ROC AUC: {roc_deep:.4f} | ECE: {ece_deep:.4f}")
-                results[f"{target_col}_{segment}_deep_ensemble"] = {"accuracy": acc_deep, "log_loss": ll_deep, "brier": brier_deep, "roc_auc": roc_deep, "ece": ece_deep}
+    def record(self, model, x_test, mask):
+        if model is None or mask.sum() == 0:
+            return
+        idx = np.nonzero(mask)[0]
+        x_segment = x_test[mask]
+        self.pred[idx] = model.predict(x_segment)
+        if not self.is_regression:
+            self.prob[idx] = model.predict_proba(x_segment)[:, 1]
 
-    return models, results
+    def score(self, y_test):
+        if self.is_regression:
+            from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+            mae = mean_absolute_error(y_test, self.pred)
+            mse = mean_squared_error(y_test, self.pred)
+            r2 = r2_score(y_test, self.pred)
+            print(f"    Routed MAE: {mae:.4f} | MSE: {mse:.4f} | R2: {r2:.4f}")
+            return {"mae": mae, "mse": mse, "r2": r2}
+
+        acc = accuracy_score(y_test, self.pred)
+        ll = log_loss(y_test, self.prob)
+        brier = brier_score_loss(y_test, self.prob)
+        roc = roc_auc_score(y_test, self.prob)
+        ece = _expected_calibration_error(np.array(y_test), self.prob)
+        print(f"    Routed Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | "
+              f"ROC AUC: {roc:.4f} | ECE: {ece:.4f}")
+        return {"accuracy": acc, "log_loss": ll, "brier": brier,
+                "roc_auc": roc, "ece": ece}
+
+
+def _save_artifacts(models_dir, tour, all_models, feature_names, player_mapping,
+                    scaler, medians):
+    """Calibrated models plus everything inference needs to rebuild the input."""
+    models_dir.mkdir(parents=True, exist_ok=True)
+    for name, model in all_models.items():
+        if "pytorch" in name:
+            torch.save({"model": model, "feature_cols": list(feature_names),
+                        "player_mapping": player_mapping},
+                       models_dir / f"{tour}_{name}.pt")
+        else:
+            joblib.dump({"model": model, "feature_cols": list(feature_names)},
+                        models_dir / f"{tour}_{name}.pkl")
+
+    joblib.dump(scaler, models_dir / f"{tour}_scaler.pkl")
+    joblib.dump(player_mapping, models_dir / f"{tour}_player_mapping.pkl")
+    joblib.dump(medians, models_dir / f"{tour}_medians.pkl")
+    # legacy txt for human inspection — the artifact bundle is authoritative
+    with open(models_dir / f"{tour}_features.txt", "w") as f:
+        f.write("\n".join(feature_names))
+
+
+def _save_metrics(models_dir, tour, target_col, all_results):
+    """Metrics the TUI ticker and the dashboard read."""
+    import json as _json
+
+    routed = all_results.get(f"{target_col}_routed_ensemble", {})
+    metrics_out = {
+        "routed_accuracy": float(routed.get("accuracy", 0)),
+        "routed_ece": float(routed.get("ece", 0)),
+        "routed_log_loss": float(routed.get("log_loss", 0)),
+        "routed_roc_auc": float(routed.get("roc_auc", 0)),
+        "all_models": {name: {k: float(v) for k, v in res.items()}
+                       for name, res in all_results.items()},
+        "trained_at": datetime.now().isoformat(),
+    }
+    metrics_path = models_dir / f"{tour}_metrics.json"
+    with open(metrics_path, "w") as mf:
+        _json.dump(metrics_out, mf, indent=2)
+    print(f"  [+] Metrics saved to {metrics_path}")
 
 
 def train_models(tour="atp", target_col="target", save_dir=None, test_year=None, val_years=None):
@@ -629,17 +745,10 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
 
     all_models = {}
     all_results = {}
-
-    # Store predictions to compute combined metrics
-    y_test_pred_combined = np.zeros(len(x_test))
-    if not is_regression:
-        y_test_prob_combined = np.zeros(len(x_test))
+    routed = _RoutedPredictions(len(x_test), is_regression)
 
     for segment in ["odds", "blind"]:
-        m_tr = masks_train[segment]
-        m_v = masks_val[segment]
-        m_te = masks_test[segment]
-
+        m_tr, m_v, m_te = masks_train[segment], masks_val[segment], masks_test[segment]
         if m_tr.sum() == 0:
             continue
 
@@ -650,92 +759,23 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
             x_test[m_te], y_test[m_te], p_test[m_te],
             player_mapping
         )
-
         all_models.update(seg_models)
         all_results.update(seg_results)
+        # the segment ensemble is what the routed model uses in production
+        routed.record(seg_models.get(f"{target_col}_{segment}_ensemble"),
+                      x_test, m_te)
 
-        # We assume 'ensemble' is the best for the combined routing
-        if m_te.sum() > 0:
-            best_model_key = f"{target_col}_{segment}_ensemble"
-            if best_model_key in seg_models:
-                m_te_idx = np.nonzero(m_te)[0]
-                if is_regression:
-                    preds = seg_models[best_model_key].predict(x_test[m_te])
-                    y_test_pred_combined[m_te_idx] = preds
-                else:
-                    preds = seg_models[best_model_key].predict(x_test[m_te])
-                    probs = seg_models[best_model_key].predict_proba(x_test[m_te])[:, 1]
-                    y_test_pred_combined[m_te_idx] = preds
-                    y_test_prob_combined[m_te_idx] = probs
-
-    # --- Evaluate combined routing ---
     if len(x_test) > 0:
         print(f"\n{'=' * 60}")
         print(f"  COMBINED ROUTED PERFORMANCE (Test Set) - {target_col.upper()}")
         print(f"{'=' * 60}")
-        if is_regression:
-            from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-            mae = mean_absolute_error(y_test, y_test_pred_combined)
-            mse = mean_squared_error(y_test, y_test_pred_combined)
-            r2 = r2_score(y_test, y_test_pred_combined)
-            print(f"    Routed MAE: {mae:.4f} | MSE: {mse:.4f} | R2: {r2:.4f}")
-            all_results[f"{target_col}_routed_ensemble"] = {"mae": mae, "mse": mse, "r2": r2}
-        else:
-            acc = accuracy_score(y_test, y_test_pred_combined)
-            ll = log_loss(y_test, y_test_prob_combined)
-            brier = brier_score_loss(y_test, y_test_prob_combined)
-            roc = roc_auc_score(y_test, y_test_prob_combined)
-            ece = _expected_calibration_error(np.array(y_test), y_test_prob_combined)
-            print(f"    Routed Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {roc:.4f} | ECE: {ece:.4f}")
-            all_results[f"{target_col}_routed_ensemble"] = {"accuracy": acc, "log_loss": ll, "brier": brier, "roc_auc": roc, "ece": ece}
+        all_results[f"{target_col}_routed_ensemble"] = routed.score(y_test)
 
-    # Save models (calibrated versions)
     models_dir = Path(save_dir) if save_dir else PROJECT_ROOT / config["paths"]["models"]
-    models_dir.mkdir(parents=True, exist_ok=True)
-
-    for name, model in all_models.items():
-        if "pytorch" in name:
-            model_path = models_dir / f"{tour}_{name}.pt"
-            torch.save({"model": model, "feature_cols": list(feature_names), "player_mapping": player_mapping}, model_path)
-        else:
-            model_path = models_dir / f"{tour}_{name}.pkl"
-            joblib.dump({"model": model, "feature_cols": list(feature_names)}, model_path)
-
-    # Save scaler
-    scaler_path = models_dir / f"{tour}_scaler.pkl"
-    joblib.dump(scaler, scaler_path)
-
-    # Save player mapping for PyTorch
-    mapping_path = models_dir / f"{tour}_player_mapping.pkl"
-    joblib.dump(player_mapping, mapping_path)
-
-    # Save feature names (legacy txt for human inspection — artifact bundle is authoritative)
-    features_meta = models_dir / f"{tour}_features.txt"
-    with open(features_meta, "w") as f:
-        f.write("\n".join(feature_names))
-
-    # Save medians for inference alignment
-    medians_path = models_dir / f"{tour}_medians.pkl"
-    joblib.dump(medians, medians_path)
-
-    # Save metrics for TUI ticker and dashboard
+    _save_artifacts(models_dir, tour, all_models, feature_names, player_mapping,
+                    scaler, medians)
     if not is_regression and all_results:
-        import json as _json
-        metrics_out = {
-            "routed_accuracy": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("accuracy", 0)),
-            "routed_ece": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("ece", 0)),
-            "routed_log_loss": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("log_loss", 0)),
-            "routed_roc_auc": float(all_results.get(f"{target_col}_routed_ensemble", {}).get("roc_auc", 0)),
-            "all_models": {
-                name: {k: float(v) for k, v in res.items()}
-                for name, res in all_results.items()
-            },
-            "trained_at": datetime.now().isoformat(),
-        }
-        metrics_path = models_dir / f"{tour}_metrics.json"
-        with open(metrics_path, "w") as mf:
-            _json.dump(metrics_out, mf, indent=2)
-        print(f"  [+] Metrics saved to {metrics_path}")
+        _save_metrics(models_dir, tour, target_col, all_results)
 
     print(f"\n  [OK] Modelli calibrati e metadati salvati in: {models_dir}")
     return all_models, all_results
