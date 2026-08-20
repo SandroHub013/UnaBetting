@@ -32,6 +32,38 @@ def clean_tourney_name(name):
 
     return name.strip()
 
+#: tournaments whose venue the geocoder cannot infer from the event name.
+#: Checked in this order; the original chain let later entries win, so the
+#: most specific names come first.
+_VENUE_OVERRIDES = (
+    ('indian wells', 'Indian Wells, CA, USA'),
+    ('australian open', 'Melbourne, Australia'),
+    ('roland garros', 'Paris, France'),
+    ('french open', 'Paris, France'),
+    ('us open', 'New York, USA'),
+    ('wimbledon', 'London, UK'),
+)
+
+
+def _query_for(tourney):
+    lowered = tourney.lower()
+    for needle, venue in _VENUE_OVERRIDES:
+        if needle in lowered:
+            return venue
+    return clean_tourney_name(tourney)
+
+
+def _locate(geocode, tourney):
+    """(lat, lon) for a tournament, or (None, None) when the lookup gives nothing."""
+    try:
+        location = geocode(_query_for(tourney))
+    except Exception:
+        return (None, None)
+    if not location:
+        return (None, None)
+    return (location.latitude, location.longitude)
+
+
 def geocode_tournaments(df, top_n=200):
     """Geolocalizza i top N tornei più frequenti per limitare le chiamate API."""
     print(f"  -> Estrazione dei {top_n} tornei principali...")
@@ -46,23 +78,7 @@ def geocode_tournaments(df, top_n=200):
     print("  -> Inizio Geocoding (potrebbe richiedere un paio di minuti)...")
 
     for t in top_tourneys:
-        cleaned_name = clean_tourney_name(t)
-        # Alcuni override manuali per le sedi più famose
-        if 'wimbledon' in t.lower(): cleaned_name = 'London, UK'
-        if 'us open' in t.lower(): cleaned_name = 'New York, USA'
-        if 'roland garros' in t.lower() or 'french open' in t.lower(): cleaned_name = 'Paris, France'
-        if 'australian open' in t.lower(): cleaned_name = 'Melbourne, Australia'
-        if 'indian wells' in t.lower(): cleaned_name = 'Indian Wells, CA, USA'
-
-        try:
-            location = geocode(cleaned_name)
-            if location:
-                location_dict[t] = (location.latitude, location.longitude)
-            else:
-                # Se fallisce, usiamo una città fittizia (media globale) o skippiamo
-                location_dict[t] = (None, None)
-        except Exception:
-            location_dict[t] = (None, None)
+        location_dict[t] = _locate(geocode, t)
 
     return location_dict
 
