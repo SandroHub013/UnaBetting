@@ -5,7 +5,6 @@ Priority: Brave Search API (best) > DuckDuckGo HTML > Google News RSS.
 import os
 import time
 import re
-import json
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import quote_plus, unquote

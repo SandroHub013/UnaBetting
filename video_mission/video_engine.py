@@ -1,7 +1,6 @@
 import os
 import subprocess
 import shutil
-import json
 from pathlib import Path
 
 # Configurazione

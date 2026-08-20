@@ -13,7 +13,7 @@ import pytest
 
 from src.models.train import (
     prepare_training_data, load_config, _randomize_perspective,
-    _enforce_perspective_pairs, _assert_no_unpaired_perspective, _perspective_partner,
+    _enforce_perspective_pairs, _perspective_partner,
 )
 
 

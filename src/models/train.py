@@ -14,15 +14,14 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
-    accuracy_score, log_loss, brier_score_loss,
-    classification_report, roc_auc_score
+    accuracy_score, log_loss, brier_score_loss, roc_auc_score
 )
 from sklearn.calibration import CalibratedClassifierCV
 
 try:
     import torch
     from torch.utils.data import Dataset, DataLoader
-    from src.models.pytorch_ensemble import TennisEmbeddingNet, TennisTransformerNet, train_tennis_model
+    from src.models.pytorch_ensemble import TennisTransformerNet, train_tennis_model
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
