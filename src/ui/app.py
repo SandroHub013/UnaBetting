@@ -45,6 +45,198 @@ DASH_EMPTY = "  [dim]No data yet[/]\n"
 CELL_EMPTY = "[dim]--[/]"
 
 
+def _time_key(p):
+    """Chronological sort key; matches without a timestamp fall to the end."""
+    ct = p.get("commence_time", "")
+    if ct:
+        return ct
+    try:
+        return "9999-" + p.get("match", "").split("]")[0].strip("[")
+    except Exception:
+        return "9999-99:99"
+
+
+SORT_MAP = {
+    "time":       (_time_key, False),
+    "edge_desc":  (lambda p: p.get("edge", 0), True),
+    "edge_asc":   (lambda p: p.get("edge", 0), False),
+    "prob_desc":  (lambda p: max(p.get("prob_1", 0), p.get("prob_2", 0)), True),
+    "kelly_desc": (lambda p: p.get("_kelly_raw", 0), True),
+    "odds_asc":   (lambda p: p.get("odds_1", 0), False),
+}
+
+
+def _news_markup(adj):
+    """NEWS column: signed adjustment in points plus the source count."""
+    sources = adj.get("sources", []) if adj else []
+    n_src = len(sources) if isinstance(sources, list) else 0
+    if adj and adj.get("applied"):
+        eff = adj.get("effective", 0)
+        colour = "bold red" if abs(eff) >= 0.05 else "bold yellow"
+        return f"[{colour}]{eff*100:+.0f}pp ({n_src}src)[/]"
+    if adj and sources:
+        return f"[dim]0pp ({n_src}src)[/]"
+    return CELL_EMPTY
+
+
+#: edge threshold -> markup tag, richest first
+_EDGE_STYLES = ((0.10, "bold #00FF00"), (0.05, "bold green"), (0.03, "green"), (0.0, "yellow"))
+
+
+def _edge_markup(edge, side, low_conf):
+    body = f"P{side} {edge*100:+.1f}%"
+    if low_conf:
+        return f"[dim]{body} ![/]"
+    for threshold, style in _EDGE_STYLES:
+        if edge > threshold:
+            return f"[{style}]{body}[/]"
+    return f"[red]{body}[/]"
+
+
+def _line_markup(model_value, market_value, has_edge, fmt):
+    """Spread/totals cell: model vs market, highlighted when forensics found an edge."""
+    if not market_value:
+        return f"[dim]{fmt.format(model_value)} / --[/]"
+    body = f"{fmt.format(model_value)} / {fmt.format(market_value)}"
+    return f"[bold yellow]{body}[/]" if has_edge else body
+
+
+def _elo_bar(val, width=15):
+    clamped = min(2400, max(1400, val))
+    filled = int((clamped - 1400) / 1000 * width)
+    return f"[green]{'█' * filled}[/][dim]{'░' * (width - filled)}[/] {val}"
+
+
+def _streak_markup(streak):
+    if streak > 0:
+        return f"[bold green]W{streak}[/]"
+    if streak < 0:
+        return f"[bold red]L{abs(streak)}[/]"
+    return CELL_EMPTY
+
+
+def _extreme_bet_markup(bet, colour):
+    if not bet:
+        return "--"
+    return f"{bet['match'][:35]} [{colour}]EUR {bet['profit']:+,.0f}[/]"
+
+
+def _surface_lines(stats):
+    lines = ""
+    for surf, s in sorted(stats.get("by_surface", {}).items()):
+        _, color = _SURF_STYLE.get(surf, ("?", "#888888"))
+        lines += (
+            f"  [{color}]{surf:<8}[/]  {s['bets']:>4} bets  |  "
+            f"WR {s['win_rate'] * 100:5.1f}%  |  ROI {s['roi'] * 100:+6.1f}%  |  "
+            f"P&L EUR {s['profit']:+,.0f}\n"
+        )
+    return lines or DASH_EMPTY
+
+
+def _edge_range_lines(stats):
+    lines = ""
+    for bucket, e in stats.get("by_edge_range", {}).items():
+        if e["bets"] <= 0:
+            continue
+        lines += (
+            f"  {bucket:<8}  {e['bets']:>4} bets  |  "
+            f"WR {e['win_rate'] * 100:5.1f}%  |  ROI {e['roi'] * 100:+6.1f}%  |  "
+            f"P&L EUR {e['profit']:+,.0f}\n"
+        )
+    return lines or DASH_EMPTY
+
+
+def _monthly_lines(stats):
+    lines = ""
+    for month, m in stats.get("monthly", {}).items():
+        if m["bets"] <= 0:
+            continue
+        wr = m["won"] / m["bets"] * 100
+        mr = m["profit"] / m["staked"] * 100 if m["staked"] > 0 else 0
+        pnl_color = "green" if m["profit"] >= 0 else "red"
+        lines += (
+            f"  {month}  {m['bets']:>4} bets  |  "
+            f"WR {wr:5.1f}%  |  ROI {mr:+6.1f}%  |  "
+            f"[{pnl_color}]P&L EUR {m['profit']:+,.0f}[/]\n"
+        )
+    return lines or DASH_EMPTY
+
+
+def _odds_pair(f, first_key, second_key, fallback_key):
+    """Two-sided price, from the split keys, the legacy single key, or nothing."""
+    if first_key in f:
+        return f"{f[first_key]:.2f} / {f[second_key]:.2f}"
+    if fallback_key in f:
+        return f[fallback_key]
+    return "-- / --"
+
+
+def _spread_edge(f):
+    """Reported spread edge, or one inferred from model minus market."""
+    if f.get("spread_edge") is not None:
+        return f["spread_edge"]
+    if not (f.get("market_spread") and f.get("exp_game_diff")):
+        return None
+    diff = f["exp_game_diff"] - f["market_spread"]
+    if diff > 1.0:
+        return "P1"
+    return "P2" if diff < -1.0 else None
+
+
+def _totals_edge(f):
+    """Reported totals edge, or one inferred from model minus market."""
+    if f.get("totals_edge") is not None:
+        return f["totals_edge"]
+    if not (f.get("market_total") and f.get("exp_total_games")):
+        return None
+    if f["exp_total_games"] > f["market_total"] + 0.5:
+        return "OVER"
+    return "UNDER" if f["exp_total_games"] < f["market_total"] - 0.5 else None
+
+
+def _edge_bar(edge_pct, width=20):
+    blocks = min(width, max(0, int(edge_pct / 2)))
+    if edge_pct > 10:
+        style = "bold #00FF00"
+    elif edge_pct > 3:
+        style = "bold green"
+    elif edge_pct > 0:
+        style = "yellow"
+    else:
+        style, blocks = "red", max(1, blocks)
+    return (f"[{style}]{'█' * blocks}[/][dim]{'░' * (width - blocks)}[/] "
+            f"[{style}]{edge_pct:+.1f}%[/]")
+
+
+def _news_section(adj, sep2, raw_p1, raw_p2, p):
+    """Forensics panel block describing the agentic news adjustment."""
+    if not (adj and adj.get("applied")):
+        note = ("Nessun aggiustamento applicato (adjustment troppo piccolo)"
+                if adj else "Nessuna news rilevante trovata")
+        return f"""\n{sep2}
+[bold]  NEWS ADJUSTMENT[/]
+{sep2}
+
+  [dim]{note}[/]
+"""
+    eff = adj.get("effective", 0)
+    sources = adj.get("sources", [])
+    src_list = ""
+    if isinstance(sources, list) and sources:
+        src_items = ", ".join(str(s) for s in sources[:5])
+        src_list = f"\n  [dim]Sources[/]         {src_items}"
+    adj_color = "bold red" if abs(eff) >= 0.05 else "bold yellow"
+    return f"""\n{sep2}
+[bold]  NEWS ADJUSTMENT (Agentic Research)[/]
+{sep2}
+
+  [dim]Prob originale[/]   {raw_p1:.1%} / {raw_p2:.1%}
+  [dim]Adjustment[/]       [{adj_color}]{eff*100:+.1f}pp[/] (confidence {adj.get("confidence", 0):.0%})
+  [dim]Prob adjusted[/]    [bold]{p['prob_1']:.1%} / {p['prob_2']:.1%}[/]
+  [dim]Motivo[/]           [{adj_color}]{adj.get("reason", "--")}[/]{src_list}
+"""
+
+
 class _NullAudio:
     """Silent stand-in when the optional audio deps (pygame, pyttsx3) are absent."""
     tts_auto = False
@@ -570,71 +762,48 @@ class BloombergTUI(App):
         """Get current strategy config."""
         return STRATEGY_PRESETS.get(self._strategy, STRATEGY_PRESETS["balanced"])
 
+    def _widget_value(self, selector, widget_type, default):
+        """Read a control's value, tolerating a not-yet-mounted widget."""
+        try:
+            return self.query_one(selector, widget_type).value
+        except Exception:
+            return default
+
+    def _min_edge(self, strategy) -> float:
+        """Manual override in the edge box, else the strategy's floor."""
+        fallback = strategy["min_edge"] if self._strategy != "custom" else 0.0
+        try:
+            edge_text = self.query_one("#edge-input", Input).value.strip()
+            return float(edge_text) / 100.0 if edge_text else fallback
+        except Exception:
+            return fallback
+
+    def _filtered(self, preds, strategy):
+        if self._strategy != "custom":
+            preds = [p for p in preds
+                     if strategy["min_odds"] <= p.get("odds_1", 0) <= strategy["max_odds"]]
+
+        surface_val = self._widget_value("#surface-select", Select, "all")
+        if surface_val and surface_val != "all":
+            preds = [p for p in preds
+                     if p.get("_surface", "").lower() == surface_val.lower()]
+
+        min_edge = self._min_edge(strategy)
+        if min_edge > 0:
+            preds = [p for p in preds if p.get("edge", 0) >= min_edge]
+        return preds
+
+    def _sorted(self, preds):
+        key_fn, rev = SORT_MAP.get(self._widget_value("#sort-select", Select, "time"),
+                                   SORT_MAP["time"])
+        return sorted(preds, key=key_fn, reverse=rev)
+
     def _apply_filters(self) -> None:
         preds = list(self.all_predictions)
         if not preds:
             self._update_summary_bar()
             return
-
-        strategy = self._get_strategy()
-
-        # Strategy filter -- apply unless custom
-        if self._strategy != "custom":
-            preds = [
-                p for p in preds
-                if p.get("odds_1", 0) >= strategy["min_odds"]
-                and p.get("odds_1", 0) <= strategy["max_odds"]
-            ]
-
-        # Surface filter
-        try:
-            surface_val = self.query_one("#surface-select", Select).value
-        except Exception:
-            surface_val = "all"
-        if surface_val and surface_val != "all":
-            preds = [p for p in preds if p.get("_surface", "").lower() == surface_val.lower()]
-
-        # Min edge filter -- from strategy or manual override
-        try:
-            edge_text = self.query_one("#edge-input", Input).value.strip()
-            if edge_text:
-                min_edge = float(edge_text) / 100.0
-            else:
-                min_edge = strategy["min_edge"] if self._strategy != "custom" else 0.0
-        except Exception:
-            min_edge = strategy["min_edge"] if self._strategy != "custom" else 0.0
-
-        if min_edge > 0:
-            preds = [p for p in preds if p.get("edge", 0) >= min_edge]
-
-        # Sort -- default chronological
-        try:
-            sort_val = self.query_one("#sort-select", Select).value
-        except Exception:
-            sort_val = "time"
-
-        def _time_key(p):
-            ct = p.get("commence_time", "")
-            if ct:
-                return ct
-            m = p.get("match", "")
-            try:
-                return "9999-" + m.split("]")[0].strip("[")
-            except Exception:
-                return "9999-99:99"
-
-        sort_map = {
-            "time":       (_time_key, False),
-            "edge_desc":  (lambda p: p.get("edge", 0), True),
-            "edge_asc":   (lambda p: p.get("edge", 0), False),
-            "prob_desc":  (lambda p: max(p.get("prob_1", 0), p.get("prob_2", 0)), True),
-            "kelly_desc": (lambda p: p.get("_kelly_raw", 0), True),
-            "odds_asc":   (lambda p: p.get("odds_1", 0), False),
-        }
-        key_fn, rev = sort_map.get(sort_val, sort_map["time"])
-        preds.sort(key=key_fn, reverse=rev)
-
-        self._populate_table(preds)
+        self._populate_table(self._sorted(self._filtered(preds, self._get_strategy())))
         self._update_summary_bar()
 
     def _populate_table(self, preds: list) -> None:
@@ -646,107 +815,47 @@ class BloombergTUI(App):
         kelly_mult = strategy["kelly_mult"]
 
         for p in preds:
-            match_name = p["match"]
-            o1, o2 = p["odds_1"], p["odds_2"]
-            prob1, prob2 = p["prob_1"], p["prob_2"]
-            raw_p1 = p.get("raw_prob_1", prob1)
-            raw_p2 = p.get("raw_prob_2", prob2)
-            edge = p.get("edge", 0)
-            side = p.get("value_side", 1)
-            low_conf = p.get("low_confidence", False)
-            surface = p.get("_surface", "Hard")
+            table.add_row(*self._row_cells(p, bankroll, kelly_mult))
 
-            # Surface badge
-            surf_markup, _ = _SURF_STYLE.get(surface, ("[dim]?[/]", "#888888"))
+        self.log_msg(f"Displayed {len(preds)} predictions ({strategy['label']}).", "system")
 
-            # ML PROB column
-            ml_prob_str = f"{raw_p1:.0%} / {raw_p2:.0%}"
+    def _row_cells(self, p, bankroll, kelly_mult):
+        """One markets-table row, already marked up."""
+        match_name = p["match"]
+        o1, o2 = p["odds_1"], p["odds_2"]
+        low_conf = p.get("low_confidence", False)
+        surf_markup, _ = _SURF_STYLE.get(p.get("_surface", "Hard"), ("[dim]?[/]", "#888888"))
+        name_markup = f"[dim]{match_name}[/]" if low_conf else match_name
+        f_data = p.get("forensics", {})
+        return (
+            Text.from_markup(name_markup) if low_conf else match_name,
+            Text.from_markup(surf_markup),
+            f"{o1:.2f} / {o2:.2f}",
+            f"{p.get('raw_prob_1', p['prob_1']):.0%} / {p.get('raw_prob_2', p['prob_2']):.0%}",
+            Text.from_markup(_news_markup(p.get("news_adjustment"))),
+            Text.from_markup(_edge_markup(p.get("edge", 0), p.get("value_side", 1), low_conf)),
+            Text.from_markup(_line_markup(p.get("exp_game_diff", 0), p.get("market_spread", 0),
+                                          f_data.get("spread_edge"), "{:+.1f}")),
+            Text.from_markup(_line_markup(p.get("exp_total_games", 0), p.get("market_total", 0),
+                                          f_data.get("totals_edge"), "{:.1f}")),
+            Text.from_markup(self._kelly_markup(p, bankroll, kelly_mult, low_conf)),
+        )
 
-            # NEWS column -- source count + adjustment indicator
-            adj = p.get("news_adjustment")
-            if adj and adj.get("applied"):
-                eff = adj.get("effective", 0)
-                sources = adj.get("sources", [])
-                n_src = len(sources) if isinstance(sources, list) else 0
-                if abs(eff) >= 0.05:
-                    news_markup = f"[bold red]{eff*100:+.0f}pp ({n_src}src)[/]"
-                else:
-                    news_markup = f"[bold yellow]{eff*100:+.0f}pp ({n_src}src)[/]"
-            elif adj and adj.get("sources"):
-                sources = adj.get("sources", [])
-                n_src = len(sources) if isinstance(sources, list) else 0
-                news_markup = f"[dim]0pp ({n_src}src)[/]"
-            else:
-                news_markup = CELL_EMPTY
-
-            # Edge
-            edge_str = f"P{side} {edge*100:+.1f}%"
-            if low_conf:
-                edge_markup = f"[dim]{edge_str} ![/]"
-            elif edge > 0.10:
-                edge_markup = f"[bold #00FF00]{edge_str}[/]"
-            elif edge > 0.05:
-                edge_markup = f"[bold green]{edge_str}[/]"
-            elif edge > 0.03:
-                edge_markup = f"[green]{edge_str}[/]"
-            elif edge > 0:
-                edge_markup = f"[yellow]{edge_str}[/]"
-            else:
-                edge_markup = f"[red]{edge_str}[/]"
-
-            # Spread
-            exp_diff = p.get("exp_game_diff", 0)
-            mkt_spread = p.get("market_spread", 0)
-            f_data = p.get("forensics", {})
-            spread_edge = f_data.get("spread_edge")
-            if mkt_spread:
-                sp = f"{exp_diff:+.1f} / {mkt_spread:+.1f}"
-                sp_markup = f"[bold yellow]{sp}[/]" if spread_edge else sp
-            else:
-                sp_markup = f"[dim]{exp_diff:+.1f} / --[/]"
-
-            # Totals
-            exp_total = p.get("exp_total_games", 0)
-            mkt_total = p.get("market_total", 0)
-            totals_edge = f_data.get("totals_edge")
-            if mkt_total:
-                tt = f"{exp_total:.1f} / {mkt_total:.1f}"
-                tt_markup = f"[bold yellow]{tt}[/]" if totals_edge else tt
-            else:
-                tt_markup = f"[dim]{exp_total:.1f} / --[/]"
-
-            # Kelly -- REAL Kelly Criterion
-            val_prob = prob1 if side == 1 else prob2
-            val_odds = o1 if side == 1 else o2
-            stake = _compute_kelly_stake(val_prob, val_odds, bankroll, kelly_mult, self._max_stake)
-            kelly_pct = p.get("_kelly_raw", 0) * 100
-
-            if stake > 0 and not low_conf:
-                if kelly_pct > 10:
-                    kelly_markup = f"[bold #00FF00]EUR {stake:.0f} ({kelly_pct:.0f}%)[/]"
-                elif kelly_pct > 5:
-                    kelly_markup = f"[bold cyan]EUR {stake:.0f} ({kelly_pct:.0f}%)[/]"
-                else:
-                    kelly_markup = f"[cyan]EUR {stake:.0f} ({kelly_pct:.0f}%)[/]"
-            else:
-                kelly_markup = CELL_EMPTY
-
-            # Match name
-            name_markup = f"[dim]{match_name}[/]" if low_conf else match_name
-
-            table.add_row(
-                Text.from_markup(name_markup) if low_conf else match_name,
-                Text.from_markup(surf_markup),
-                f"{o1:.2f} / {o2:.2f}",
-                ml_prob_str,
-                Text.from_markup(news_markup),
-                Text.from_markup(edge_markup),
-                Text.from_markup(sp_markup),
-                Text.from_markup(tt_markup),
-                Text.from_markup(kelly_markup),
-            )
-
-        self.log_msg(f"Displayed {len(preds)} predictions ({self._get_strategy()['label']}).", "system")
+    def _kelly_markup(self, p, bankroll, kelly_mult, low_conf):
+        """Real Kelly Criterion stake, brighter the larger the recommended fraction."""
+        side = p.get("value_side", 1)
+        val_prob = p["prob_1"] if side == 1 else p["prob_2"]
+        val_odds = p["odds_1"] if side == 1 else p["odds_2"]
+        stake = _compute_kelly_stake(val_prob, val_odds, bankroll, kelly_mult, self._max_stake)
+        kelly_pct = p.get("_kelly_raw", 0) * 100
+        if stake <= 0 or low_conf:
+            return CELL_EMPTY
+        body = f"EUR {stake:.0f} ({kelly_pct:.0f}%)"
+        if kelly_pct > 10:
+            return f"[bold #00FF00]{body}[/]"
+        if kelly_pct > 5:
+            return f"[bold cyan]{body}[/]"
+        return f"[cyan]{body}[/]"
 
     # ==============================================================
     # Filter handlers
@@ -829,56 +938,16 @@ class BloombergTUI(App):
         p1_rank = f.get("p1_rank", "?")
         p2_rank = f.get("p2_rank", "?")
 
-        # ELO bars
-        def elo_bar(val, width=15):
-            clamped = min(2400, max(1400, val))
-            filled = int((clamped - 1400) / 1000 * width)
-            return f"[green]{'█' * filled}[/][dim]{'░' * (width - filled)}[/] {val}"
+        sp_odds = _odds_pair(f, "spread_odds_1", "spread_odds_2", "spread_odds")
+        tt_odds = _odds_pair(f, "total_over_odds", "total_under_odds", "totals_odds")
 
-        # Spread/totals odds
-        if "spread_odds_1" in f:
-            sp_odds = f"{f['spread_odds_1']:.2f} / {f['spread_odds_2']:.2f}"
-        elif "spread_odds" in f:
-            sp_odds = f["spread_odds"]
-        else:
-            sp_odds = "-- / --"
-
-        if "total_over_odds" in f:
-            tt_odds = f"{f['total_over_odds']:.2f} / {f['total_under_odds']:.2f}"
-        elif "totals_odds" in f:
-            tt_odds = f["totals_odds"]
-        else:
-            tt_odds = "-- / --"
-
-        # Edge tags
-        spread_edge = f.get("spread_edge")
-        totals_edge = f.get("totals_edge")
-        if spread_edge is None and f.get("market_spread") and f.get("exp_game_diff"):
-            diff = f["exp_game_diff"] - f["market_spread"]
-            if diff > 1.0:
-                spread_edge = "P1"
-            elif diff < -1.0:
-                spread_edge = "P2"
-        if totals_edge is None and f.get("market_total") and f.get("exp_total_games"):
-            if f["exp_total_games"] > f["market_total"] + 0.5:
-                totals_edge = "OVER"
-            elif f["exp_total_games"] < f["market_total"] - 0.5:
-                totals_edge = "UNDER"
-
+        spread_edge = _spread_edge(f)
+        totals_edge = _totals_edge(f)
         sp_tag = f"  [bold green]>>> VALORE {spread_edge}[/]" if spread_edge else ""
         tt_tag = f"  [bold green]>>> VALORE {totals_edge}[/]" if totals_edge else ""
 
-        # Edge bar
         edge_pct = p["edge"] * 100
-        edge_blocks = min(20, max(0, int(edge_pct / 2)))
-        if edge_pct > 10:
-            edge_bar = f"[bold #00FF00]{'█' * edge_blocks}[/][dim]{'░' * (20 - edge_blocks)}[/] [bold #00FF00]{edge_pct:+.1f}%[/]"
-        elif edge_pct > 3:
-            edge_bar = f"[bold green]{'█' * edge_blocks}[/][dim]{'░' * (20 - edge_blocks)}[/] [bold green]{edge_pct:+.1f}%[/]"
-        elif edge_pct > 0:
-            edge_bar = f"[yellow]{'█' * edge_blocks}[/][dim]{'░' * (20 - edge_blocks)}[/] [yellow]{edge_pct:+.1f}%[/]"
-        else:
-            edge_bar = f"[red]{'█' * max(1, edge_blocks)}[/][dim]{'░' * (20 - max(1, edge_blocks))}[/] [red]{edge_pct:+.1f}%[/]"
+        edge_bar = _edge_bar(edge_pct)
 
         # Kelly -- REAL
         side = p.get("value_side", 1)
@@ -896,39 +965,7 @@ class BloombergTUI(App):
         raw_p1 = p.get("raw_prob_1", p["prob_1"])
         raw_p2 = p.get("raw_prob_2", p["prob_2"])
 
-        if adj and adj.get("applied"):
-            eff = adj.get("effective", 0)
-            conf_adj = adj.get("confidence", 0)
-            reason = adj.get("reason", "--")
-            sources = adj.get("sources", [])
-            src_list = ""
-            if isinstance(sources, list) and sources:
-                src_items = ", ".join(str(s) for s in sources[:5])
-                src_list = f"\n  [dim]Sources[/]         {src_items}"
-            adj_color = "bold red" if abs(eff) >= 0.05 else "bold yellow"
-            news_section = f"""\n{sep2}
-[bold]  NEWS ADJUSTMENT (Agentic Research)[/]
-{sep2}
-
-  [dim]Prob originale[/]   {raw_p1:.1%} / {raw_p2:.1%}
-  [dim]Adjustment[/]       [{adj_color}]{eff*100:+.1f}pp[/] (confidence {conf_adj:.0%})
-  [dim]Prob adjusted[/]    [bold]{p['prob_1']:.1%} / {p['prob_2']:.1%}[/]
-  [dim]Motivo[/]           [{adj_color}]{reason}[/]{src_list}
-"""
-        elif adj and not adj.get("applied"):
-            news_section = f"""\n{sep2}
-[bold]  NEWS ADJUSTMENT[/]
-{sep2}
-
-  [dim]Nessun aggiustamento applicato (adjustment troppo piccolo)[/]
-"""
-        else:
-            news_section = f"""\n{sep2}
-[bold]  NEWS ADJUSTMENT[/]
-{sep2}
-
-  [dim]Nessuna news rilevante trovata[/]
-"""
+        news_section = _news_section(adj, sep2, raw_p1, raw_p2, p)
 
         ticket = f"""{sep}
 [bold cyan]  FORENSIC ANALYSIS v5.0[/]
@@ -944,10 +981,10 @@ class BloombergTUI(App):
   [bold cyan]{p1_name:<26}[/] [dim]vs[/]  [bold cyan]{p2_name}[/]
 
   [dim]Rank[/]        #{p1_rank:<22} [dim]Rank[/]        #{p2_rank}
-  [dim]ELO[/]         {elo_bar(f.get('p1_elo', 1500))}
-  [dim]            [/]{elo_bar(f.get('p2_elo', 1500))}
-  [dim]Surf ELO[/]    {elo_bar(f.get('p1_surface_elo', 1500))}
-  [dim]            [/]{elo_bar(f.get('p2_surface_elo', 1500))}
+  [dim]ELO[/]         {_elo_bar(f.get('p1_elo', 1500))}
+  [dim]            [/]{_elo_bar(f.get('p2_elo', 1500))}
+  [dim]Surf ELO[/]    {_elo_bar(f.get('p1_surface_elo', 1500))}
+  [dim]            [/]{_elo_bar(f.get('p2_surface_elo', 1500))}
   [dim]Form L10[/]    {f.get('p1_form', 'N/A'):<24} [dim]Form L10[/]    {f.get('p2_form', 'N/A')}
   [dim]H2H[/]         {f.get('p1_h2h', 0)} - {f.get('p2_h2h', 0)}
 
@@ -986,59 +1023,12 @@ class BloombergTUI(App):
         win_rate = stats["win_rate"] * 100
         roi = stats["roi"] * 100
 
-        streak = stats["current_streak"]
-        if streak > 0:
-            streak_str = f"[bold green]W{streak}[/]"
-        elif streak < 0:
-            streak_str = f"[bold red]L{abs(streak)}[/]"
-        else:
-            streak_str = CELL_EMPTY
-
-        best = stats.get("best_bet")
-        worst = stats.get("worst_bet")
-        best_str = f"{best['match'][:35]} [green]EUR {best['profit']:+,.0f}[/]" if best else "--"
-        worst_str = f"{worst['match'][:35]} [red]EUR {worst['profit']:+,.0f}[/]" if worst else "--"
-
-        # Surface section
-        surf_lines = ""
-        for surf, s in sorted(stats.get("by_surface", {}).items()):
-            wr = s["win_rate"] * 100
-            sr = s["roi"] * 100
-            _, color = _SURF_STYLE.get(surf, ("?", "#888888"))
-            surf_lines += (
-                f"  [{color}]{surf:<8}[/]  {s['bets']:>4} bets  |  "
-                f"WR {wr:5.1f}%  |  ROI {sr:+6.1f}%  |  P&L EUR {s['profit']:+,.0f}\n"
-            )
-        if not surf_lines:
-            surf_lines = DASH_EMPTY
-
-        # Edge range section
-        edge_lines = ""
-        for bucket, e in stats.get("by_edge_range", {}).items():
-            if e["bets"] > 0:
-                wr = e["win_rate"] * 100
-                er = e["roi"] * 100
-                edge_lines += (
-                    f"  {bucket:<8}  {e['bets']:>4} bets  |  "
-                    f"WR {wr:5.1f}%  |  ROI {er:+6.1f}%  |  P&L EUR {e['profit']:+,.0f}\n"
-                )
-        if not edge_lines:
-            edge_lines = DASH_EMPTY
-
-        # Monthly section
-        monthly_lines = ""
-        for month, m in stats.get("monthly", {}).items():
-            if m["bets"] > 0:
-                wr = m["won"] / m["bets"] * 100 if m["bets"] > 0 else 0
-                mr = m["profit"] / m["staked"] * 100 if m["staked"] > 0 else 0
-                pnl_color = "green" if m["profit"] >= 0 else "red"
-                monthly_lines += (
-                    f"  {month}  {m['bets']:>4} bets  |  "
-                    f"WR {wr:5.1f}%  |  ROI {mr:+6.1f}%  |  "
-                    f"[{pnl_color}]P&L EUR {m['profit']:+,.0f}[/]\n"
-                )
-        if not monthly_lines:
-            monthly_lines = DASH_EMPTY
+        streak_str = _streak_markup(stats["current_streak"])
+        best_str = _extreme_bet_markup(stats.get("best_bet"), "green")
+        worst_str = _extreme_bet_markup(stats.get("worst_bet"), "red")
+        surf_lines = _surface_lines(stats)
+        edge_lines = _edge_range_lines(stats)
+        monthly_lines = _monthly_lines(stats)
 
         scan_count = self.db.get_scan_count()
         decision_count = self.db.get_decision_count()
@@ -1118,51 +1108,72 @@ class BloombergTUI(App):
         self.log_msg(cmd, "user")
         cmd_lower = cmd.lower().strip()
 
-        # Built-in commands
-        if cmd_lower in ("scan", "s", "scan markets"):
-            self.action_scan_markets()
-        elif cmd_lower in ("clear", "c"):
-            self.action_clear_log()
-        elif cmd_lower in ("reset", "reset agent", "nuova chat"):
-            self.agent_llm.clear_history()
-            self.log_msg("Conversation history cleared.", "system")
-        elif cmd_lower == "/tts on":
-            self._tts_on = True
-            self.audio.tts_enabled = True
-            self.log_msg("TTS enabled. Agent responses will be spoken.", "system")
-        elif cmd_lower == "/tts off":
-            self._tts_on = False
-            self.log_msg("TTS disabled.", "system")
-        elif cmd_lower == "/speak":
-            if self._last_agent_response:
-                self.audio.speak(self._last_agent_response)
-                self.log_msg("[dim]Speaking last response...[/dim]", "system")
-            else:
-                self.log_msg("[dim]No response to speak yet.[/dim]", "system")
-        elif cmd_lower == "/stats":
-            self._render_dashboard()
-            self.query_one("#tabs", TabbedContent).active = "tab-dashboard"
-        elif cmd_lower == "/bankroll":
-            bankroll = self.db.get_bankroll()
-            today = self.db.get_today_pnl()
-            self.log_msg(f"Bankroll: EUR {bankroll:,.0f} | Today: EUR {today:+,.0f}", "system")
+        handler = next((fn for names, fn in self._console_commands().items()
+                        if cmd_lower in names), None)
+        if handler is not None:
+            handler()
         elif cmd_lower.startswith("/strategy"):
-            parts = cmd_lower.split()
-            if len(parts) > 1 and parts[1] in STRATEGY_PRESETS:
-                self._strategy = parts[1]
-                self.query_one("#strategy-select", Select).value = parts[1]
-                self._apply_filters()
-                self._update_ticker()
-                self._update_summary_bar()
-                self.log_msg(f"Strategy changed to: {STRATEGY_PRESETS[parts[1]]['label']}", "system")
-            else:
-                self.log_msg("Usage: /strategy conservative|balanced|aggressive|custom", "system")
+            self._cmd_strategy(cmd_lower)
         elif "backtest" in cmd_lower:
             self.run_background_backtest()
         else:
             self.run_agent_query(cmd)
 
         self.query_one("#command-input", Input).value = ""
+
+    def _console_commands(self):
+        """Exact-match console commands -> handler."""
+        return {
+            ("scan", "s", "scan markets"): self.action_scan_markets,
+            ("clear", "c"): self.action_clear_log,
+            ("reset", "reset agent", "nuova chat"): self._cmd_reset_agent,
+            ("/tts on",): self._cmd_tts_on,
+            ("/tts off",): self._cmd_tts_off,
+            ("/speak",): self._cmd_speak,
+            ("/stats",): self._cmd_stats,
+            ("/bankroll",): self._cmd_bankroll,
+        }
+
+    def _cmd_reset_agent(self):
+        self.agent_llm.clear_history()
+        self.log_msg("Conversation history cleared.", "system")
+
+    def _cmd_tts_on(self):
+        self._tts_on = True
+        self.audio.tts_enabled = True
+        self.log_msg("TTS enabled. Agent responses will be spoken.", "system")
+
+    def _cmd_tts_off(self):
+        self._tts_on = False
+        self.log_msg("TTS disabled.", "system")
+
+    def _cmd_speak(self):
+        if not self._last_agent_response:
+            self.log_msg("[dim]No response to speak yet.[/dim]", "system")
+            return
+        self.audio.speak(self._last_agent_response)
+        self.log_msg("[dim]Speaking last response...[/dim]", "system")
+
+    def _cmd_stats(self):
+        self._render_dashboard()
+        self.query_one("#tabs", TabbedContent).active = "tab-dashboard"
+
+    def _cmd_bankroll(self):
+        bankroll = self.db.get_bankroll()
+        today = self.db.get_today_pnl()
+        self.log_msg(f"Bankroll: EUR {bankroll:,.0f} | Today: EUR {today:+,.0f}", "system")
+
+    def _cmd_strategy(self, cmd_lower):
+        parts = cmd_lower.split()
+        if len(parts) <= 1 or parts[1] not in STRATEGY_PRESETS:
+            self.log_msg("Usage: /strategy conservative|balanced|aggressive|custom", "system")
+            return
+        self._strategy = parts[1]
+        self.query_one("#strategy-select", Select).value = parts[1]
+        self._apply_filters()
+        self._update_ticker()
+        self._update_summary_bar()
+        self.log_msg(f"Strategy changed to: {STRATEGY_PRESETS[parts[1]]['label']}", "system")
 
     @work(exclusive=True, thread=True)
     def run_agent_query(self, query: str):

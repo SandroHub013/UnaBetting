@@ -36,6 +36,49 @@ async def _stream(proc, ws):
         pass
 
 
+def _is_running(proc):
+    return proc is not None and proc.returncode is None
+
+
+async def _send_error(ws, detail):
+    await ws.send_text(json.dumps({"type": "error", "detail": detail}))
+
+
+async def _read_message(ws):
+    """One decoded client frame, or None when it was not valid JSON."""
+    try:
+        return json.loads(await ws.receive_text())
+    except json.JSONDecodeError:
+        await _send_error(ws, "JSON non valido")
+        return None
+
+
+async def _spawn(cmd):
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
+           "PYTHONUNBUFFERED": "1"}
+    return await asyncio.create_subprocess_exec(
+        *config.COMMAND_WHITELIST[cmd],
+        cwd=str(config.PROJECT_ROOT),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        env=env)
+
+
+async def _start_command(ws, msg, proc):
+    """Launch a whitelisted command; returns (proc, pump) or (proc, None) on refusal."""
+    cmd = msg.get("cmd")
+    if cmd not in config.COMMAND_WHITELIST:
+        await _send_error(ws, f"comando '{cmd}' non in whitelist")
+        return proc, None
+    if _is_running(proc):
+        await _send_error(ws, "un comando è già in esecuzione")
+        return proc, None
+
+    proc = await _spawn(cmd)
+    await ws.send_text(json.dumps({"type": "start", "cmd": cmd}))
+    return proc, asyncio.create_task(_stream(proc, ws))
+
+
 @router.websocket("/ws/run")
 async def ws_run(ws: WebSocket):
     if not await security.authorize_websocket(ws):
@@ -45,41 +88,20 @@ async def ws_run(ws: WebSocket):
     pump = None
     try:
         while True:
-            try:
-                msg = json.loads(await ws.receive_text())
-            except json.JSONDecodeError:
-                await ws.send_text(json.dumps({"type": "error", "detail": "JSON non valido"}))
+            msg = await _read_message(ws)
+            if msg is None:
                 continue
-
             if msg.get("type") == "stop":
-                if proc and proc.returncode is None:
+                if _is_running(proc):
                     proc.kill()
                 continue
-
-            cmd = msg.get("cmd")
-            if cmd not in config.COMMAND_WHITELIST:
-                await ws.send_text(json.dumps(
-                    {"type": "error", "detail": f"comando '{cmd}' non in whitelist"}))
-                continue
-            if proc and proc.returncode is None:
-                await ws.send_text(json.dumps(
-                    {"type": "error", "detail": "un comando è già in esecuzione"}))
-                continue
-
-            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
-                   "PYTHONUNBUFFERED": "1"}
-            proc = await asyncio.create_subprocess_exec(
-                *config.COMMAND_WHITELIST[cmd],
-                cwd=str(config.PROJECT_ROOT),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                env=env)
-            await ws.send_text(json.dumps({"type": "start", "cmd": cmd}))
-            pump = asyncio.create_task(_stream(proc, ws))
+            proc, started = await _start_command(ws, msg, proc)
+            if started is not None:
+                pump = started
     except WebSocketDisconnect:
         pass
     finally:
-        if proc and proc.returncode is None:
+        if _is_running(proc):
             proc.kill()
         if pump:
             pump.cancel()

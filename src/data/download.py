@@ -99,9 +99,70 @@ def download_tml_database(config):
 
     raw_dir = PROJECT_ROOT / config["paths"]["raw_data"]
     url = "https://github.com/Tennismylife/TML-Database.git"
-    
+
     success = clone_or_pull_repo(url, raw_dir)
     return success
+
+
+def _atp_urls(base_url, year):
+    # usually /{year}/{year}.xlsx; the last two are historical fallbacks
+    return [
+        f"{base_url}/{year}/{year}.xlsx",
+        f"{base_url}/{year}/{year}.xls",
+        f"{base_url}/{year}/{year}.csv",
+        f"{base_url}/{year}/{str(year)[-2:]}.xlsx",
+        f"{base_url}/{year}/archives.php",
+    ]
+
+
+def _wta_urls(base_url, year):
+    return [
+        f"{base_url}/{year}w/{year}.xlsx",
+        f"{base_url}/{year}w/{year}.xls",
+        f"{base_url}/{year}w/{year}.csv",
+    ]
+
+
+def _try_download(url):
+    """Response body for a real file, or None (missing, tiny, or an HTML page)."""
+    try:
+        resp = requests.get(url, timeout=30, allow_redirects=True)
+    except requests.RequestException:
+        return None
+    if resp.status_code != 200 or len(resp.content) <= 1000:
+        return None
+    if 'html' in resp.headers.get('Content-Type', ''):
+        return None
+    return resp.content
+
+
+def _download_year_file(base_url, output_dir, tour, year, urls_of):
+    """First candidate URL that yields a real file wins."""
+    for url in urls_of(base_url, year):
+        content = _try_download(url)
+        if content is None:
+            continue
+        ext = url.split(".")[-1]
+        if ext == "php":
+            ext = "csv"  # fallback
+        with open(output_dir / f"{tour}_{year}.{ext}", "wb") as f:
+            f.write(content)
+        return True
+    return False
+
+
+def _download_tour(base_url, output_dir, tour, years, urls_of, miss_note=""):
+    downloaded = errors = 0
+    for year in years:
+        if _download_year_file(base_url, output_dir, tour, year, urls_of):
+            print(f"    ✓ {tour.upper()} {year}")
+            downloaded += 1
+        else:
+            suffix = f" {miss_note}" if miss_note else ""
+            print(f"    ⚠ {tour.upper()} {year} - Non trovato{suffix}")
+            errors += 1
+        time.sleep(0.3)
+    return downloaded, errors
 
 
 def download_tennis_data_co_uk(config):
@@ -122,82 +183,20 @@ def download_tennis_data_co_uk(config):
     downloaded = 0
     errors = 0
 
-    # ATP data
     atp_start = config["data"]["tennis_data_co_uk"]["atp_start_year"]
     print(f"\n  ATP ({atp_start}-{current_year}):")
+    got, missed = _download_tour(
+        base_url, output_dir, "atp", range(atp_start, current_year + 1),
+        _atp_urls, "(possibile gap o formato diverso)")
+    downloaded += got
+    errors += missed
 
-    for year in range(atp_start, current_year + 1):
-        urls_to_try = [
-            f"{base_url}/{year}/{year}.xlsx",
-            f"{base_url}/{year}/{year}.xls",
-            f"{base_url}/{year}/{year}.csv",
-            f"{base_url}/{year}/{str(year)[-2:]}.xlsx",
-            f"{base_url}/{year}/archives.php", # Not a file but a hint
-        ]
-
-        success = False
-        for url in urls_to_try:
-            try:
-                # Some years might be under 'notes.php' or similar, but usually /{year}/{year}.xlsx
-                resp = requests.get(url, timeout=30, allow_redirects=True)
-                if resp.status_code == 200 and len(resp.content) > 1000:
-                    content_type = resp.headers.get('Content-Type', '')
-                    if 'html' in content_type: continue # Skip if redirected to a page
-                    
-                    ext = url.split(".")[-1]
-                    if ext == "php": ext = "csv" # fallback
-                    
-                    filepath = output_dir / f"atp_{year}.{ext}"
-                    with open(filepath, "wb") as f:
-                        f.write(resp.content)
-                    print(f"    ✓ ATP {year}")
-                    downloaded += 1
-                    success = True
-                    break
-            except requests.RequestException:
-                continue
-
-        if not success:
-            print(f"    ⚠ ATP {year} - Non trovato (possibile gap o formato diverso)")
-            errors += 1
-
-        time.sleep(0.3)
-
-    # WTA data
     wta_start = config["data"]["tennis_data_co_uk"]["wta_start_year"]
     print(f"\n  WTA ({wta_start}-{current_year}):")
-
-    for year in range(wta_start, current_year + 1):
-        urls_to_try = [
-            f"{base_url}/{year}w/{year}.xlsx",
-            f"{base_url}/{year}w/{year}.xls",
-            f"{base_url}/{year}w/{year}.csv",
-        ]
-
-        success = False
-        for url in urls_to_try:
-            try:
-                resp = requests.get(url, timeout=30, allow_redirects=True)
-                if resp.status_code == 200 and len(resp.content) > 1000:
-                    content_type = resp.headers.get('Content-Type', '')
-                    if 'html' in content_type: continue
-                    
-                    ext = url.split(".")[-1]
-                    filepath = output_dir / f"wta_{year}.{ext}"
-                    with open(filepath, "wb") as f:
-                        f.write(resp.content)
-                    print(f"    ✓ WTA {year}")
-                    downloaded += 1
-                    success = True
-                    break
-            except requests.RequestException:
-                continue
-
-        if not success:
-            print(f"    ⚠ WTA {year} - Non trovato")
-            errors += 1
-
-        time.sleep(0.3)
+    got, missed = _download_tour(
+        base_url, output_dir, "wta", range(wta_start, current_year + 1), _wta_urls)
+    downloaded += got
+    errors += missed
 
     print(f"\n  Totale: {downloaded} file scaricati, {errors} errori")
     return downloaded, errors
@@ -232,7 +231,7 @@ def download_all():
     for name, success in sackmann_results.items():
         status = "✓" if success else "✗"
         print(f"  {status} {name}")
-        
+
     tml_status = "✓" if tml_success else "✗"
     print("\nTML-Database (ATP):")
     print(f"  {tml_status} TML-Database")

@@ -14,6 +14,45 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _headline_block(header, items, indent, snippet_chars, limit=3):
+    """Up to ``limit`` headlines under an optional header, each with a snippet."""
+    if not items:
+        return []
+    lines = [header] if header else []
+    for n in items[:limit]:
+        lines.append(f"{indent}- {n['title']} ({n.get('source', '?')})")
+        if n.get("snippet"):
+            lines.append(f"{indent}  >>> {n['snippet'][:snippet_chars]}")
+    return lines
+
+
+def _ddg_link(title_tag):
+    """DuckDuckGo wraps the target in a uddg= redirect parameter."""
+    if not title_tag or not title_tag.get("href"):
+        return ""
+    href = title_tag["href"]
+    if "uddg=" not in href:
+        return href
+    match = re.search(r'uddg=([^&]+)', href)
+    return unquote(match.group(1)) if match else ""
+
+
+def _ddg_result(result_div):
+    """One search hit, or None when it carries no title."""
+    title_tag = result_div.select_one(".result__a")
+    title = title_tag.get_text(strip=True) if title_tag else ""
+    if not title:
+        return None
+    snippet_tag = result_div.select_one(".result__snippet")
+    return {
+        "title": title,
+        "snippet": snippet_tag.get_text(strip=True) if snippet_tag else "",
+        "source": "",
+        "link": _ddg_link(title_tag),
+        "date": "",
+    }
+
+
 class WebResearch:
     """Multi-source web research for tennis news and probability adjustment."""
 
@@ -194,32 +233,15 @@ class WebResearch:
             p2_news = data.get("p2_news", [])
             if not p1_news and not p2_news:
                 continue
-
             lines.append(f"\nMATCH: {match_str}")
-            if p1_news:
-                lines.append("  P1 News:")
-                for n in p1_news[:3]:
-                    lines.append(f"    - {n['title']} ({n.get('source', '?')})")
-                    if n.get("snippet"):
-                        lines.append(f"      >>> {n['snippet'][:250]}")
-            if p2_news:
-                lines.append("  P2 News:")
-                for n in p2_news[:3]:
-                    lines.append(f"    - {n['title']} ({n.get('source', '?')})")
-                    if n.get("snippet"):
-                        lines.append(f"      >>> {n['snippet'][:250]}")
+            lines += _headline_block("  P1 News:", p1_news, "    ", 250)
+            lines += _headline_block("  P2 News:", p2_news, "    ", 250)
 
-        any_tourney = []
-        for data in news_data.values():
-            if data.get("tourney_news"):
-                any_tourney = data["tourney_news"]
-                break
-        if any_tourney:
+        tourney = next((d["tourney_news"] for d in news_data.values()
+                        if d.get("tourney_news")), [])
+        if tourney:
             lines.append("\nTOURNAMENT NEWS:")
-            for n in any_tourney[:3]:
-                lines.append(f"  - {n['title']} ({n.get('source', '?')})")
-                if n.get("snippet"):
-                    lines.append(f"    >>> {n['snippet'][:200]}")
+            lines += _headline_block(None, tourney, "  ", 200)
 
         return "\n".join(lines) if lines else "Nessuna news rilevante trovata.\n"
 
@@ -369,30 +391,9 @@ class WebResearch:
 
         results = []
         for result_div in soup.select(".result")[:max_results]:
-            title_tag = result_div.select_one(".result__a")
-            snippet_tag = result_div.select_one(".result__snippet")
-
-            title = title_tag.get_text(strip=True) if title_tag else ""
-            snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
-            link = ""
-            if title_tag and title_tag.get("href"):
-                href = title_tag["href"]
-                if "uddg=" in href:
-                    match = re.search(r'uddg=([^&]+)', href)
-                    if match:
-                        link = unquote(match.group(1))
-                else:
-                    link = href
-
-            if title:
-                results.append({
-                    "title": title,
-                    "snippet": snippet,
-                    "source": "",
-                    "link": link,
-                    "date": "",
-                })
-
+            item = _ddg_result(result_div)
+            if item:
+                results.append(item)
         return results
 
     # ------------------------------------------------------------------

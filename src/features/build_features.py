@@ -48,7 +48,7 @@ def build_all_features(tour="atp"):
     print("\n1. Caricamento dataset unificato...")
     df = pd.read_csv(input_path, low_memory=False)
     df["tourney_date"] = pd.to_datetime(df["tourney_date"], errors="coerce")
-    
+
     # CRITICAL: Strict sorting to avoid temporal leakage
     # Within a tourney_date, we must follow match_num to avoid processing Final before Round 1
     df = df.sort_values(["tourney_date", "match_num"]).reset_index(drop=True)
@@ -82,7 +82,7 @@ def build_all_features(tour="atp"):
     df = add_points_defending_feature(df)
     df = _add_weather_features(df)
     df = _add_implied_probabilities(df)
-    
+
     # 5. Create modeling-ready format
     print("\n5. Preparazione feature matrix...")
     feature_df = _prepare_feature_matrix(df)
@@ -115,15 +115,15 @@ def _add_implied_probabilities(df):
     l_odds = pd.to_numeric(df.get("B365L", pd.Series(np.nan, index=df.index)), errors="coerce").fillna(
         pd.to_numeric(df.get("PSL", pd.Series(np.nan, index=df.index)), errors="coerce")).fillna(
         pd.to_numeric(df.get("AvgL", pd.Series(np.nan, index=df.index)), errors="coerce"))
-    
+
     df["w_implied_prob"] = (1.0 / w_odds).replace(np.inf, np.nan)
     df["l_implied_prob"] = (1.0 / l_odds).replace(np.inf, np.nan)
-    
+
     # Normalize to remove overround (bookmaker margin)
     margin = df["w_implied_prob"] + df["l_implied_prob"]
     df["w_implied_prob"] = df["w_implied_prob"] / margin
     df["l_implied_prob"] = df["l_implied_prob"] / margin
-    
+
     df["diff_implied_prob"] = df["w_implied_prob"] - df["l_implied_prob"]
 
     # Perspective-symmetric flag: lets the model distinguish real market info
@@ -135,129 +135,110 @@ def _add_implied_probabilities(df):
     df["w_implied_prob"] = df["w_implied_prob"].fillna(0.5)
     df["l_implied_prob"] = df["l_implied_prob"].fillna(0.5)
     df["diff_implied_prob"] = df["diff_implied_prob"].fillna(0.0)
-    
+
     print("  ✓ Probabilità implicite del mercato (SOTA Phase 4) calcolate")
     return df
 
 
-def _add_contextual_features(df):
-    """Add contextual features: surface dummies, tournament level, etc."""
-    df = df.copy()
+#: rolling windows the totals features are summed over
+_ROLL_WINDOWS = (10, 20, 50)
 
-    # Explicit Surface one-hot encoding to avoid leaked continuous variables
+#: stat -> aggregation for the additive totals features
+_TOTALS_SUMS = ("ace_rate", "bp_save_pct", "avg_total_games", "hold_pct",
+                "tiebreak_rate", "deciding_set_pct")
+
+#: later rounds are tighter matches, so more games
+_ROUND_ORDINAL = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7, "RR": 4}
+
+
+def _add_surface_and_level(df):
+    """One-hot surface (avoids a leaked continuous variable) and level dummies."""
     if "surface" in df.columns:
         df["surface_Hard"] = (df["surface"] == "Hard").astype(int)
         df["surface_Clay"] = (df["surface"] == "Clay").astype(int)
         df["surface_Grass"] = (df["surface"] == "Grass").astype(int)
-
-    # Tournament level dummies
     if "tourney_level" in df.columns:
         level_dummies = pd.get_dummies(df["tourney_level"], prefix="level")
         df = pd.concat([df, level_dummies], axis=1)
+    return df
 
-    # Ranking difference
+
+def _add_player_attributes(df):
+    """Ranking, age, height, handedness and seeding differentials."""
     if "winner_rank" in df.columns and "loser_rank" in df.columns:
         df["rank_diff"] = df["loser_rank"] - df["winner_rank"]  # Positive = winner ranked higher
         df["rank_ratio"] = df["loser_rank"] / df["winner_rank"].replace(0, np.nan)
-
-    # Age difference
     if "winner_age" in df.columns and "loser_age" in df.columns:
         df["age_diff"] = df["winner_age"] - df["loser_age"]
-
-    # Height difference
     if "winner_ht" in df.columns and "loser_ht" in df.columns:
         df["height_diff"] = df["winner_ht"] - df["loser_ht"]
-
-    # Handedness
     if "winner_hand" in df.columns:
         df["w_is_lefty"] = (df["winner_hand"] == "L").astype(int)
     if "loser_hand" in df.columns:
         df["l_is_lefty"] = (df["loser_hand"] == "L").astype(int)
-
-    # Seed indicator
     if "winner_seed" in df.columns:
         df["w_is_seeded"] = df["winner_seed"].notna().astype(int)
     if "loser_seed" in df.columns:
         df["l_is_seeded"] = df["loser_seed"].notna().astype(int)
+    return df
 
-    # === TOTALS-ORIENTED FEATURES ===
-    # best_of (3 or 5 sets - critical for totals ceiling)
+
+def _add_totals_features(df):
+    """Match-shape signals: format, round, competitiveness and both-player sums."""
     if "best_of" in df.columns:
-        df["best_of_5"] = (df["best_of"] == 5).astype(int)
-
-    # Round encoded as ordinal (later rounds = tighter matches = more games)
-    round_map = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7, "RR": 4}
+        df["best_of_5"] = (df["best_of"] == 5).astype(int)  # 5 sets raises the ceiling
     if "round" in df.columns:
-        df["round_ordinal"] = df["round"].map(round_map).fillna(3)
-
-    # Competitiveness: absolute ELO/prob difference (close matches → more games)
+        df["round_ordinal"] = df["round"].map(_ROUND_ORDINAL).fillna(3)
+    # close matches produce more games
     if "elo_win_prob" in df.columns:
         df["abs_elo_prob_diff"] = (df["elo_win_prob"] - 0.5).abs()
     if "diff_implied_prob" in df.columns:
         df["abs_implied_prob_diff"] = df["diff_implied_prob"].abs()
 
-    # Additive features (SUM of both players' stats → totals signal)
-    for w in [10, 20, 50]:
-        # Sum of ace rates → more holds → more tiebreaks
-        w_ace = f"w_ace_rate_{w}"
-        l_ace = f"l_ace_rate_{w}"
-        if w_ace in df.columns and l_ace in df.columns:
-            df[f"sum_ace_rate_{w}"] = df[w_ace].fillna(0) + df[l_ace].fillna(0)
+    for w in _ROLL_WINDOWS:
+        for stat in _TOTALS_SUMS:
+            w_col, l_col = f"w_{stat}_{w}", f"l_{stat}_{w}"
+            if w_col not in df.columns or l_col not in df.columns:
+                continue
+            df[f"sum_{stat}_{w}"] = df[w_col].fillna(0) + df[l_col].fillna(0)
+            if stat == "avg_total_games":
+                df[f"min_{stat}_{w}"] = df[[w_col, l_col]].min(axis=1)
+    return df
 
-        # Sum of break point save pct → both saving well → longer sets
-        w_bp = f"w_bp_save_pct_{w}"
-        l_bp = f"l_bp_save_pct_{w}"
-        if w_bp in df.columns and l_bp in df.columns:
-            df[f"sum_bp_save_pct_{w}"] = df[w_bp].fillna(0) + df[l_bp].fillna(0)
 
-        # Sum/Min of avg total games → how many games each player's matches produce
-        w_tg = f"w_avg_total_games_{w}"
-        l_tg = f"l_avg_total_games_{w}"
-        if w_tg in df.columns and l_tg in df.columns:
-            df[f"sum_avg_total_games_{w}"] = df[w_tg].fillna(0) + df[l_tg].fillna(0)
-            df[f"min_avg_total_games_{w}"] = df[[w_tg, l_tg]].min(axis=1)
-
-        # Sum of hold pct → service dominance from both sides
-        w_hold = f"w_hold_pct_{w}"
-        l_hold = f"l_hold_pct_{w}"
-        if w_hold in df.columns and l_hold in df.columns:
-            df[f"sum_hold_pct_{w}"] = df[w_hold].fillna(0) + df[l_hold].fillna(0)
-        # Sum of tiebreak rates
-        w_tb = f"w_tiebreak_rate_{w}"
-        l_tb = f"l_tiebreak_rate_{w}"
-        if w_tb in df.columns and l_tb in df.columns:
-            df[f"sum_tiebreak_rate_{w}"] = df[w_tb].fillna(0) + df[l_tb].fillna(0)
-
-        # Sum of deciding set pct
-        w_ds = f"w_deciding_set_pct_{w}"
-        l_ds = f"l_deciding_set_pct_{w}"
-        if w_ds in df.columns and l_ds in df.columns:
-            df[f"sum_deciding_set_pct_{w}"] = df[w_ds].fillna(0) + df[l_ds].fillna(0)
-
-    # === SAFE INTERACTION FEATURES (Asymmetric Base) ===
-    # We create them as w_ and l_ individually. The loop below will safely generate the diff_ without leakage.
-    
-    # 1. Elo x Form
+def _add_interactions(df):
+    """Asymmetric w_/l_ interactions; the diff_ pass below derives them safely."""
     if "w_elo" in df.columns and "w_form_ewm" in df.columns:
         df["w_elo_x_form"] = df["w_elo"] * df["w_form_ewm"]
         df["l_elo_x_form"] = df["l_elo"] * df["l_form_ewm"]
-        
-    # 2. Age x Fatigue
     if "winner_age" in df.columns and "w_decay_minutes_14d" in df.columns:
         df["w_age_x_fatigue"] = df["winner_age"] * df["w_decay_minutes_14d"]
         df["l_age_x_fatigue"] = df["loser_age"] * df["l_decay_minutes_14d"]
+    return df
 
-    # AUTO-GENERATE DIFFS
-    # Compute differential features for all w_/l_ symmetric pairs that don't already have one
+
+def _add_auto_diffs(df):
+    """diff_ for every numeric w_/l_ pair that does not already have one."""
     for c in df.columns.tolist():
-        if c.startswith("w_"):
-            base = c[2:]
-            l_col = f"l_{base}"
-            diff_col = f"diff_{base}"
-            if l_col in df.columns and diff_col not in df.columns:
-                if pd.api.types.is_numeric_dtype(df[c]) and pd.api.types.is_numeric_dtype(df[l_col]):
-                    df[diff_col] = df[c] - df[l_col]
+        if not c.startswith("w_"):
+            continue
+        base = c[2:]
+        l_col, diff_col = f"l_{base}", f"diff_{base}"
+        if l_col not in df.columns or diff_col in df.columns:
+            continue
+        if (pd.api.types.is_numeric_dtype(df[c])
+                and pd.api.types.is_numeric_dtype(df[l_col])):
+            df[diff_col] = df[c] - df[l_col]
+    return df
 
+
+def _add_contextual_features(df):
+    """Add contextual features: surface dummies, tournament level, etc."""
+    df = _add_surface_and_level(df.copy())
+    df = _add_player_attributes(df)
+    df = _add_totals_features(df)
+    df = _add_interactions(df)
+    df = _add_auto_diffs(df)
     print("  ✓ Feature contestuali aggiunte (+ totals combinatorie + diffs automatiche)")
     return df
 
@@ -269,14 +250,14 @@ def _add_clutch_features(df):
     if not clutch_path.exists():
         print("  ⚠ Dataset Clutch non trovato. Saltando feature clutch...")
         return df
-        
+
     clutch_df = pd.read_csv(clutch_path)
     clutch_df['date'] = pd.to_datetime(clutch_df['date'])
-    
+
     # Must sort by date for merge_asof
     df = df.sort_values('tourney_date')
     clutch_df = clutch_df.sort_values('date')
-    
+
     # Resolve NaNs that crash merge_asof
     df_clean = df.copy()
     df_clean['winner_name'] = df_clean['winner_name'].fillna('Unknown')
@@ -294,7 +275,7 @@ def _add_clutch_features(df):
         direction='backward',
         allow_exact_matches=False
     )
-    
+
     # Merge for loser
     loser_clutch = pd.merge_asof(
         df_clean[['tourney_date', 'loser_name']].rename(columns={'loser_name':'player_name'}),
@@ -305,15 +286,15 @@ def _add_clutch_features(df):
         direction='backward',
         allow_exact_matches=False
     )
-    
+
     # Add columns to main df
     clutch_cols = ['clutch_bp_saved_pct', 'clutch_bp_converted_pct', 'clutch_deuce_win_pct', 'clutch_tb_win_pct']
     for col in clutch_cols:
         df[f'w_{col}'] = winner_clutch[col].values
         df[f'l_{col}'] = loser_clutch[col].values
-        
+
     print(f"  ✓ Feature Clutch integrate (Mancanti w/l: {df['w_clutch_bp_saved_pct'].isna().sum()} / {df['l_clutch_bp_saved_pct'].isna().sum()})")
-    
+
     # In case a player has no PBP history, we fill with the average (approx 0.5 for most)
     df = df.fillna({
         'w_clutch_bp_saved_pct': 0.6,
@@ -325,7 +306,7 @@ def _add_clutch_features(df):
         'w_clutch_tb_win_pct': 0.5,
         'l_clutch_tb_win_pct': 0.5,
     })
-    
+
     # We must sort back to original order to avoid messing up the rest of the pipeline
     df = df.sort_values(["tourney_date", "match_num"]).reset_index(drop=True)
     return df
@@ -336,23 +317,23 @@ def _add_weather_features(df):
     if not weather_path.exists():
         print("  ⚠ Dataset Meteo non trovato. Saltando feature ambientali...")
         return df
-        
+
     weather_df = pd.read_csv(weather_path)
     weather_df['tourney_date'] = pd.to_datetime(weather_df['tourney_date'])
     df['tourney_date'] = pd.to_datetime(df['tourney_date'])
-    
+
     # Merge exact tournament and date
     df = df.merge(
         weather_df,
         how='left',
         on=['tourney_name', 'tourney_date']
     )
-    
+
     # Impute missing with averages
     df['temp_max'] = df['temp_max'].fillna(22.0)
     df['precipitation'] = df['precipitation'].fillna(0.0)
     df['wind_speed'] = df['wind_speed'].fillna(10.0)
-    
+
     print("  ✓ Feature Ambientali SOTA integrate")
     return df
 
@@ -365,24 +346,24 @@ def _prepare_feature_matrix(df):
     # List of feature columns we want for modeling (MUST NOT INCLUDE POST-MATCH STATS)
     # Be very specific to avoid data leakage (e.g. w_bpSaved vs w_bp_saved_avg_10)
     feature_cols = []
-    
+
     # 1. ELO Features
     elo_prefixes = ["w_elo", "l_elo", "w_surface_elo", "l_surface_elo", "elo_win_prob", "elo_surface_win_prob", "w_vs_", "l_vs_"]
     feature_cols.extend([c for c in df.columns if any(c.startswith(p) for p in elo_prefixes)])
-    
+
     # 2. Player Rolling Stats (identified by window suffixes _10, _20, _50)
     stats_prefixes = ["w_win_rate", "l_win_rate", "w_win_rate_surface", "l_win_rate_surface",
                       "w_n_matches", "l_n_matches", "w_n_matches_surface", "l_n_matches_surface"]
     feature_cols.extend([c for c in df.columns if any(c.startswith(p) for p in stats_prefixes)])
-    
+
     # 2.5 Clutch Features
     clutch_prefixes = ["w_clutch", "l_clutch"]
     feature_cols.extend([c for c in df.columns if any(c.startswith(p) for p in clutch_prefixes)])
-    
+
     # 3. SOTA Features (CPI, Points Defending, Weather)
     sota_prefixes = ["cpi", "w_defending_pts", "l_defending_pts", "w_pressure_ratio", "l_pressure_ratio", "temp_max", "precipitation", "wind_speed"]
     feature_cols.extend([c for c in df.columns if any(c.startswith(p) for p in sota_prefixes)])
-    
+
     # Add other rolling features (ace_rate, hold_pct, etc.) NOT already captured above
     window_suffixes = ["_10", "_20", "_50"]
     already_captured = set(feature_cols)
@@ -390,7 +371,7 @@ def _prepare_feature_matrix(df):
                      and (c.startswith("w_") or c.startswith("l_"))
                      and c not in already_captured]
     feature_cols.extend(rolling_stats)
-    
+
     # 3. H2H and Fatigue (incl. cumulative load: games/minutes in last 14d)
     fatigue_prefixes = ["w_h2h", "l_h2h", "w_days_since", "l_days_since",
                         "w_matches_last", "l_matches_last", "w_sets_last", "l_sets_last",
@@ -402,11 +383,11 @@ def _prepare_feature_matrix(df):
     momentum_prefixes = ["w_form_ewm", "l_form_ewm", "w_current_streak", "l_current_streak",
                          "w_recent_form_5", "l_recent_form_5"]
     feature_cols.extend([c for c in df.columns if any(c.startswith(p) for p in momentum_prefixes)])
-    
+
     # 3.5 Market Probabilities
     market_prefixes = ["w_implied_prob", "l_implied_prob", "diff_implied_prob", "has_odds"]
     feature_cols.extend([c for c in df.columns if any(c.startswith(p) for p in market_prefixes)])
-    
+
     # 4. Contextual Features
     context_prefixes = ["diff_", "rank_diff", "rank_ratio",
                         "age_diff", "height_diff", "w_is_", "l_is_", "w_ht", "l_ht",
@@ -419,26 +400,26 @@ def _prepare_feature_matrix(df):
                        "sum_ace_rate", "sum_bp_save_pct", "sum_avg_total_games", "min_avg_total_games",
                        "sum_hold_pct", "sum_tiebreak_rate", "sum_deciding_set_pct"]
     feature_cols.extend([c for c in df.columns if any(c.startswith(p) for p in totals_prefixes)])
-    
+
     # Deduplicate (PRESERVE ORDER — set() is non-deterministic across runs/Python versions
     # and can desync training vs inference column order). Then REMOVE ANY LEAKS explicitly.
     feature_cols = list(dict.fromkeys(feature_cols))
-    
+
     # Post-match stats that we MUST remove (they only exist for the current match)
     leaky_stats = ["ace", "df", "svpt", "1stIn", "1stWon", "2ndWon", "SvGms", "bpSaved", "bpFaced", "ret_rtn", "n_sets", "duration"]
-    
+
     # Nuclear option: remove any column that looks like a post-match stat from the WHOLE dataframe
     all_possible_leaks = []
     for p in ["w_", "l_", "diff_"]:
         for s in leaky_stats:
             all_possible_leaks.append(f"{p}{s}")
-    
+
     leaks_removed = [c for c in df.columns if c in all_possible_leaks]
     df = df.drop(columns=leaks_removed, errors="ignore")
-    
+
     if leaks_removed:
         print(f"  ⚠ NUCLEAR FILTER: Rimossi {len(leaks_removed)} leak: {sorted(leaks_removed)}")
-        
+
     # Update feature_cols to reflect removals
     feature_cols = [c for c in feature_cols if c not in leaks_removed]
     print(f"  ✓ Features selezionate: {len(feature_cols)}")
@@ -446,11 +427,11 @@ def _prepare_feature_matrix(df):
     # Metadata columns
     meta_cols = ["tourney_date", "tourney_name", "surface", "tourney_level",
                  "winner_name", "loser_name", "winner_id", "loser_id", "score"]
-                 
+
     # Propagate original raw odds as metadata for backtesting (NOT for training)
     odds_cols = [c for c in df.columns if any(bk in c.upper() for bk in ["B365", "PS", "MAX", "AVG"])]
     meta_cols.extend(odds_cols)
-    
+
     meta_cols = [c for c in meta_cols if c in df.columns]
 
     # Targets:
@@ -461,10 +442,10 @@ def _prepare_feature_matrix(df):
     # 2. Totals (total games)
     # 3. Spread (game diff)
     df["target"] = 1
-    
+
     all_cols = meta_cols + feature_cols + ["target", "total_games", "game_diff"]
     all_cols = [c for c in all_cols if c in df.columns]
-    
+
     result = df[all_cols].copy()
 
     # Remove rows with too many missing features

@@ -8,10 +8,10 @@ from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root 
 
 def warm_up():
     print("🎾 Pre-calcolando i motori ELO e Statistiche per l'analisi LIVE...")
-    
+
     output_dir = PROJECT_ROOT / "models"
     output_dir.mkdir(exist_ok=True)
-    
+
     for tour in ["atp", "wta"]:
         print(f"\n[{tour.upper()}] Avvio warmup...")
         # 2. Load unified dataset
@@ -19,26 +19,26 @@ def warm_up():
         if not unified_path.exists():
             print(f"❌ Errore: Dataset unificato non trovato in {unified_path}")
             continue
-            
+
         df = pd.read_csv(unified_path, low_memory=False)
         df['tourney_date'] = pd.to_datetime(df['tourney_date'])
         df = df.sort_values('tourney_date')
-        
+
         # 3. Initialize engines
         elo_engine = EloRating()
         stats_engine = PlayerStatsEngine()  # windows (10/20/50) are fixed inside the engine
-        
+
         # 4. Process all historical matches
         print(f"  ⏳ Elaborazione di {len(df):,} match storici...")
-        
+
         # Elo engine processes internally
         elo_engine.process_matches(df)
-        
+
         # Stats engine needs manual record for now (matching build_features logic)
         for _, row in df.iterrows():
             stats_engine.record_match(row, is_winner=True)
             stats_engine.record_match(row, is_winner=False)
-            
+
         # 5. Save the state
         cache_path = output_dir / f"{tour}_live_engines.pkl"
         state = {
@@ -46,7 +46,7 @@ def warm_up():
             "stats": stats_engine,
             "last_update": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
         }
-        
+
         joblib.dump(state, cache_path)
         print(f"✅ Motori salvati correttamente in {cache_path}")
         print(f"  - Giocatori mappati: {len(elo_engine.global_ratings):,}")

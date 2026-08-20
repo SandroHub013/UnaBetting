@@ -186,6 +186,23 @@ def t_search_knowledge(query: str = ""):
            {"query": query, "results": [], "note": "nessun risultato nel vault"}
 
 
+def _link_endpoint(value):
+    """graphify writes link ends either as an id or as the node object."""
+    return value if isinstance(value, str) else value.get("id")
+
+
+def _neighbours(node_id, links, nodes, limit=12):
+    neigh = []
+    for e in links:
+        src = _link_endpoint(e["source"])
+        tgt = _link_endpoint(e["target"])
+        if src == node_id and tgt in nodes:
+            neigh.append({"to": nodes[tgt].get("label"), "rel": e.get("relation")})
+        elif tgt == node_id and src in nodes:
+            neigh.append({"from": nodes[src].get("label"), "rel": e.get("relation")})
+    return neigh[:limit]
+
+
 def t_query_graph(term: str = ""):
     """Look up a concept in the graphify knowledge graph: node + neighbours."""
     gpath = config.PROJECT_ROOT / "graphify-out" / "graph.json"
@@ -197,19 +214,9 @@ def t_query_graph(term: str = ""):
     matches = [n for n in g.get("nodes", []) if tl in str(n.get("label", "")).lower()][:3]
     if not matches:
         return {"term": term, "results": [], "note": "nessun nodo corrispondente"}
-    out = []
     links = g.get("links", [])
-    for m in matches:
-        neigh = []
-        for e in links:
-            src = e["source"] if isinstance(e["source"], str) else e["source"].get("id")
-            tgt = e["target"] if isinstance(e["target"], str) else e["target"].get("id")
-            if src == m["id"] and tgt in nodes:
-                neigh.append({"to": nodes[tgt].get("label"), "rel": e.get("relation")})
-            elif tgt == m["id"] and src in nodes:
-                neigh.append({"from": nodes[src].get("label"), "rel": e.get("relation")})
-        out.append({"node": m.get("label"), "file": m.get("source_file"),
-                    "connections": neigh[:12]})
+    out = [{"node": m.get("label"), "file": m.get("source_file"),
+            "connections": _neighbours(m["id"], links, nodes)} for m in matches]
     return {"term": term, "results": out}
 
 
@@ -319,8 +326,7 @@ def default_chat_settings():
     }
 
 
-def validate_chat_settings(value):
-    """Validate the persisted chat backend contract without storing secrets."""
+def _require_exact_keys(value):
     if not isinstance(value, dict):
         raise ValueError("chat settings must be a JSON object")
     missing = CHAT_SETTINGS_KEYS - value.keys()
@@ -330,20 +336,27 @@ def validate_chat_settings(value):
     if unknown:
         raise ValueError(f"unknown chat setting: {sorted(unknown)[0]}")
 
-    provider = value["provider"]
-    model = value["model"]
-    base_url = value["base_url"]
-    api_key_env = value["api_key_env"]
+
+def _clean_provider(provider):
     if not isinstance(provider, str):
         raise ValueError("provider must be a string")
     provider = provider.strip().lower()
     if provider not in CHAT_PROVIDERS:
         raise ValueError(
             f"provider must be one of: {', '.join(sorted(CHAT_PROVIDERS))}")
+    return provider
+
+
+def _clean_model(model):
     if not isinstance(model, str) or not model.strip():
         raise ValueError("model must be a non-empty string")
     if len(model.strip()) > 200 or any(c in model for c in "\r\n"):
         raise ValueError("model is invalid")
+    return model.strip()
+
+
+def _clean_base_url(base_url, provider):
+    """http(s), no credentials, no query/fragment; https only for external providers."""
     if not isinstance(base_url, str) or not base_url.strip():
         raise ValueError("base_url must be a non-empty URL")
     parsed = urlsplit(base_url.strip())
@@ -353,6 +366,11 @@ def validate_chat_settings(value):
             "base_url must be an http(s) URL without credentials, query, or fragment")
     if provider != "ollama" and parsed.scheme != "https":
         raise ValueError("external provider base_url must use https")
+    return base_url.strip().rstrip("/")
+
+
+def _clean_api_key_env(api_key_env, provider):
+    """The NAME of an environment variable — never the key itself."""
     if not isinstance(api_key_env, str):
         raise ValueError("api_key_env must be a string")
     api_key_env = api_key_env.strip()
@@ -360,12 +378,18 @@ def validate_chat_settings(value):
         raise ValueError("api_key_env must be an environment variable name")
     if provider != "ollama" and not api_key_env:
         raise ValueError("api_key_env is required for external providers")
+    return api_key_env
 
+
+def validate_chat_settings(value):
+    """Validate the persisted chat backend contract without storing secrets."""
+    _require_exact_keys(value)
+    provider = _clean_provider(value["provider"])
     return {
         "provider": provider,
-        "model": model.strip(),
-        "base_url": base_url.strip().rstrip("/"),
-        "api_key_env": api_key_env,
+        "model": _clean_model(value["model"]),
+        "base_url": _clean_base_url(value["base_url"], provider),
+        "api_key_env": _clean_api_key_env(value["api_key_env"], provider),
     }
 
 
@@ -827,6 +851,73 @@ def _tool_result_message(settings, call, name, result):
     return message
 
 
+def _frame_text(raw):
+    """The user's text, whether the client sent JSON or a bare string."""
+    try:
+        return json.loads(raw).get("text", "").strip()
+    except json.JSONDecodeError:
+        return raw.strip()
+
+
+def _call_arguments(call):
+    """Tool arguments as a dict; providers send either an object or a JSON string."""
+    args = call.get("function", {}).get("arguments") or {}
+    if not isinstance(args, str):
+        return args
+    try:
+        return json.loads(args)
+    except json.JSONDecodeError:
+        return {}
+
+
+async def _invoke_tool(tool, args, ws, loop):
+    if tool is None:
+        return None
+    try:
+        if tool.get("is_async"):
+            kwargs = {"ws": ws} if tool.get("pass_ws") else {}
+            return await tool["fn"](**kwargs)
+        return await loop.run_in_executor(
+            None, lambda fn=tool["fn"], kw=args: fn(**kw))
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _run_tool_calls(calls, messages, tool_data, settings, ws, loop):
+    for call in calls:
+        name = call.get("function", {}).get("name", "")
+        tool = TOOLS.get(name)
+        await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "start"}))
+        if tool is None:
+            result = {"error": f"tool sconosciuto: {name}"}
+        else:
+            result = await _invoke_tool(tool, _call_arguments(call), ws, loop)
+        await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "done"}))
+        tool_data[name] = result
+        messages.append(_tool_result_message(settings, call, name, result))
+
+
+async def _answer_turn(messages, settings, ws, loop):
+    """Call the model, run any tools it asks for, and send the final reply."""
+    tool_data = {}   # raw results per tool -> frontend templates
+    for _ in range(MAX_TOOL_ROUNDS):
+        resp = await loop.run_in_executor(
+            None, lambda: _chat_call(messages, settings=settings))
+        msg = resp.get("message", {})
+        calls = msg.get("tool_calls") or []
+        if not calls:
+            reply = (msg.get("content") or "").strip()
+            messages.append({"role": "assistant", "content": reply})
+            await ws.send_text(json.dumps(
+                {"type": "reply", "text": reply, "data": tool_data},
+                ensure_ascii=False, default=str))
+            return
+        messages.append(msg)
+        await _run_tool_calls(calls, messages, tool_data, settings, ws, loop)
+    await ws.send_text(json.dumps(
+        {"type": "reply", "text": "(troppi giri di tool — riformula la domanda)"}))
+
+
 @router.websocket("/ws/chat")
 async def ws_chat(ws: WebSocket):
     if not await security.authorize_websocket(ws):
@@ -837,59 +928,12 @@ async def ws_chat(ws: WebSocket):
     settings = load_chat_settings()
     try:
         while True:
-            raw = await ws.receive_text()
-            try:
-                text = json.loads(raw).get("text", "").strip()
-            except json.JSONDecodeError:
-                text = raw.strip()
+            text = _frame_text(await ws.receive_text())
             if not text:
                 continue
             messages.append({"role": "user", "content": text})
-
-            tool_data = {}   # raw results per tool -> frontend templates
             try:
-                for _ in range(MAX_TOOL_ROUNDS):
-                    resp = await loop.run_in_executor(
-                        None, lambda: _chat_call(messages, settings=settings))
-                    msg = resp.get("message", {})
-                    calls = msg.get("tool_calls") or []
-                    if not calls:
-                        reply = (msg.get("content") or "").strip()
-                        messages.append({"role": "assistant", "content": reply})
-                        await ws.send_text(json.dumps(
-                            {"type": "reply", "text": reply, "data": tool_data},
-                            ensure_ascii=False, default=str))
-                        break
-                    messages.append(msg)
-                    for call in calls:
-                        name = call.get("function", {}).get("name", "")
-                        args = call.get("function", {}).get("arguments") or {}
-                        if isinstance(args, str):
-                            try:
-                                args = json.loads(args)
-                            except json.JSONDecodeError:
-                                args = {}
-                        tool = TOOLS.get(name)
-                        await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "start"}))
-                        if tool is None:
-                            result = {"error": f"tool sconosciuto: {name}"}
-                        else:
-                            try:
-                                if tool.get("is_async"):
-                                    kwargs = {"ws": ws} if tool.get("pass_ws") else {}
-                                    result = await tool["fn"](**kwargs)
-                                else:
-                                    result = await loop.run_in_executor(
-                                        None, lambda fn=tool["fn"], kw=args: fn(**kw))
-                            except Exception as e:
-                                result = {"error": str(e)}
-                        await ws.send_text(json.dumps({"type": "tool", "name": name, "status": "done"}))
-                        tool_data[name] = result
-                        messages.append(
-                            _tool_result_message(settings, call, name, result))
-                else:
-                    await ws.send_text(json.dumps(
-                        {"type": "reply", "text": "(troppi giri di tool — riformula la domanda)"}))
+                await _answer_turn(messages, settings, ws, loop)
             except Exception as e:
                 await ws.send_text(json.dumps({"type": "error", "detail": str(e)}))
     except WebSocketDisconnect:

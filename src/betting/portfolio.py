@@ -24,6 +24,53 @@ from src.runtime_paths import DATA_ROOT as PROJECT_ROOT  # writable+seeded root 
 DB_PATH = PROJECT_ROOT / "data" / "betanalytix.db"
 
 
+#: edge buckets, in report order
+_EDGE_BUCKETS = ("0-5%", "5-10%", "10-20%", "20%+")
+
+
+def _edge_bucket(bet):
+    e = abs(bet["edge"]) * 100
+    if e < 5:
+        return "0-5%"
+    if e < 10:
+        return "5-10%"
+    return "10-20%" if e < 20 else "20%+"
+
+
+def _group_bets(bets, key_of, buckets=()):
+    """Tally bets/won/profit/staked per key, seeding any fixed buckets first."""
+    groups = {b: {"bets": 0, "won": 0, "profit": 0, "staked": 0} for b in buckets}
+    for b in bets:
+        g = groups.setdefault(key_of(b), {"bets": 0, "won": 0, "profit": 0, "staked": 0})
+        g["bets"] += 1
+        g["staked"] += b["stake"]
+        g["profit"] += b["profit"] or 0
+        if b["status"] == "won":
+            g["won"] += 1
+    return groups
+
+
+def _add_rates(groups):
+    for g in groups.values():
+        g["win_rate"] = g["won"] / g["bets"] if g["bets"] > 0 else 0
+        g["roi"] = g["profit"] / g["staked"] if g["staked"] > 0 else 0
+
+
+def _current_streak(resolved):
+    """Signed run length of the most recent identical results (+won / -lost)."""
+    streak = 0
+    streak_type = None
+    for b in sorted(resolved, key=lambda x: x["resolved_at"] or "", reverse=True):
+        if streak_type is None:
+            streak_type = b["status"]
+            streak = 1
+        elif b["status"] == streak_type:
+            streak += 1
+        else:
+            break
+    return streak if streak_type == "won" else -streak
+
+
 class BetAnalytix:
     """SQLite-backed betting decision database."""
 
@@ -350,21 +397,44 @@ class BetAnalytix:
         lost = [b for b in resolved if b["status"] == "lost"]
         total_staked = sum(b["stake"] for b in resolved)
         total_profit = sum(b["profit"] or 0 for b in resolved)
-        win_rate = len(won) / len(resolved) if resolved else 0
 
-        # Current streak
-        streak = 0
-        for b in sorted(resolved, key=lambda x: x["resolved_at"] or "", reverse=True):
-            if streak == 0:
-                streak_type = b["status"]
-                streak = 1
-            elif b["status"] == streak_type:
-                streak += 1
-            else:
-                break
-        streak_val = streak if streak_type == "won" else -streak
+        by_surface = _group_bets(resolved, self._surface_of)
+        _add_rates(by_surface)
+        by_edge = _group_bets(resolved, _edge_bucket, buckets=_EDGE_BUCKETS)
+        _add_rates(by_edge)
+        monthly = _group_bets(resolved, lambda b: (b["resolved_at"] or b["timestamp"])[:7])
 
-        # Max drawdown — SQL window function (O(n) in engine, no Python loop)
+        best = max(resolved, key=lambda b: b["profit"] or 0)
+        worst = min(resolved, key=lambda b: b["profit"] or 0)
+
+        return {
+            "total_bets": len(resolved),
+            "pending": len(pending),
+            "won": len(won),
+            "lost": len(lost),
+            "win_rate": len(won) / len(resolved),
+            "total_staked": total_staked,
+            "total_profit": total_profit,
+            "roi": total_profit / total_staked if total_staked > 0 else 0,
+            "bankroll": self.get_bankroll(),
+            "max_drawdown": self._max_drawdown(),
+            "current_streak": _current_streak(resolved),
+            "best_bet": {"match": best["match_str"], "profit": best["profit"]},
+            "worst_bet": {"match": worst["match_str"], "profit": worst["profit"]},
+            "by_surface": by_surface,
+            "by_edge_range": by_edge,
+            "monthly": dict(sorted(monthly.items())),
+        }
+
+    def _surface_of(self, bet):
+        """Surface comes from the decision the bet was placed on."""
+        dec = self._conn.execute(
+            "SELECT surface FROM decisions WHERE id=?", (bet["decision_id"],)
+        ).fetchone()
+        return dict(dec)["surface"] if dec else "Unknown"
+
+    def _max_drawdown(self):
+        """SQL window function (O(n) in the engine, no Python loop)."""
         dd_row = self._conn.execute("""
             SELECT COALESCE(MAX(running_peak - cumulative), 0) AS max_dd FROM (
                 SELECT
@@ -374,87 +444,7 @@ class BetAnalytix:
                 WHERE status IN ('won', 'lost')
             )
         """).fetchone()
-        max_dd = float(dd_row["max_dd"] if dd_row else 0)
-
-        # By surface
-        by_surface = {}
-        for b in resolved:
-            # Get surface from linked decision
-            dec = self._conn.execute(
-                "SELECT surface FROM decisions WHERE id=?", (b["decision_id"],)
-            ).fetchone()
-            surf = dict(dec)["surface"] if dec else "Unknown"
-            if surf not in by_surface:
-                by_surface[surf] = {"bets": 0, "won": 0, "profit": 0, "staked": 0}
-            by_surface[surf]["bets"] += 1
-            by_surface[surf]["staked"] += b["stake"]
-            by_surface[surf]["profit"] += b["profit"] or 0
-            if b["status"] == "won":
-                by_surface[surf]["won"] += 1
-
-        for s in by_surface.values():
-            s["win_rate"] = s["won"] / s["bets"] if s["bets"] > 0 else 0
-            s["roi"] = s["profit"] / s["staked"] if s["staked"] > 0 else 0
-
-        # By edge range
-        by_edge = {"0-5%": {"bets": 0, "won": 0, "profit": 0, "staked": 0},
-                   "5-10%": {"bets": 0, "won": 0, "profit": 0, "staked": 0},
-                   "10-20%": {"bets": 0, "won": 0, "profit": 0, "staked": 0},
-                   "20%+": {"bets": 0, "won": 0, "profit": 0, "staked": 0}}
-        for b in resolved:
-            e = abs(b["edge"]) * 100
-            if e < 5:
-                bucket = "0-5%"
-            elif e < 10:
-                bucket = "5-10%"
-            elif e < 20:
-                bucket = "10-20%"
-            else:
-                bucket = "20%+"
-            by_edge[bucket]["bets"] += 1
-            by_edge[bucket]["staked"] += b["stake"]
-            by_edge[bucket]["profit"] += b["profit"] or 0
-            if b["status"] == "won":
-                by_edge[bucket]["won"] += 1
-
-        for bucket in by_edge.values():
-            bucket["win_rate"] = bucket["won"] / bucket["bets"] if bucket["bets"] > 0 else 0
-            bucket["roi"] = bucket["profit"] / bucket["staked"] if bucket["staked"] > 0 else 0
-
-        # Monthly
-        monthly = {}
-        for b in resolved:
-            month = (b["resolved_at"] or b["timestamp"])[:7]
-            if month not in monthly:
-                monthly[month] = {"bets": 0, "won": 0, "profit": 0, "staked": 0}
-            monthly[month]["bets"] += 1
-            monthly[month]["staked"] += b["stake"]
-            monthly[month]["profit"] += b["profit"] or 0
-            if b["status"] == "won":
-                monthly[month]["won"] += 1
-
-        # Best / worst bet
-        best = max(resolved, key=lambda b: b["profit"] or 0)
-        worst = min(resolved, key=lambda b: b["profit"] or 0)
-
-        return {
-            "total_bets": len(resolved),
-            "pending": len(pending),
-            "won": len(won),
-            "lost": len(lost),
-            "win_rate": win_rate,
-            "total_staked": total_staked,
-            "total_profit": total_profit,
-            "roi": total_profit / total_staked if total_staked > 0 else 0,
-            "bankroll": self.get_bankroll(),
-            "max_drawdown": max_dd,
-            "current_streak": streak_val,
-            "best_bet": {"match": best["match_str"], "profit": best["profit"]},
-            "worst_bet": {"match": worst["match_str"], "profit": worst["profit"]},
-            "by_surface": by_surface,
-            "by_edge_range": by_edge,
-            "monthly": dict(sorted(monthly.items())),
-        }
+        return float(dd_row["max_dd"] if dd_row else 0)
 
     def get_today_pnl(self) -> float:
         """Get today's profit/loss."""

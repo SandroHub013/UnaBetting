@@ -19,10 +19,10 @@ for feat in feature_names:
     # Reshape for single feature
     X_f_train = X_train[[feat]]
     X_f_test = X_test[[feat]]
-    
+
     # Check mean - it should be near zero for 'diff_' features if randomization worked
     f_mean = X_f_test[feat].mean()
-    
+
     model.fit(X_f_train, y_train["target"])
     acc = accuracy_score(y_test["target"], model.predict(X_f_test))
     results.append((feat, acc, f_mean))

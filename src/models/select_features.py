@@ -24,7 +24,7 @@ def load_config():
 def run_feature_selection(tour="atp", top_k=70):
     config = load_config()
     features_path = PROJECT_ROOT / config["paths"]["features"] / f"{tour}_features.csv"
-    
+
     if not features_path.exists():
         print(f"  ✗ Feature matrix non trovata: {features_path}")
         return
@@ -34,24 +34,24 @@ def run_feature_selection(tour="atp", top_k=70):
     print(f"{'=' * 60}")
 
     df = pd.read_csv(features_path, low_memory=False)
-    
+
     # 1. Prepare data (temporal split, etc.)
     print("1. Preparazione dati per ranking...")
-    (X_train, _P_train, y_train, _X_val, _P_val, _y_val, _X_test, _P_test, _y_test,
+    (x_train, _p_train, y_train, _x_val, _p_val, _y_val, _x_test, _p_test, _y_test,
      _scaler, feature_names, _medians, _player_mapping) = prepare_training_data(df, config, skip_selection=True)
-    
+
     # 2. Train Random Forest for importance
     print("2. Calcolo importanza via Random Forest (300 alberi)...")
     rf = RandomForestClassifier(n_estimators=300, min_samples_leaf=1, max_features="sqrt", random_state=42, n_jobs=-1)
-    rf.fit(X_train, y_train["target"])
-    
+    rf.fit(x_train, y_train["target"])
+
     # 3. Rank features
     importances = rf.feature_importances_
     indices = np.argsort(importances)[::-1]
-    
+
     ranked_features = [feature_names[i] for i in indices]
     ranked_scores = [importances[i] for i in indices]
-    
+
     # 4. Save results
     print(f"3. Selezione delle top {top_k} feature...")
     selected = ranked_features[:top_k]
@@ -63,9 +63,9 @@ def run_feature_selection(tour="atp", top_k=70):
     output_path = PROJECT_ROOT / "config" / f"selected_features_{tour}.txt"
     with open(output_path, "w") as f:
         f.write("\n".join(selected))
-    
+
     print(f"  ✓ {top_k} feature salvate in: {output_path}")
-    
+
     # Print Top 20 for visibility
     print("\n🔥 TOP 20 FEATURES:")
     for i in range(20):

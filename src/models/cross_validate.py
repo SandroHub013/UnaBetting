@@ -18,13 +18,13 @@ def run_cross_validation():
     print("\n" + "="*60)
     print("🕒 TIME-SERIES CROSS VALIDATION (Walk-Forward)")
     print("="*60)
-    
+
     config = load_config()
     tour = "atp"
     features_path = PROJECT_ROOT / config["paths"]["features"] / f"{tour}_features.csv"
     df = pd.read_csv(features_path, low_memory=False)
     df["tourney_date"] = pd.to_datetime(df["tourney_date"])
-    
+
     # Define folds: (Train End Year, Test Year) - Walk-Forward 5 folds
     folds = [
         (2019, 2020),
@@ -33,12 +33,12 @@ def run_cross_validation():
         (2022, 2023),
         (2023, 2024),
     ]
-    
+
     cv_results = []
-    
+
     for train_end, test_year in folds:
         print(f"\n📂 FOLD: Train until {train_end}, Test in {test_year}")
-        
+
         # Temporary override for prepare_training_data.
         # CRITICAL: clear validation_years so the internal split is
         #   train = year < test_year   (no fixed 2023 cut),
@@ -51,17 +51,17 @@ def run_cross_validation():
         temp_config["model"]["validation_years"] = []
 
         # 13-value return: (X, P, y) for train/val/test, then scaler, features, medians, player_mapping
-        (X_train, _P_train, y_train, _X_val, _P_val, _y_val, X_test, _P_test, y_test,
+        (x_train, _p_train, y_train, _x_val, _p_val, _y_val, x_test, _p_test, y_test,
          _scaler, _feature_names, _medians, _player_mapping) = prepare_training_data(df, temp_config)
 
         # Walk-forward: test ONLY on test_year (not all future years).
         year_of = df["tourney_date"].dt.year
-        test_year_mask = X_test.index.map(year_of) == test_year
-        X_test = X_test[test_year_mask]
+        test_year_mask = x_test.index.map(year_of) == test_year
+        x_test = x_test[test_year_mask]
         y_test = y_test[test_year_mask]
 
         # Sanity: train and test must not share any rows.
-        assert len(X_train.index.intersection(X_test.index)) == 0, "CV fold leakage: train/test overlap"
+        assert len(x_train.index.intersection(x_test.index)) == 0, "CV fold leakage: train/test overlap"
 
         # Extract only the H2H target (binary classification)
         y_tr = y_train["target"] if isinstance(y_train, pd.DataFrame) else y_train
@@ -69,15 +69,15 @@ def run_cross_validation():
 
         # Train XGBoost (Standard params)
         model = xgb.XGBClassifier(n_estimators=100, max_depth=6, random_state=42, eval_metric="logloss")
-        model.fit(X_train, y_tr)
+        model.fit(x_train, y_tr)
 
         # Evaluate
-        res = _evaluate_model(model, X_test, y_te, f"Fold {test_year}")
+        res = _evaluate_model(model, x_test, y_te, f"Fold {test_year}")
         res['year'] = test_year
         cv_results.append(res)
-        
+
     cv_df = pd.DataFrame(cv_results)
-    
+
     print("\n" + "="*60)
     print("📊 FINAL CV SUMMARY")
     print("="*60)

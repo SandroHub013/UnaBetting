@@ -38,7 +38,7 @@ print(f"   p1-win share (=accuracy, p1 is real winner): {(p_proper > 0.5).mean()
 print(f"   mean={p_proper.mean():.4f} std={p_proper.std():.4f}")
 
 # --- C) proper path + randomized perspective (honest eval) ---
-rng = np.random.RandomState(123)
+rng = np.random.default_rng(123)
 flip = rng.random(len(X_raw)) > 0.5
 Xr = X_raw.copy()
 for wc in [c for c in features if c.startswith("w_")]:

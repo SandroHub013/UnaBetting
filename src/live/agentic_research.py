@@ -87,6 +87,123 @@ ACTIONABLE_KEYWORDS = [
 # PERSISTENT RESEARCH CACHE
 # ============================================================
 
+#: page furniture that never carries article text
+_NOISE_TAGS = ("script", "style", "nav", "header", "footer",
+               "aside", "iframe", "form", "button")
+
+#: tennis vocabulary — weaker signal than ACTIONABLE_KEYWORDS but still on-topic
+_TENNIS_CONTEXT = ("set", "match", "tournament", "round", "clay",
+                   "hard court", "grass", "serve", "forehand",
+                   "backhand", "coach", "physio", "MRI", "scan",
+                   "recovery", "pain", "discomfort", "confident",
+                   "semifinal", "quarterfinal", "final", "title")
+
+
+def _article_body(html):
+    """The <article>/<main>/<body> element with the page furniture stripped out."""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(list(_NOISE_TAGS)):
+        tag.decompose()
+    return soup.find("article") or soup.find("main") or soup.find("body")
+
+
+def _paragraph_score(text):
+    """How useful a paragraph is for a betting decision."""
+    text_lower = text.lower()
+    score = 3 * sum(1 for kw in ACTIONABLE_KEYWORDS if kw in text_lower)
+    score += sum(1 for kw in _TENNIS_CONTEXT if kw in text_lower)
+    # capitalised words usually mean player names, i.e. concrete context
+    if len(re.findall(r'\b[A-Z][a-z]+\b', text)) >= 2:
+        score += 1
+    return score
+
+
+def _top_paragraphs(paragraphs, keep=8, fallback=5, max_chars=2500):
+    """The highest-scoring paragraphs, joined and truncated."""
+    scored = [(_paragraph_score(t), t)
+              for t in (p.get_text(strip=True) for p in paragraphs)
+              if len(t) >= 20]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = [text for score, text in scored if score > 0][:keep]
+    if not top:
+        top = [text for _, text in scored[:fallback]]
+    content = "\n\n".join(top)
+    if len(content) > max_chars:
+        content = content[:max_chars] + "\n[... TRUNCATED]"
+    return content
+
+
+#: line fragments that mark a Tennis Abstract row as worth keeping
+_TA_STAT_KEYWORDS = (
+    "elo", "rank", "record", "ytd", "last 52", "surface",
+    "clay", "hard", "grass", "indoor", "outdoor",
+    "vs top", "recent", "streak", "current", "peak",
+    "win", "loss", "titles", "finals", "h2h",
+    "serve", "return", "break point", "tiebreak",
+)
+
+
+def _ta_slugs(parts):
+    """Tennis Abstract player slugs to try, most likely first."""
+    first = parts[0]
+    last = "".join(parts[1:])
+    return [
+        f"{first[0]}{last}".lower(),     # JSinner
+        "".join(parts).lower(),          # janniksinner
+        f"{first}{last}".lower(),        # janniksinner (redundant but safe)
+    ]
+
+
+def _ta_table_rows(soup, tables_to_read=5):
+    """Cells of the first few tables, one pipe-joined line per row."""
+    rows_out = []
+    for table in soup.find_all("table")[:tables_to_read]:
+        for row in table.find_all("tr"):
+            cells = row.find_all(["td", "th"])
+            cell_text = " | ".join(c.get_text(strip=True) for c in cells)
+            if cell_text.strip():
+                rows_out.append(cell_text)
+    return rows_out
+
+
+def _ta_keyword_lines(text):
+    lines = []
+    for line in text.split("\n"):
+        line_s = line.strip()
+        if len(line_s) < 5:
+            continue
+        if any(kw in line_s.lower() for kw in _TA_STAT_KEYWORDS):
+            lines.append(line_s)
+    return lines
+
+
+def _ta_summary(soup, player_name, keep=50, max_chars=1800):
+    """Table rows plus keyword lines, deduplicated and truncated."""
+    text = soup.get_text(separator="\n", strip=True)
+    seen = set()
+    all_stats = []
+    for line in _ta_table_rows(soup) + _ta_keyword_lines(text):
+        if line not in seen and len(line) > 5:
+            seen.add(line)
+            all_stats.append(line)
+
+    if not all_stats:
+        return f"Tennis Abstract for {player_name}:\n{text[:1200]}"
+    stats_text = "\n".join(all_stats[:keep])
+    if len(stats_text) > max_chars:
+        stats_text = stats_text[:max_chars] + "\n[... TRUNCATED]"
+    return f"Tennis Abstract stats for {player_name}:\n\n{stats_text}"
+
+
+def _tool_arguments(tool_call):
+    """Arguments of a tool call; a malformed JSON blob means no arguments."""
+    raw = tool_call.get("function", {}).get("arguments", "{}")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+
+
 class ResearchCache:
     """JSON-based persistent cache for research results.
     Survives across scans — avoids redundant API calls within TTL.
@@ -291,19 +408,10 @@ class AgentTools:
         try:
             resp = self._session.get(url, timeout=12, allow_redirects=True)
             resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
-
-            # Remove noise
-            for tag in soup(["script", "style", "nav", "header", "footer",
-                             "aside", "iframe", "form", "button"]):
-                tag.decompose()
-
-            # Find article body
-            article = soup.find("article") or soup.find("main") or soup.find("body")
+            article = _article_body(resp.text)
             if not article:
                 return "[ERROR] Could not extract article content."
 
-            # Extract paragraphs
             paragraphs = article.find_all(["p", "li", "h2", "h3"])
             if not paragraphs:
                 text = article.get_text(separator="\n", strip=True)[:1500]
@@ -311,51 +419,7 @@ class AgentTools:
                 self.cache.set(cache_key, result)
                 return result
 
-            # Score each paragraph by relevance to tennis betting decisions
-            scored = []
-            for p in paragraphs:
-                text = p.get_text(strip=True)
-                if len(text) < 20:
-                    continue
-
-                score = 0
-                text_lower = text.lower()
-
-                # High value: actionable keywords
-                for kw in ACTIONABLE_KEYWORDS:
-                    if kw in text_lower:
-                        score += 3
-
-                # Medium value: tennis context
-                tennis_context = ["set", "match", "tournament", "round", "clay",
-                                  "hard court", "grass", "serve", "forehand",
-                                  "backhand", "coach", "physio", "MRI", "scan",
-                                  "recovery", "pain", "discomfort", "confident",
-                                  "semifinal", "quarterfinal", "final", "title"]
-                for kw in tennis_context:
-                    if kw in text_lower:
-                        score += 1
-
-                # Player name mentions (useful context)
-                # Can't check specific names here, but names are usually capitalized
-                caps_words = re.findall(r'\b[A-Z][a-z]+\b', text)
-                if len(caps_words) >= 2:
-                    score += 1
-
-                scored.append((score, text))
-
-            # Sort by relevance, take top paragraphs
-            scored.sort(key=lambda x: x[0], reverse=True)
-            top_paragraphs = [text for score, text in scored if score > 0][:8]
-
-            if not top_paragraphs:
-                # Fallback: first 5 paragraphs
-                top_paragraphs = [text for _, text in scored[:5]]
-
-            content = "\n\n".join(top_paragraphs)
-            if len(content) > 2500:
-                content = content[:2500] + "\n[... TRUNCATED]"
-
+            content = _top_paragraphs(paragraphs)
             result = f"Key content from {url}:\n\n{content}"
             self.cache.set(cache_key, result)
             return result
@@ -375,83 +439,18 @@ class AgentTools:
         if len(parts) < 2:
             return f"[ERROR] Cannot parse player name: {player_name}"
 
-        # Tennis Abstract URL patterns
-        first = parts[0]
-        last = "".join(parts[1:])
-        slug_patterns = [
-            f"{first[0]}{last}".lower(),        # JSinner
-            f"{''.join(parts)}".lower(),         # janniksinner
-            f"{first}{last}".lower(),            # janniksinner (redundant but safe)
-        ]
-
-        for slug in slug_patterns:
+        for slug in _ta_slugs(parts):
             url = f"https://www.tennisabstract.com/cgi-bin/player-classic.cgi?p={slug}"
             try:
                 resp = self._session.get(url, timeout=10)
                 if resp.status_code != 200:
                     continue
-
                 soup = BeautifulSoup(resp.text, "html.parser")
-
-                # Check if page is valid
                 title = soup.find("title")
                 if title and "not found" in title.text.lower():
                     continue
 
-                # Extract structured sections
-                sections = {}
-                current_section = "general"
-                sections[current_section] = []
-
-                # Look for tables with stats
-                tables = soup.find_all("table")
-                table_data = []
-                for table in tables[:5]:  # First 5 tables usually have key stats
-                    rows = table.find_all("tr")
-                    for row in rows:
-                        cells = row.find_all(["td", "th"])
-                        cell_text = " | ".join(c.get_text(strip=True) for c in cells)
-                        if cell_text.strip():
-                            table_data.append(cell_text)
-
-                # Get full text for keyword extraction
-                text = soup.get_text(separator="\n", strip=True)
-                lines = text.split("\n")
-
-                # Extract key stats lines
-                key_lines = []
-                stat_keywords = [
-                    "elo", "rank", "record", "ytd", "last 52", "surface",
-                    "clay", "hard", "grass", "indoor", "outdoor",
-                    "vs top", "recent", "streak", "current", "peak",
-                    "win", "loss", "titles", "finals", "h2h",
-                    "serve", "return", "break point", "tiebreak",
-                ]
-                for line in lines:
-                    line_s = line.strip()
-                    if not line_s or len(line_s) < 5:
-                        continue
-                    line_lower = line_s.lower()
-                    if any(kw in line_lower for kw in stat_keywords):
-                        key_lines.append(line_s)
-
-                # Combine table data + key lines, deduplicate
-                all_stats = []
-                seen = set()
-                for line in table_data + key_lines:
-                    if line not in seen and len(line) > 5:
-                        seen.add(line)
-                        all_stats.append(line)
-
-                if not all_stats:
-                    # Fallback: raw text
-                    result = f"Tennis Abstract for {player_name}:\n{text[:1200]}"
-                else:
-                    stats_text = "\n".join(all_stats[:50])
-                    if len(stats_text) > 1800:
-                        stats_text = stats_text[:1800] + "\n[... TRUNCATED]"
-                    result = f"Tennis Abstract stats for {player_name}:\n\n{stats_text}"
-
+                result = _ta_summary(soup, player_name)
                 self.cache.set(cache_key, result)
                 return result
 
@@ -648,6 +647,18 @@ class AgenticResearcher:
         except Exception:
             self._model = "z-ai/glm-5.1"
 
+    def _run_tool(self, func_name, func_args):
+        """Dispatch one tool call to the AgentTools instance."""
+        if func_name == "search_tennis_news":
+            return self.tools.search_tennis_news(func_args.get("query", ""))
+        if func_name == "search_web":
+            return self.tools.search_web(func_args.get("query", ""))
+        if func_name == "fetch_article":
+            return self.tools.fetch_article(func_args.get("url", ""))
+        if func_name == "get_player_stats":
+            return self.tools.get_player_stats(func_args.get("player_name", ""))
+        return f"[ERROR] Unknown tool: {func_name}"
+
     def research_matches(self, predictions: list) -> list[dict]:
         """Run the agentic research loop for match predictions."""
         if not self._api_key:
@@ -685,19 +696,13 @@ class AgenticResearcher:
 
             for tc in tool_calls:
                 func_name = tc.get("function", {}).get("name", "")
-                func_args_raw = tc.get("function", {}).get("arguments", "{}")
+                func_args = _tool_arguments(tc)
                 tc_id = tc.get("id", f"call_{iteration}_{tool_call_count}")
-
-                try:
-                    func_args = json.loads(func_args_raw)
-                except json.JSONDecodeError:
-                    func_args = {}
 
                 tool_call_count += 1
                 args_preview = json.dumps(func_args, ensure_ascii=False)[:80]
                 print(f"  [Agent] [{tool_call_count}] {func_name}({args_preview})")
 
-                # Execute tool
                 if func_name == "done":
                     adjustments = func_args.get("adjustments", [])
                     print(f"  [Agent] Research complete. {len(adjustments)} adjustments.")
@@ -707,20 +712,9 @@ class AgenticResearcher:
                     })
                     return adjustments
 
-                elif func_name == "search_tennis_news":
-                    result = self.tools.search_tennis_news(func_args.get("query", ""))
-                elif func_name == "search_web":
-                    result = self.tools.search_web(func_args.get("query", ""))
-                elif func_name == "fetch_article":
-                    result = self.tools.fetch_article(func_args.get("url", ""))
-                elif func_name == "get_player_stats":
-                    result = self.tools.get_player_stats(func_args.get("player_name", ""))
-                else:
-                    result = f"[ERROR] Unknown tool: {func_name}"
-
                 messages.append({
                     "role": "tool", "tool_call_id": tc_id,
-                    "content": result[:3000],
+                    "content": self._run_tool(func_name, func_args)[:3000],
                 })
 
         print("  [Agent] Max iterations. Forcing completion...")
@@ -777,19 +771,8 @@ class AgenticResearcher:
                 with urllib.request.urlopen(req, context=ctx, timeout=120) as resp:
                     return json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
-                body = ""
-                try:
-                    body = e.read().decode("utf-8", errors="replace")[:300]
-                except Exception:
-                    pass
-                # Transient 429/5xx → retry; 4xx (client error) → fail fast
-                transient = e.code == 429 or 500 <= e.code < 600
-                if transient and attempt < 2:
-                    log.warning("llm_http_%s attempt=%d body=%s", e.code, attempt + 1, body[:150])
-                    time.sleep(5 if e.code == 429 else 3)
+                if self._handle_http_error(e, attempt):
                     continue
-                log.error("llm_http_final code=%s body=%s", e.code, body[:150])
-                self._last_error = f"http_{e.code}"
                 return None
             except OSError as e:
                 if attempt < 2:
@@ -804,6 +787,22 @@ class AgenticResearcher:
                 self._last_error = f"unexpected_{type(e).__name__}"
                 return None
         return None
+
+    def _handle_http_error(self, e, attempt):
+        """True to retry. 429 and 5xx are transient; a 4xx fails fast."""
+        body = ""
+        try:
+            body = e.read().decode("utf-8", errors="replace")[:300]
+        except Exception:
+            pass
+        transient = e.code == 429 or 500 <= e.code < 600
+        if transient and attempt < 2:
+            log.warning("llm_http_%s attempt=%d body=%s", e.code, attempt + 1, body[:150])
+            time.sleep(5 if e.code == 429 else 3)
+            return True
+        log.error("llm_http_final code=%s body=%s", e.code, body[:150])
+        self._last_error = f"http_{e.code}"
+        return False
 
     def _force_completion(self, messages: list) -> list[dict]:
         messages.append({

@@ -26,15 +26,15 @@ def load_data():
     config = load_config()
 
     # New signature: train, val, test
-    (X_train, _P_train, y_train_all, X_val, _P_val, y_val_all, _X_test, _P_test, _y_test_all,
+    (x_train, _p_train, y_train_all, x_val, _p_val, y_val_all, _x_test, _p_test, _y_test_all,
      _scaler, _numeric_cols, _medians, _player_mapping) = prepare_training_data(df, config)
 
     y_train = y_train_all["target"]
     y_val = y_val_all["target"]
 
-    return X_train, y_train, X_val, y_val
+    return x_train, y_train, x_val, y_val
 
-def objective_lgb(trial, X_train, y_train, X_val, y_val):
+def objective_lgb(trial, x_train, y_train, x_val, y_val):
     params = {
         'objective': 'binary',
         'metric': 'binary_logloss',
@@ -55,18 +55,18 @@ def objective_lgb(trial, X_train, y_train, X_val, y_val):
 
     # Early stopping on VALIDATION set (not test set)
     model.fit(
-        X_train, y_train,
-        eval_set=[(X_val, y_val)],
+        x_train, y_train,
+        eval_set=[(x_val, y_val)],
         callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False)],
     )
 
     # Evaluate on VALIDATION set (same set used for early stopping is OK for Optuna
     # because we have a separate held-out test set for final evaluation)
-    preds = model.predict_proba(X_val)[:, 1]
+    preds = model.predict_proba(x_val)[:, 1]
     loss = log_loss(y_val, preds)
     return loss
 
-def objective_xgb(trial, X_train, y_train, X_val, y_val):
+def objective_xgb(trial, x_train, y_train, x_val, y_val):
     params = {
         'objective': 'binary:logistic',
         'eval_metric': 'logloss',
@@ -85,26 +85,26 @@ def objective_xgb(trial, X_train, y_train, X_val, y_val):
 
     # Early stopping on VALIDATION set (not test set)
     model.fit(
-        X_train, y_train,
-        eval_set=[(X_val, y_val)],
+        x_train, y_train,
+        eval_set=[(x_val, y_val)],
         verbose=False
     )
 
-    preds = model.predict_proba(X_val)[:, 1]
+    preds = model.predict_proba(x_val)[:, 1]
     loss = log_loss(y_val, preds)
     return loss
 
 
 def tune_models():
     print("[TUNE] Avviando Hyperparameter Tuning con Optuna...")
-    X_train, y_train, X_val, y_val = load_data()
-    print(f"Dati caricati. Train shape: {X_train.shape}, Val shape: {X_val.shape}")
+    x_train, y_train, x_val, y_val = load_data()
+    print(f"Dati caricati. Train shape: {x_train.shape}, Val shape: {x_val.shape}")
     print("[TUNE] NOTA: Test set NON usato durante il tuning (anti data-leakage)")
 
     # Ottimizzazione LightGBM
     print("\n[TUNE] Tuning LightGBM...")
     study_lgb = optuna.create_study(direction='minimize', study_name="LGBM_Tennis")
-    study_lgb.optimize(lambda trial: objective_lgb(trial, X_train, y_train, X_val, y_val), n_trials=15)
+    study_lgb.optimize(lambda trial: objective_lgb(trial, x_train, y_train, x_val, y_val), n_trials=15)
 
     print(f"Miglior LogLoss LightGBM: {study_lgb.best_value:.4f}")
     print(f"Parametri ottimali: {study_lgb.best_params}")
@@ -112,7 +112,7 @@ def tune_models():
     # Ottimizzazione XGBoost
     print("\n[TUNE] Tuning XGBoost...")
     study_xgb = optuna.create_study(direction='minimize', study_name="XGB_Tennis")
-    study_xgb.optimize(lambda trial: objective_xgb(trial, X_train, y_train, X_val, y_val), n_trials=10)
+    study_xgb.optimize(lambda trial: objective_xgb(trial, x_train, y_train, x_val, y_val), n_trials=10)
 
     print(f"Miglior LogLoss XGBoost: {study_xgb.best_value:.4f}")
     print(f"Parametri ottimali: {study_xgb.best_params}")
