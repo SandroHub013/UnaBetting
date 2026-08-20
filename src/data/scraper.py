@@ -71,38 +71,55 @@ def _iter_tennis_events(api_key, regions, markets, bookmakers=None):
             continue
 
 
+def _named_outcome(market, name):
+    """Outcome whose name matches, case-insensitively."""
+    return next((o for o in market.get('outcomes', [])
+                 if o.get('name', '').lower() == name), None)
+
+
+def _fill_market_prices(row, market, p1, p2):
+    """Populate the price columns for one market; False when it is not usable."""
+    key = market.get('key')
+    outs = {o.get('name'): o for o in market.get('outcomes', [])}
+    if key == 'h2h' and p1 in outs and p2 in outs:
+        row["price_1"] = outs[p1].get('price')
+        row["price_2"] = outs[p2].get('price')
+        return True
+    if key == 'spreads' and p1 in outs and p2 in outs:
+        row["line"] = outs[p1].get('point')
+        row["price_1"] = outs[p1].get('price')
+        row["price_2"] = outs[p2].get('price')
+        return True
+    if key == 'totals':
+        over = _named_outcome(market, 'over')
+        under = _named_outcome(market, 'under')
+        if over and under:
+            row["over_under_line"] = over.get('point')
+            row["over_price"] = over.get('price')
+            row["under_price"] = under.get('price')
+        return True
+    return False
+
+
 def _event_book_rows(sport, event, snapshot_ts):
     """Flatten ONE event into one row per (bookmaker, market). Captures ALL
     bookmakers (multi-book best-price + soft-book detection) and the snapshot
     timestamp (line movement / CLV). Pre-match info only — no leakage."""
-    p1 = event.get('home_team'); p2 = event.get('away_team')
+    p1 = event.get('home_team')
+    p2 = event.get('away_team')
     commence = event.get('commence_time', '')
     rows = []
     for bk in event.get('bookmakers', []):
         for m in bk.get('markets', []):
-            key = m.get('key')
-            outs = {o.get('name'): o for o in m.get('outcomes', [])}
             row = {
                 "snapshot_ts": snapshot_ts, "commence_time": commence,
                 "sport_key": sport, "p1": p1, "p2": p2,
-                "bookmaker": bk.get('key'), "market": key,
+                "bookmaker": bk.get('key'), "market": m.get('key'),
                 "line": None, "price_1": None, "price_2": None,
                 "over_under_line": None, "over_price": None, "under_price": None,
             }
-            if key == 'h2h' and p1 in outs and p2 in outs:
-                row["price_1"] = outs[p1].get('price'); row["price_2"] = outs[p2].get('price')
-            elif key == 'spreads' and p1 in outs and p2 in outs:
-                row["line"] = outs[p1].get('point')
-                row["price_1"] = outs[p1].get('price'); row["price_2"] = outs[p2].get('price')
-            elif key == 'totals':
-                over = next((o for o in m.get('outcomes', []) if o.get('name', '').lower() == 'over'), None)
-                under = next((o for o in m.get('outcomes', []) if o.get('name', '').lower() == 'under'), None)
-                if over and under:
-                    row["over_under_line"] = over.get('point')
-                    row["over_price"] = over.get('price'); row["under_price"] = under.get('price')
-            else:
-                continue
-            rows.append(row)
+            if _fill_market_prices(row, m, p1, p2):
+                rows.append(row)
     return rows
 
 
@@ -148,6 +165,104 @@ def snapshot_odds_history(markets=None, regions=None):
     return len(df)
 
 
+#: sharpest first — Pinnacle sets the reference line
+_PREFERRED_BOOKS = ('pinnacle', 'bet365', 'betfair_ex_eu', 'williamhill', 'betway')
+
+
+def _get_sport_events(url, sport):
+    """Events for one sport key, or [] when the endpoint refuses to answer."""
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
+        with urllib.request.urlopen(req, timeout=15) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            # Rate-limited on this sport — skip it, keep scanning the others.
+            # Old behaviour (break) killed the whole scan on the first 429.
+            print(f"  [!] Rate limit on {sport} — skipping, continuing scan")
+            import time as _t
+            _t.sleep(2)
+        return []
+    except Exception:
+        return []
+
+
+def _pick_bookmaker(bookmakers):
+    """Highest-priority book present, else whatever came first."""
+    for pref in _PREFERRED_BOOKS:
+        bk = next((b for b in bookmakers if b['key'].lower() == pref), None)
+        if bk:
+            return bk
+    return bookmakers[0] if bookmakers else None
+
+
+def _extract_markets(bk, p1_name, p2_name):
+    """h2h / spreads / totals prices from one bookmaker block."""
+    h2h = {"o1": 0.0, "o2": 0.0}
+    spread = {"line": 0.0, "o1": 0.0, "o2": 0.0}
+    total = {"line": 0.0, "over": 0.0, "under": 0.0}
+    for m in bk.get('markets', []):
+        if m['key'] == 'h2h':
+            for o in m['outcomes']:
+                if o['name'] == p1_name:
+                    h2h['o1'] = o['price']
+                elif o['name'] == p2_name:
+                    h2h['o2'] = o['price']
+        elif m['key'] == 'spreads':
+            p1_o = next((o for o in m['outcomes'] if o['name'] == p1_name), None)
+            p2_o = next((o for o in m['outcomes'] if o['name'] == p2_name), None)
+            if p1_o and p2_o:
+                spread.update(line=p1_o['point'], o1=p1_o['price'], o2=p2_o['price'])
+        elif m['key'] == 'totals':
+            over_o = next((o for o in m['outcomes'] if o['name'].lower() == 'over'), None)
+            under_o = next((o for o in m['outcomes'] if o['name'].lower() == 'under'), None)
+            if over_o and under_o:
+                total.update(line=over_o['point'], over=over_o['price'], under=under_o['price'])
+    return h2h, spread, total
+
+
+def _commence_strings(commence_time):
+    """(display time, ISO timestamp) — both blank-ish when the field is unparseable."""
+    try:
+        dt = dateutil.parser.isoparse(commence_time)
+    except (ValueError, TypeError):
+        return "Upcoming", ""
+    return dt.strftime("%H:%M"), dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _event_summary(event, sport, sport_label):
+    """One scan row for an event, or None when no book quoted a head-to-head price."""
+    p1_name = event.get('home_team', 'Unknown P1')
+    p2_name = event.get('away_team', 'Unknown P2')
+    time_display, commence_iso = _commence_strings(event.get('commence_time', ''))
+
+    bk = _pick_bookmaker(event.get('bookmakers', []))
+    if bk is None:
+        return None
+    h2h, spread, total = _extract_markets(bk, p1_name, p2_name)
+    if h2h['o1'] <= 0:
+        return None
+
+    return {
+        "match": f"[{time_display}] {p1_name} vs {p2_name}",
+        "p1": p1_name,
+        "p2": p2_name,
+        "commence_time": commence_iso,
+        "sport_key": sport,
+        "sport_title": event.get('sport_title', sport_label),
+        "odds_1": h2h['o1'],
+        "odds_2": h2h['o2'],
+        "spread_line": spread['line'],
+        "spread_odds_1": spread['o1'],
+        "spread_odds_2": spread['o2'],
+        "total_line": total['line'],
+        "total_over": total['over'],
+        "total_under": total['under'],
+        "source": bk['title'],
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def fetch_all_tennis_odds():
     """
     Fetches real pre-match and live odds from The Odds API for all tennis events.
@@ -168,115 +283,22 @@ def fetch_all_tennis_odds():
 
     for sport in sport_keys:
         scope = f"bookmakers={bookmakers}" if bookmakers else f"regions={regions}"
-        url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds?apiKey={api_key}&{scope}&markets={markets}"
-
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
-            with urllib.request.urlopen(req, timeout=15) as response:
-                events = json.loads(response.read().decode('utf-8'))
-                if not events:
-                    continue
-
-                sport_label = sport.replace('tennis_', '').replace('_', ' ').title()
-                print(f"  [+] {sport}: {len(events)} events")
-
-                for event in events:
-                    try:
-                        p1_name = event.get('home_team', 'Unknown P1')
-                        p2_name = event.get('away_team', 'Unknown P2')
-                        commence_time = event.get('commence_time', '')
-
-                        try:
-                            dt = dateutil.parser.isoparse(commence_time)
-                            time_display = dt.strftime("%H:%M")
-                            commence_iso = dt.strftime("%Y-%m-%dT%H:%M:%S")
-                        except (ValueError, TypeError):
-                            time_display = "Upcoming"
-                            commence_iso = ""
-
-                        bookmakers = event.get('bookmakers', [])
-
-                        # Data structures for markets
-                        h2h_data = {"o1": 0.0, "o2": 0.0}
-                        spread_data = {"line": 0.0, "o1": 0.0, "o2": 0.0}
-                        total_data = {"line": 0.0, "over": 0.0, "under": 0.0}
-                        source_bookie = "N/A"
-
-                        def extract_markets(bk):
-                            nonlocal source_bookie
-                            source_bookie = bk['title']
-                            for m in bk.get('markets', []):
-                                if m['key'] == 'h2h':
-                                    for o in m['outcomes']:
-                                        if o['name'] == p1_name: h2h_data['o1'] = o['price']
-                                        elif o['name'] == p2_name: h2h_data['o2'] = o['price']
-                                elif m['key'] == 'spreads':
-                                    p1_o = next((o for o in m['outcomes'] if o['name'] == p1_name), None)
-                                    p2_o = next((o for o in m['outcomes'] if o['name'] == p2_name), None)
-                                    if p1_o and p2_o:
-                                        spread_data['line'] = p1_o['point']
-                                        spread_data['o1'] = p1_o['price']
-                                        spread_data['o2'] = p2_o['price']
-                                elif m['key'] == 'totals':
-                                    over_o = next((o for o in m['outcomes'] if o['name'].lower() == 'over'), None)
-                                    under_o = next((o for o in m['outcomes'] if o['name'].lower() == 'under'), None)
-                                    if over_o and under_o:
-                                        total_data['line'] = over_o['point']
-                                        total_data['over'] = over_o['price']
-                                        total_data['under'] = under_o['price']
-
-                        # Select bookmaker by priority (Pinnacle = sharpest odds)
-                        preferred = ['pinnacle', 'bet365', 'betfair_ex_eu', 'williamhill', 'betway']
-                        selected_bk = None
-                        for pref in preferred:
-                            selected_bk = next((bk for bk in bookmakers if bk['key'].lower() == pref), None)
-                            if selected_bk:
-                                break
-                        # Fallback to first available
-                        if not selected_bk and bookmakers:
-                            selected_bk = bookmakers[0]
-                        if selected_bk:
-                            extract_markets(selected_bk)
-                        else:
-                            continue
-
-                        if h2h_data['o1'] > 0:
-                            match_str = f"[{time_display}] {p1_name} vs {p2_name}"
-                            sport_title = event.get('sport_title', sport_label)
-                            all_matches.append({
-                                "match": match_str,
-                                "p1": p1_name,
-                                "p2": p2_name,
-                                "commence_time": commence_iso,
-                                "sport_key": sport,
-                                "sport_title": sport_title,
-                                "odds_1": h2h_data['o1'],
-                                "odds_2": h2h_data['o2'],
-                                "spread_line": spread_data['line'],
-                                "spread_odds_1": spread_data['o1'],
-                                "spread_odds_2": spread_data['o2'],
-                                "total_line": total_data['line'],
-                                "total_over": total_data['over'],
-                                "total_under": total_data['under'],
-                                "source": source_bookie,
-                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            })
-                    except Exception as e:
-                        print(f"Skipping malformed event in {sport}: {e}")
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                continue  # Unknown sport key, skip silently
-            elif e.code == 429:
-                # Rate-limited on this sport — skip it, keep scanning others.
-                # Old behavior (break) killed the whole scan on the first 429.
-                print(f"  [!] Rate limit on {sport} — skipping, continuing scan")
-                import time as _t
-                _t.sleep(2)
-                continue
-            else:
-                continue
-        except Exception:
+        url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
+               f"?apiKey={api_key}&{scope}&markets={markets}")
+        events = _get_sport_events(url, sport)
+        if not events:
             continue
+
+        sport_label = sport.replace('tennis_', '').replace('_', ' ').title()
+        print(f"  [+] {sport}: {len(events)} events")
+        for event in events:
+            try:
+                row = _event_summary(event, sport, sport_label)
+            except Exception as e:
+                print(f"Skipping malformed event in {sport}: {e}")
+                continue
+            if row:
+                all_matches.append(row)
 
     return all_matches
 
