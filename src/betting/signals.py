@@ -74,6 +74,34 @@ def sharp_consensus(h2h_df):
     return out
 
 
+def _signal_row(r, side, odds, fp, edge, nsharp):
+    return {
+        "match": f"{r['p1']} v {r['p2']}",
+        "commence_time": r["commence_time"],
+        "side": "p1" if side == 1 else "p2",
+        "player": r["p1"] if side == 1 else r["p2"],
+        "book": r["bookmaker"], "odds": odds,
+        "sharp_fair_prob": round(fp, 4),
+        "fair_odds": round(1.0 / fp, 2),
+        "edge": round(edge, 4), "n_sharp": nsharp,
+    }
+
+
+def _collect_value_sides(r, fair, best, min_edge, max_edge):
+    """Keep the highest-edge soft price for each (match, side)."""
+    key = (r["p1"], r["p2"], r["commence_time"])
+    if key not in fair:
+        return
+    fp1, fp2, nsharp = fair[key]
+    for side, odds, fp in ((1, r["price_1"], fp1), (2, r["price_2"], fp2)):
+        edge = odds * fp - 1.0
+        if not min_edge <= edge <= max_edge:
+            continue
+        k = (r["p1"], r["p2"], r["commence_time"], side)
+        if k not in best or edge > best[k]["edge"]:
+            best[k] = _signal_row(r, side, odds, fp, edge, nsharp)
+
+
 def find_value_bets(h2h_df, min_edge=0.03, max_edge=0.20, exclude=LOOSE_BOOKS):
     """Soft-book prices that beat the sharp no-vig consensus.
 
@@ -90,29 +118,25 @@ def find_value_bets(h2h_df, min_edge=0.03, max_edge=0.20, exclude=LOOSE_BOOKS):
     soft = df[~df["bookmaker"].isin(SHARP_BOOKS | set(exclude))]
     best = {}  # (match, side) -> row dict, keep highest edge
     for _, r in soft.iterrows():
-        key = (r["p1"], r["p2"], r["commence_time"])
-        if key not in fair:
-            continue
-        fp1, fp2, nsharp = fair[key]
-        for side, odds, fp in ((1, r["price_1"], fp1), (2, r["price_2"], fp2)):
-            edge = odds * fp - 1.0
-            if min_edge <= edge <= max_edge:
-                k = (r["p1"], r["p2"], r["commence_time"], side)
-                if k not in best or edge > best[k]["edge"]:
-                    best[k] = {
-                        "match": f"{r['p1']} v {r['p2']}",
-                        "commence_time": r["commence_time"],
-                        "side": "p1" if side == 1 else "p2",
-                        "player": r["p1"] if side == 1 else r["p2"],
-                        "book": r["bookmaker"], "odds": odds,
-                        "sharp_fair_prob": round(fp, 4),
-                        "fair_odds": round(1.0 / fp, 2),
-                        "edge": round(edge, 4), "n_sharp": nsharp,
-                    }
+        _collect_value_sides(r, fair, best, min_edge, max_edge)
     cols = ["match", "player", "side", "book", "odds", "fair_odds",
             "sharp_fair_prob", "edge", "n_sharp", "commence_time"]
     res = pd.DataFrame(list(best.values()), columns=cols)
     return res.sort_values("edge", ascending=False).reset_index(drop=True)
+
+
+def _closing_fair_odds(closing, side):
+    """Sharp fair odds for ``side`` in the last snapshot before kickoff, else NaN."""
+    if not len(closing):
+        return float("nan")
+    last_ts = closing["snapshot_ts"].max()
+    fair = sharp_consensus(closing[closing["snapshot_ts"] == last_ts])
+    key = next(iter(fair), None)
+    if not key:
+        return float("nan")
+    fp1, fp2, _ = fair[key]
+    fp = fp1 if side == "p1" else fp2
+    return 1.0 / fp if fp > 0 else float("nan")
 
 
 def compute_clv(signals_df, odds_history_df):
@@ -133,19 +157,9 @@ def compute_clv(signals_df, odds_history_df):
         m = h[(h["p1"] + " v " + h["p2"] == s["match"]) &
               (h["commence_time"] == s["commence_time"])]
         # closing = latest snapshot strictly at/after the signal, before kickoff
-        closing = m[m["snapshot_ts"] <= s["commence_time"]]
-        clv = float("nan")
-        close_fair_odds = float("nan")
-        if len(closing):
-            last_ts = closing["snapshot_ts"].max()
-            fair = sharp_consensus(closing[closing["snapshot_ts"] == last_ts])
-            key = next(iter(fair), None)
-            if key:
-                fp1, fp2, _ = fair[key]
-                fp = fp1 if s["side"] == "p1" else fp2
-                if fp > 0:
-                    close_fair_odds = 1.0 / fp
-                    clv = s["odds"] / close_fair_odds - 1.0
+        close_fair_odds = _closing_fair_odds(m[m["snapshot_ts"] <= s["commence_time"]],
+                                             s["side"])
+        clv = s["odds"] / close_fair_odds - 1.0 if pd.notna(close_fair_odds) else float("nan")
         r = s.to_dict()
         r["closing_fair_odds"] = round(close_fair_odds, 3) if pd.notna(close_fair_odds) else None
         r["clv"] = round(clv, 4) if pd.notna(clv) else None

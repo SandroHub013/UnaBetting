@@ -77,6 +77,35 @@ def update_git_repos(config):
             print(f"  ✗ Timeout aggiornamento {name}")
 
 
+def _fetch_odds_file(url):
+    """Response body for a real odds file, or None (missing, tiny, or an HTML 404)."""
+    try:
+        resp = requests.get(url, timeout=30, allow_redirects=True)
+    except requests.RequestException:
+        return None
+    if resp.status_code != 200 or len(resp.content) <= 1000:
+        return None
+    if 'html' in resp.headers.get('Content-Type', ''):
+        return None
+    return resp.content
+
+
+def _download_year(base_url, output_dir, year, tour_prefix, url_suffix):
+    """First extension that yields a real file wins; the rest are not tried."""
+    for ext in ["xlsx", "xls", "csv"]:
+        content = _fetch_odds_file(f"{base_url}/{year}{url_suffix}/{year}.{ext}")
+        if content is None:
+            continue
+        filepath = output_dir / f"{tour_prefix}_{year}.{ext}"
+        old_size = filepath.stat().st_size if filepath.exists() else 0
+        with open(filepath, "wb") as f:
+            f.write(content)
+        delta = len(content) - old_size
+        delta_str = f" ({delta:+,} bytes)" if delta else ""
+        print(f"  ✓ {tour_prefix.upper()} {year}: {len(content):,} bytes{delta_str}")
+        return
+
+
 def update_odds(config):
     """Re-download latest odds files from tennis-data.co.uk."""
     print("\n" + "=" * 60)
@@ -90,29 +119,7 @@ def update_odds(config):
     # Only re-download current year and previous year
     for year in [current_year - 1, current_year]:
         for tour_prefix, url_suffix in [("atp", ""), ("wta", "w")]:
-            for ext in ["xlsx", "xls", "csv"]:
-                url = f"{base_url}/{year}{url_suffix}/{year}.{ext}"
-                try:
-                    resp = requests.get(url, timeout=30, allow_redirects=True)
-                    if resp.status_code == 200 and len(resp.content) > 1000:
-                        content_type = resp.headers.get('Content-Type', '')
-                        if 'html' in content_type:
-                            continue
-
-                        filepath = output_dir / f"{tour_prefix}_{year}.{ext}"
-                        old_size = filepath.stat().st_size if filepath.exists() else 0
-                        with open(filepath, "wb") as f:
-                            f.write(resp.content)
-
-                        new_size = len(resp.content)
-                        delta = new_size - old_size
-                        delta_str = ""
-                        if delta:
-                            delta_str = f" ({delta:+,} bytes)"
-                        print(f"  ✓ {tour_prefix.upper()} {year}: {new_size:,} bytes{delta_str}")
-                        break
-                except requests.RequestException:
-                    continue
+            _download_year(base_url, output_dir, year, tour_prefix, url_suffix)
             time.sleep(0.3)
 
 
