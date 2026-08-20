@@ -86,6 +86,71 @@ def _human(n: float) -> str:
     return f"{n:.1f}GB"
 
 
+def _resolve_files():
+    """CORE plus whatever OPTIONAL files exist, or None when CORE is incomplete."""
+    missing_core = [r for r in CORE if not (ROOT / r).exists()]
+    if missing_core:
+        print("[X] missing CORE runtime files — retrain/build first:")
+        for r in missing_core:
+            print(f"      {r}")
+        return None
+    files = list(CORE)
+    for r in OPTIONAL:
+        if (ROOT / r).exists():
+            files.append(r)
+        else:
+            print(f"[!] optional file absent (skipping): {r}")
+    return files
+
+
+def _private_key_pem():
+    """Signing key from the environment, else from keys/, else None."""
+    import os
+
+    from_env = os.environ.get("UPDATER_PRIVATE_KEY")
+    if from_env:
+        return from_env.encode("utf-8")
+    key_path = ROOT / "keys" / "updater_private.pem"
+    if key_path.exists():
+        return key_path.read_bytes()
+    print("[X] ERROR: Private key not found. Cannot sign the manifest.")
+    print("    Generate keys with: python scripts/generate_update_keys.py")
+    return None
+
+
+def _sign_manifest(manifest) -> bool:
+    """Attach a base64 Ed25519 signature over the canonical manifest."""
+    import base64
+    from cryptography.hazmat.primitives import serialization
+
+    priv_data = _private_key_pem()
+    if priv_data is None:
+        return False
+    try:
+        privkey = serialization.load_pem_private_key(priv_data, password=None)
+        payload = json.dumps(manifest, separators=(',', ':'), sort_keys=True).encode("utf-8")
+        manifest["signature"] = base64.b64encode(privkey.sign(payload)).decode("utf-8")
+    except Exception as e:
+        print(f"[X] ERROR: Failed to sign manifest: {e}")
+        return False
+    return True
+
+
+def _write_stage(out_dir, files, manifest):
+    """Unzipped tree the PyInstaller spec bakes into the frozen app."""
+    import shutil
+
+    stage = out_dir / "bundle_stage"
+    if stage.exists():
+        shutil.rmtree(stage)
+    for rel in files:
+        dst = stage / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / rel, dst)
+    (stage / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return stage
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(ROOT / "dist"), help="output directory")
@@ -95,19 +160,9 @@ def main() -> int:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Resolve the file list.
-    missing_core = [r for r in CORE if not (ROOT / r).exists()]
-    if missing_core:
-        print("[X] missing CORE runtime files — retrain/build first:")
-        for r in missing_core:
-            print(f"      {r}")
+    files = _resolve_files()
+    if files is None:
         return 1
-    files = list(CORE)
-    for r in OPTIONAL:
-        if (ROOT / r).exists():
-            files.append(r)
-        else:
-            print(f"[!] optional file absent (skipping): {r}")
 
     # Manifest + zip.
     manifest = {"name": "UnaBetting", "version": version, "files": []}
@@ -123,31 +178,8 @@ def main() -> int:
             )
             zf.write(src, rel)
 
-        import base64
-        import os
-        from cryptography.hazmat.primitives import serialization
-
-        priv_key_path = ROOT / "keys" / "updater_private.pem"
-        priv_key_env = os.environ.get("UPDATER_PRIVATE_KEY")
-
-        if priv_key_env:
-            priv_data = priv_key_env.encode("utf-8")
-        elif priv_key_path.exists():
-            priv_data = priv_key_path.read_bytes()
-        else:
-            print("[X] ERROR: Private key not found. Cannot sign the manifest.")
-            print("    Generate keys with: python scripts/generate_update_keys.py")
+        if not _sign_manifest(manifest):
             return 1
-
-        try:
-            privkey = serialization.load_pem_private_key(priv_data, password=None)
-            payload = json.dumps(manifest, separators=(',', ':'), sort_keys=True).encode("utf-8")
-            sig = privkey.sign(payload)
-            manifest["signature"] = base64.b64encode(sig).decode("utf-8")
-        except Exception as e:
-            print(f"[X] ERROR: Failed to sign manifest: {e}")
-            return 1
-
         zf.writestr("manifest.json", json.dumps(manifest, indent=2))
 
     # Drop the manifest next to the zip too (CI / updater read it without unzipping).
@@ -158,15 +190,7 @@ def main() -> int:
     # Also emit an unzipped staging tree that the PyInstaller spec bakes into the
     # app (guarantees the frozen build ships ONLY the slim set, never the full
     # models/ dir). CI unzips the release asset straight into this same path.
-    import shutil
-    stage = out_dir / "bundle_stage"
-    if stage.exists():
-        shutil.rmtree(stage)
-    for rel in files:
-        dst = stage / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / rel, dst)
-    (stage / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    stage = _write_stage(out_dir, files, manifest)
     print(f"[+] stage:    {stage.relative_to(ROOT) if stage.is_relative_to(ROOT) else stage}")
 
     print(f"[+] bundle:   {zip_path.relative_to(ROOT) if zip_path.is_relative_to(ROOT) else zip_path}")
