@@ -67,24 +67,38 @@ _REQUIRED_CONFIG_FIELDS = {
 }
 
 
+def _dig(value, path, dotted):
+    """Walk a dotted config path, or say which field is missing."""
+    current = value
+    for key in path:
+        if not isinstance(current, dict) or key not in current:
+            raise ValueError(f"missing required config field: {dotted}")
+        current = current[key]
+    return current
+
+
+def _type_names(expected_type):
+    if isinstance(expected_type, type):
+        return expected_type.__name__
+    return " or ".join(t.__name__ for t in expected_type)
+
+
+def _check_config_field(value, path, expected_type):
+    dotted = ".".join(path)
+    current = _dig(value, path, dotted)
+    # bool is an int subclass, so it would sneak past an int check
+    if isinstance(current, bool) or not isinstance(current, expected_type):
+        raise ValueError(f"config field {dotted} must be {_type_names(expected_type)}")
+    if isinstance(current, str) and not current.strip():
+        raise ValueError(f"config field {dotted} must not be empty")
+
+
 def _validate_config(value):
     """Reject valid YAML that cannot satisfy the project's config contract."""
     if not isinstance(value, dict):
         raise ValueError("config root must be a YAML mapping")
-
     for path, expected_type in _REQUIRED_CONFIG_FIELDS.items():
-        current = value
-        dotted = ".".join(path)
-        for key in path:
-            if not isinstance(current, dict) or key not in current:
-                raise ValueError(f"missing required config field: {dotted}")
-            current = current[key]
-        if isinstance(current, bool) or not isinstance(current, expected_type):
-            names = (expected_type.__name__ if isinstance(expected_type, type)
-                     else " or ".join(t.__name__ for t in expected_type))
-            raise ValueError(f"config field {dotted} must be {names}")
-        if isinstance(current, str) and not current.strip():
-            raise ValueError(f"config field {dotted} must not be empty")
+        _check_config_field(value, path, expected_type)
     return value
 
 
@@ -958,52 +972,68 @@ def _prepare_runtime_config(root, bundle_blob, baseline_config=None):
     return writes
 
 
+def _stage_runtime_writes(root, stage_dir, writes):
+    """Write every blob into the staging dir first; nothing touches root yet."""
+    staged = []
+    destinations = set()
+    for index, (destination, blob) in enumerate(writes):
+        destination = Path(destination).resolve()
+        if not destination.is_relative_to(root):
+            raise ValueError(f"unsafe runtime update path: {destination}")
+        if destination in destinations:
+            raise ValueError(f"duplicate runtime update path: {destination}")
+        destinations.add(destination)
+
+        staged_path = stage_dir / f"new-{index:06d}"
+        with staged_path.open("wb") as f:
+            f.write(blob)
+            f.flush()
+            os.fsync(f.fileno())
+        staged.append((destination, staged_path, stage_dir / f"old-{index:06d}"))
+    return staged
+
+
+def _install_staged(staged, installed):
+    """Move staged files into place, recording each backup for rollback."""
+    for destination, staged_path, backup_path in staged:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        backup = None
+        if destination.exists():
+            if not destination.is_file():
+                raise OSError(f"runtime update target is not a file: {destination}")
+            os.replace(destination, backup_path)
+            backup = backup_path
+        installed.append((destination, backup))
+        os.replace(staged_path, destination)
+
+
+def _rollback_installed(installed):
+    """Undo the installs in reverse; returns whatever could not be restored."""
+    rollback_errors = []
+    for destination, backup in reversed(installed):
+        try:
+            if backup is None:
+                destination.unlink(missing_ok=True)
+            else:
+                os.replace(backup, destination)
+        except OSError as rollback_error:
+            rollback_errors.append(f"{destination}: {rollback_error}")
+    return rollback_errors
+
+
 def _write_runtime_files_transactionally(root, writes):
     """Install validated runtime files, rolling back on any write failure."""
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     stage_dir = Path(tempfile.mkdtemp(prefix=".runtime-update-", dir=root))
-    staged = []
     installed = []
     cleanup_stage = True
     try:
-        destinations = set()
-        for index, (destination, blob) in enumerate(writes):
-            destination = Path(destination).resolve()
-            if not destination.is_relative_to(root):
-                raise ValueError(f"unsafe runtime update path: {destination}")
-            if destination in destinations:
-                raise ValueError(f"duplicate runtime update path: {destination}")
-            destinations.add(destination)
-
-            staged_path = stage_dir / f"new-{index:06d}"
-            with staged_path.open("wb") as f:
-                f.write(blob)
-                f.flush()
-                os.fsync(f.fileno())
-            staged.append((destination, staged_path, stage_dir / f"old-{index:06d}"))
-
-        for destination, staged_path, backup_path in staged:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            backup = None
-            if destination.exists():
-                if not destination.is_file():
-                    raise OSError(f"runtime update target is not a file: {destination}")
-                os.replace(destination, backup_path)
-                backup = backup_path
-            installed.append((destination, backup))
-            os.replace(staged_path, destination)
+        _install_staged(_stage_runtime_writes(root, stage_dir, writes), installed)
     except Exception as install_error:
-        rollback_errors = []
-        for destination, backup in reversed(installed):
-            try:
-                if backup is None:
-                    destination.unlink(missing_ok=True)
-                else:
-                    os.replace(backup, destination)
-            except OSError as rollback_error:
-                rollback_errors.append(f"{destination}: {rollback_error}")
+        rollback_errors = _rollback_installed(installed)
         if rollback_errors:
+            # keep the staging dir: it holds the only copy of the originals
             cleanup_stage = False
             detail = "; ".join(rollback_errors)
             raise OSError(
@@ -1021,6 +1051,92 @@ def _write_runtime_files_transactionally(root, writes):
 _UPDATER_PUBKEY = b"""-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAx5CLlxfVh6r1rPNaBcJqQhr1zgNDcAEkXTIvIUXs1Mc=
 -----END PUBLIC KEY-----"""
+
+
+def _read_manifest(zf):
+    try:
+        return json.loads(zf.read(MANIFEST_NAME))
+    except KeyError:
+        raise ValueError("bundle has no manifest.json — refusing to extract") from None
+    except json.JSONDecodeError as e:
+        raise ValueError(f"manifest.json is not valid JSON: {e}") from None
+
+
+def _verify_manifest_signature(manifest):
+    """Pop the signature and check it against the baked-in Ed25519 public key."""
+    import base64
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.exceptions import InvalidSignature
+
+    sig_b64 = manifest.pop("signature", None)
+    if not sig_b64:
+        raise ValueError("unsigned bundle — refusing to extract")
+    # read at call time from the module global so tests can inject a test keypair
+    try:
+        pubkey = serialization.load_pem_public_key(_UPDATER_PUBKEY)
+        if not isinstance(pubkey, ed25519.Ed25519PublicKey):
+            raise ValueError("invalid baked public key type")
+        # Reconstruct the exact canonical JSON that was signed
+        payload = json.dumps(manifest, separators=(',', ':'), sort_keys=True).encode("utf-8")
+        pubkey.verify(base64.b64decode(sig_b64), payload)
+    except InvalidSignature:
+        raise ValueError("bundle signature verification failed — refusing to extract")
+    except Exception as e:
+        raise ValueError(f"error verifying signature: {e}")
+
+
+def _manifest_entries(manifest):
+    try:
+        return {f["path"]: (f["sha256"], int(f["bytes"]))
+                for f in manifest.get("files", [])}
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("malformed manifest entry") from None
+
+
+def _bundle_members(zf):
+    """Real file members: no directories, no manifest."""
+    return [m for m in zf.namelist() if not m.endswith("/") and m != MANIFEST_NAME]
+
+
+def _assert_contained(zf, root):
+    """Zip-slip guard, run BEFORE the manifest checks.
+
+    Doing containment first makes an unsafe path fail deterministically on every OS
+    (Windows normalizes backslash/absolute names, which would otherwise trip the
+    manifest-absent check first) and even if it were also listed in the manifest.
+    """
+    for m in _bundle_members(zf):
+        if not (root / m).resolve().is_relative_to(root):
+            raise ValueError(f"unsafe path in bundle: {m}")
+
+
+def _collect_writes(zf, root, expected):
+    """Validate every member up front; returns (writes, config_blob)."""
+    import hashlib
+
+    to_write = []  # validate-all-then-write: (dst, blob)
+    config_blob = None
+    for m in _bundle_members(zf):
+        dst = (root / m).resolve()
+        if not dst.is_relative_to(root):
+            raise ValueError(f"unsafe path in bundle: {m}")
+        if _is_protected(dst.relative_to(root).as_posix().lower()):
+            continue
+        entry = expected.get(m)
+        if entry is None:
+            raise ValueError(f"file not in manifest: {m}")
+        sha, size = entry
+        blob = zf.read(m)
+        if len(blob) != size:
+            raise ValueError(f"size mismatch: {m}")
+        if hashlib.sha256(blob).hexdigest() != sha:
+            raise ValueError(f"sha256 mismatch: {m}")
+        if m == _CONFIG_MEMBER:
+            config_blob = blob
+        else:
+            to_write.append((dst, blob))
+    return to_write, config_blob
 
 
 def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
@@ -1041,16 +1157,7 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
     Schema produced by scripts/build_release_bundle.py. Raises ValueError on any
     violation.
     """
-    import hashlib
     import zipfile
-    import base64
-    from cryptography.hazmat.primitives.asymmetric import ed25519
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.exceptions import InvalidSignature
-
-    # Verification key read at call time from the module global, so tests can inject a
-    # test keypair (production uses the baked-in key below).
-    UPDATER_PUBKEY = _UPDATER_PUBKEY
 
     root = Path(data_root).resolve()
     try:
@@ -1058,76 +1165,16 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
     except zipfile.BadZipFile:
         raise ValueError("not a valid zip bundle") from None
     with zf:
-        try:
-            raw_manifest = zf.read(MANIFEST_NAME)
-            manifest = json.loads(raw_manifest)
-        except KeyError:
-            raise ValueError("bundle has no manifest.json — refusing to extract") from None
-        except json.JSONDecodeError as e:
-            raise ValueError(f"manifest.json is not valid JSON: {e}") from None
+        manifest = _read_manifest(zf)
+        _verify_manifest_signature(manifest)
+        expected = _manifest_entries(manifest)
+        _assert_contained(zf, root)
 
-        sig_b64 = manifest.pop("signature", None)
-        if not sig_b64:
-            raise ValueError("unsigned bundle — refusing to extract")
-
-        try:
-            pubkey = serialization.load_pem_public_key(UPDATER_PUBKEY)
-            if not isinstance(pubkey, ed25519.Ed25519PublicKey):
-                raise ValueError("invalid baked public key type")
-
-            # Reconstruct the exact canonical JSON that was signed
-            payload = json.dumps(manifest, separators=(',', ':'), sort_keys=True).encode("utf-8")
-            pubkey.verify(base64.b64decode(sig_b64), payload)
-        except InvalidSignature:
-            raise ValueError("bundle signature verification failed — refusing to extract")
-        except Exception as e:
-            raise ValueError(f"error verifying signature: {e}")
-
-        try:
-            expected = {f["path"]: (f["sha256"], int(f["bytes"]))
-                        for f in manifest.get("files", [])}
-        except (KeyError, TypeError, ValueError):
-            raise ValueError("malformed manifest entry") from None
-
-        # Containment first: reject any zip-slip / absolute-path member BEFORE the
-        # manifest checks, so an unsafe path is caught deterministically on every OS
-        # (Windows normalizes backslash/absolute names, which would otherwise trip the
-        # manifest-absent check first) and even if it were also listed in the manifest.
-        for m in zf.namelist():
-            if m.endswith("/") or m == MANIFEST_NAME:
-                continue
-            if not (root / m).resolve().is_relative_to(root):
-                raise ValueError(f"unsafe path in bundle: {m}")
-
-        members = set(zf.namelist())
-        absent = sorted(p for p in expected if p not in members)
+        absent = sorted(p for p in expected if p not in set(zf.namelist()))
         if absent:
             raise ValueError(f"manifest lists files absent from bundle: {absent[:5]}")
 
-        to_write = []  # validate-all-then-write: (dst, blob)
-        config_blob = None
-        for m in zf.namelist():
-            if m.endswith("/") or m == MANIFEST_NAME:
-                continue
-            dst = (root / m).resolve()
-            if not dst.is_relative_to(root):
-                raise ValueError(f"unsafe path in bundle: {m}")
-            if _is_protected(dst.relative_to(root).as_posix().lower()):
-                continue
-            entry = expected.get(m)
-            if entry is None:
-                raise ValueError(f"file not in manifest: {m}")
-            sha, size = entry
-            blob = zf.read(m)
-            if len(blob) != size:
-                raise ValueError(f"size mismatch: {m}")
-            if hashlib.sha256(blob).hexdigest() != sha:
-                raise ValueError(f"sha256 mismatch: {m}")
-            if m == _CONFIG_MEMBER:
-                config_blob = blob
-            else:
-                to_write.append((dst, blob))
-
+        to_write, config_blob = _collect_writes(zf, root, expected)
         if not to_write and config_blob is None:
             raise ValueError("bundle contains no installable files")
 
@@ -1143,56 +1190,62 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
     return len(to_write) + (1 if config_blob is not None else 0)
 
 
-@router.post("/update/apply")
-def update_apply():
-    """Packaged: download the latest runtime bundle and extract it into DATA_ROOT
-    (models + reference data + merged config), preserving the user's portfolio db,
-    settings, and config overrides. Source checkout: git fast-forward pull."""
-    from src.runtime_paths import BUNDLE_DIR, FROZEN, DATA_ROOT, app_version
-    if FROZEN:
-        import tempfile
-        import urllib.request
+def _download_bundle(url, tmp):
+    """Stream the asset to disk, refusing anything over the size cap."""
+    import urllib.request
+
+    req = urllib.request.Request(url, headers={"User-Agent": "UnaBetting-updater"})
+    got = 0
+    with urllib.request.urlopen(req, timeout=120) as r, tmp.open("wb") as f:
+        while chunk := r.read(1 << 20):
+            got += len(chunk)
+            if got > _MAX_BUNDLE_BYTES:
+                raise ValueError("bundle exceeds size limit")
+            f.write(chunk)
+
+
+def _update_packaged():
+    """Frozen app: fetch the latest runtime bundle and extract it into DATA_ROOT."""
+    import tempfile
+
+    from src.runtime_paths import BUNDLE_DIR, DATA_ROOT, app_version
+    try:
+        rel = _latest_release()
+        tag = rel.get("tag_name", "")
+        if _ver_tuple(tag) <= _ver_tuple(app_version()):
+            return {"ok": True, "updated": False, "version": app_version(),
+                    "output": "Already up to date."}
+        bundle = next((a for a in rel.get("assets", [])
+                       if a["name"].startswith("UnaBetting-runtime-")), None)
+        if not bundle:
+            return {"ok": False, "updated": False,
+                    "output": "New app version needs the installer (no in-place "
+                              "bundle). Download it from the Releases page.",
+                    "installer_required": True}
+        url = bundle["browser_download_url"]
+        if not url.startswith("https://"):
+            return _err(502, "bundle_rejected", "download URL is not https")
+        # Path(...).name: never trust the asset name as a path component.
+        tmp = Path(tempfile.gettempdir()) / Path(bundle["name"]).name
         try:
-            rel = _latest_release()
-            tag = rel.get("tag_name", "")
-            if _ver_tuple(tag) <= _ver_tuple(app_version()):
-                return {"ok": True, "updated": False, "version": app_version(),
-                        "output": "Already up to date."}
-            bundle = next((a for a in rel.get("assets", [])
-                           if a["name"].startswith("UnaBetting-runtime-")), None)
-            if not bundle:
-                return {"ok": False, "updated": False,
-                        "output": "New app version needs the installer (no in-place "
-                                  "bundle). Download it from the Releases page.",
-                        "installer_required": True}
-            url = bundle["browser_download_url"]
-            if not url.startswith("https://"):
-                return _err(502, "bundle_rejected", "download URL is not https")
-            # Path(...).name: never trust the asset name as a path component.
-            tmp = Path(tempfile.gettempdir()) / Path(bundle["name"]).name
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "UnaBetting-updater"})
-                got = 0
-                with urllib.request.urlopen(req, timeout=120) as r, tmp.open("wb") as f:
-                    while chunk := r.read(1 << 20):
-                        got += len(chunk)
-                        if got > _MAX_BUNDLE_BYTES:
-                            raise ValueError("bundle exceeds size limit")
-                        f.write(chunk)
-                n = _extract_runtime_bundle(
-                    tmp, DATA_ROOT,
-                    baseline_config=BUNDLE_DIR / "config" / "config.yaml")
-            except ValueError as e:
-                return _err(502, "bundle_rejected", e)
-            finally:
-                tmp.unlink(missing_ok=True)
-            (DATA_ROOT / "VERSION").write_text(tag.lstrip("v") + "\n", encoding="utf-8")
-            return {"ok": True, "updated": True, "version": tag, "files": n,
-                    "restart_required": True,
-                    "output": f"Updated to {tag} ({n} files). Restart to apply."}
-        except Exception as e:
-            return _err(500, "update_failed", e)
-    # dev / source checkout: git ff-only pull
+            _download_bundle(url, tmp)
+            n = _extract_runtime_bundle(
+                tmp, DATA_ROOT,
+                baseline_config=BUNDLE_DIR / "config" / "config.yaml")
+        except ValueError as e:
+            return _err(502, "bundle_rejected", e)
+        finally:
+            tmp.unlink(missing_ok=True)
+        (DATA_ROOT / "VERSION").write_text(tag.lstrip("v") + "\n", encoding="utf-8")
+        return {"ok": True, "updated": True, "version": tag, "files": n,
+                "restart_required": True,
+                "output": f"Updated to {tag} ({n} files). Restart to apply."}
+    except Exception as e:
+        return _err(500, "update_failed", e)
+
+
+def _update_source_checkout():
+    """Dev checkout: fast-forward pull, never a merge."""
     try:
         remote, branch = _update_remote(), config.UPDATE_BRANCH
         r = _git(["pull", "--ff-only", remote, branch], timeout=180)
@@ -1202,6 +1255,17 @@ def update_apply():
                 "restart_required": ok and "Already up to date" not in out}
     except Exception as e:
         return _err(500, "update_failed", e)
+
+
+@router.post("/update/apply")
+def update_apply():
+    """Packaged: download the latest runtime bundle and extract it into DATA_ROOT
+    (models + reference data + merged config), preserving the user's portfolio db,
+    settings, and config overrides. Source checkout: git fast-forward pull."""
+    from src.runtime_paths import FROZEN
+    if FROZEN:
+        return _update_packaged()
+    return _update_source_checkout()
 
 
 @router.get("/loops")

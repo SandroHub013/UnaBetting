@@ -38,6 +38,56 @@ def _terminal_command(shell: str, agent: str = "") -> str | list[str] | None:
     return config.SHELLS.get(shell)
 
 
+def _unsupported_detail(shell, agent):
+    if agent:
+        return (f"agente '{agent}' non in whitelist "
+                f"(disponibili: {', '.join(config.VIBE_AGENTS)})")
+    return (f"shell '{shell}' non supportata "
+            f"(disponibili: {', '.join(config.SHELLS)})")
+
+
+async def _open_pty(ws, cmdline):
+    """Spawn the terminal, or report why it could not start and close the socket."""
+    try:
+        return spawn_terminal(cmdline, cwd=str(config.PROJECT_ROOT), dimensions=(30, 120))
+    except Exception as e:
+        # e.g. WSL not installed -> clear message, clean close
+        await ws.send_text(f"\r\n[dashboard] impossibile avviare '{cmdline}': {e}\r\n")
+        await ws.close()
+        return None
+
+
+async def _pty_to_ws(pty, ws, loop):
+    """Forward terminal output until either side goes away."""
+    while True:
+        try:
+            data = await loop.run_in_executor(None, pty.read)
+        except (EOFError, OSError):
+            break
+        if not data:
+            break
+        try:
+            await ws.send_text(data)
+        except Exception:
+            break
+    with suppress(Exception):
+        await ws.close()
+
+
+def _apply_client_frame(pty, raw):
+    """Resize or input; anything that is not JSON is a raw key frame."""
+    try:
+        msg = json.loads(raw)
+    except json.JSONDecodeError:
+        pty.write(raw)
+        return
+    if msg.get("type") == "resize":
+        with suppress(Exception):
+            pty.setwinsize(int(msg.get("rows", 30)), int(msg.get("cols", 120)))
+    elif msg.get("type") == "input":
+        pty.write(msg.get("data", ""))
+
+
 @router.websocket("/ws/term")
 async def ws_term(ws: WebSocket, shell: str = "", agent: str = ""):
     if not await security.authorize_websocket(ws):
@@ -48,67 +98,24 @@ async def ws_term(ws: WebSocket, shell: str = "", agent: str = ""):
     shell = shell or config.DEFAULT_SHELL
     cmdline = _terminal_command(shell, agent)
     if not cmdline:
-        if agent:
-            detail = (f"agente '{agent}' non in whitelist "
-                      f"(disponibili: {', '.join(config.VIBE_AGENTS)})")
-        else:
-            detail = (f"shell '{shell}' non supportata "
-                      f"(disponibili: {', '.join(config.SHELLS)})")
-        await ws.send_text(f"\r\n[dashboard] {detail}\r\n")
+        await ws.send_text(f"\r\n[dashboard] {_unsupported_detail(shell, agent)}\r\n")
         await ws.close()
         return
 
-    try:
-        pty = spawn_terminal(
-            cmdline, cwd=str(config.PROJECT_ROOT), dimensions=(30, 120))
-    except Exception as e:
-        # e.g. WSL not installed -> clear message, clean close
-        await ws.send_text(f"\r\n[dashboard] impossibile avviare '{cmdline}': {e}\r\n")
-        await ws.close()
+    pty = await _open_pty(ws, cmdline)
+    if pty is None:
         return
 
     loop = asyncio.get_running_loop()
-
-    async def pty_to_ws():
-        while True:
-            try:
-                data = await loop.run_in_executor(None, pty.read)
-            except (EOFError, OSError):
-                break
-            if not data:
-                break
-            try:
-                await ws.send_text(data)
-            except Exception:
-                break
-        try:
-            await ws.close()
-        except Exception:
-            pass
-
-    reader = asyncio.create_task(pty_to_ws())
+    reader = asyncio.create_task(_pty_to_ws(pty, ws, loop))
     try:
         while True:
-            raw = await ws.receive_text()
-            try:
-                msg = json.loads(raw)
-            except json.JSONDecodeError:
-                pty.write(raw)  # tolerate raw key frames
-                continue
-            if msg.get("type") == "resize":
-                try:
-                    pty.setwinsize(int(msg.get("rows", 30)), int(msg.get("cols", 120)))
-                except Exception:
-                    pass
-            elif msg.get("type") == "input":
-                pty.write(msg.get("data", ""))
+            _apply_client_frame(pty, await ws.receive_text())
     except WebSocketDisconnect:
         pass
     finally:
-        try:
+        with suppress(Exception):
             pty.terminate(force=True)
-        except Exception:
-            pass
         reader.cancel()
         with suppress(asyncio.CancelledError):
             await reader
