@@ -4,6 +4,67 @@ from pathlib import Path
 import glob
 from tqdm import tqdm
 
+#: point codes won by the server / by the returner
+_SERVER_POINTS = ('S', 'A')
+_RETURNER_POINTS = ('R', 'D')
+
+
+def _score_tiebreak(stats, game_str, p1, p2, current_server):
+    """Credit the tiebreak from its final point code."""
+    codes = game_str.replace('/', '')
+    if not codes:
+        return
+    last_char = codes[-1]
+    if last_char in _SERVER_POINTS:
+        tb_winner = p1 if current_server == 1 else p2
+    elif last_char in _RETURNER_POINTS:
+        tb_winner = p2 if current_server == 1 else p1
+    else:
+        return
+    stats[p1]['tb_played'] += 1
+    stats[p2]['tb_played'] += 1
+    stats[tb_winner]['tb_won'] += 1
+
+
+def _score_point(stats, pt, server_name, returner_name, s_pts, r_pts):
+    """Apply one point; returns the updated (server, returner) point counts."""
+    # both evaluated BEFORE the point is played
+    is_bp = (r_pts >= 3) and (r_pts >= s_pts + 1)
+    is_deuce = (s_pts >= 3 and r_pts >= 3 and s_pts == r_pts)
+
+    if pt in _SERVER_POINTS:
+        if is_bp:
+            stats[server_name]['bp_faced'] += 1
+            stats[server_name]['bp_saved'] += 1
+            stats[returner_name]['bp_created'] += 1
+        if is_deuce:
+            stats[server_name]['deuce_played'] += 1
+            stats[server_name]['deuce_won'] += 1
+            stats[returner_name]['deuce_played'] += 1
+        return s_pts + 1, r_pts
+
+    if pt in _RETURNER_POINTS:
+        if is_bp:
+            stats[server_name]['bp_faced'] += 1
+            stats[returner_name]['bp_created'] += 1
+            stats[returner_name]['bp_converted'] += 1
+        if is_deuce:
+            stats[server_name]['deuce_played'] += 1
+            stats[returner_name]['deuce_played'] += 1
+            stats[returner_name]['deuce_won'] += 1
+        return s_pts, r_pts + 1
+
+    return s_pts, r_pts
+
+
+def _score_game(stats, game_str, p1, p2, current_server):
+    server_name = p1 if current_server == 1 else p2
+    returner_name = p2 if current_server == 1 else p1
+    s_pts = r_pts = 0
+    for pt in game_str:
+        s_pts, r_pts = _score_point(stats, pt, server_name, returner_name, s_pts, r_pts)
+
+
 def parse_pbp_match(match_row):
     """
     Parses a single point-by-point match record to extract clutch metrics.
@@ -21,77 +82,16 @@ def parse_pbp_match(match_row):
         p2: {'bp_saved': 0, 'bp_faced': 0, 'bp_converted': 0, 'bp_created': 0, 'deuce_won': 0, 'deuce_played': 0, 'tb_won': 0, 'tb_played': 0}
     }
 
-    sets = pbp_string.split('.')
     current_server = 1  # 1 means p1 is serving, 2 means p2 is serving
 
-    for set_str in sets:
-        games = set_str.split(';')
-
-        for game_str in games:
+    for set_str in pbp_string.split('.'):
+        for game_str in set_str.split(';'):
             if '/' in game_str:
-                # Tiebreak
-                if len(game_str) > 0:
-                    last_char = game_str.replace('/', '')
-                    if len(last_char) > 0:
-                        last_char = last_char[-1]
-                        if last_char in ('S', 'A'):
-                            tb_winner = p1 if current_server == 1 else p2
-                        elif last_char in ('R', 'D'):
-                            tb_winner = p2 if current_server == 1 else p1
-                        else:
-                            continue
-
-                        stats[p1]['tb_played'] += 1
-                        stats[p2]['tb_played'] += 1
-                        stats[tb_winner]['tb_won'] += 1
-
-                # Change server for the next set (tiebreak receiver serves first)
+                _score_tiebreak(stats, game_str, p1, p2, current_server)
+                # tiebreak receiver serves first in the next set
                 current_server = 3 - current_server
                 continue
-
-            # Regular game
-            s_pts = 0
-            r_pts = 0
-
-            for pt in game_str:
-                server_name = p1 if current_server == 1 else p2
-                returner_name = p2 if current_server == 1 else p1
-
-                # Check for break point before point is played
-                is_bp = (r_pts >= 3) and (r_pts >= s_pts + 1)
-
-                # Check for deuce point (both have >=3 points, and are tied)
-                is_deuce = (s_pts >= 3 and r_pts >= 3 and s_pts == r_pts)
-
-                if pt in ('S', 'A'):
-                    # Server won the point
-                    if is_bp:
-                        stats[server_name]['bp_faced'] += 1
-                        stats[server_name]['bp_saved'] += 1
-                        stats[returner_name]['bp_created'] += 1
-
-                    if is_deuce:
-                        stats[server_name]['deuce_played'] += 1
-                        stats[server_name]['deuce_won'] += 1
-                        stats[returner_name]['deuce_played'] += 1
-
-                    s_pts += 1
-
-                elif pt in ('R', 'D'):
-                    # Returner won the point
-                    if is_bp:
-                        stats[server_name]['bp_faced'] += 1
-                        stats[returner_name]['bp_created'] += 1
-                        stats[returner_name]['bp_converted'] += 1
-
-                    if is_deuce:
-                        stats[server_name]['deuce_played'] += 1
-                        stats[returner_name]['deuce_played'] += 1
-                        stats[returner_name]['deuce_won'] += 1
-
-                    r_pts += 1
-
-            # Change server for the next game
+            _score_game(stats, game_str, p1, p2, current_server)
             current_server = 3 - current_server
 
     return stats

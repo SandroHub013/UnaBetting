@@ -140,124 +140,105 @@ def _add_implied_probabilities(df):
     return df
 
 
-def _add_contextual_features(df):
-    """Add contextual features: surface dummies, tournament level, etc."""
-    df = df.copy()
+#: rolling windows the totals features are summed over
+_ROLL_WINDOWS = (10, 20, 50)
 
-    # Explicit Surface one-hot encoding to avoid leaked continuous variables
+#: stat -> aggregation for the additive totals features
+_TOTALS_SUMS = ("ace_rate", "bp_save_pct", "avg_total_games", "hold_pct",
+                "tiebreak_rate", "deciding_set_pct")
+
+#: later rounds are tighter matches, so more games
+_ROUND_ORDINAL = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7, "RR": 4}
+
+
+def _add_surface_and_level(df):
+    """One-hot surface (avoids a leaked continuous variable) and level dummies."""
     if "surface" in df.columns:
         df["surface_Hard"] = (df["surface"] == "Hard").astype(int)
         df["surface_Clay"] = (df["surface"] == "Clay").astype(int)
         df["surface_Grass"] = (df["surface"] == "Grass").astype(int)
-
-    # Tournament level dummies
     if "tourney_level" in df.columns:
         level_dummies = pd.get_dummies(df["tourney_level"], prefix="level")
         df = pd.concat([df, level_dummies], axis=1)
+    return df
 
-    # Ranking difference
+
+def _add_player_attributes(df):
+    """Ranking, age, height, handedness and seeding differentials."""
     if "winner_rank" in df.columns and "loser_rank" in df.columns:
         df["rank_diff"] = df["loser_rank"] - df["winner_rank"]  # Positive = winner ranked higher
         df["rank_ratio"] = df["loser_rank"] / df["winner_rank"].replace(0, np.nan)
-
-    # Age difference
     if "winner_age" in df.columns and "loser_age" in df.columns:
         df["age_diff"] = df["winner_age"] - df["loser_age"]
-
-    # Height difference
     if "winner_ht" in df.columns and "loser_ht" in df.columns:
         df["height_diff"] = df["winner_ht"] - df["loser_ht"]
-
-    # Handedness
     if "winner_hand" in df.columns:
         df["w_is_lefty"] = (df["winner_hand"] == "L").astype(int)
     if "loser_hand" in df.columns:
         df["l_is_lefty"] = (df["loser_hand"] == "L").astype(int)
-
-    # Seed indicator
     if "winner_seed" in df.columns:
         df["w_is_seeded"] = df["winner_seed"].notna().astype(int)
     if "loser_seed" in df.columns:
         df["l_is_seeded"] = df["loser_seed"].notna().astype(int)
+    return df
 
-    # === TOTALS-ORIENTED FEATURES ===
-    # best_of (3 or 5 sets - critical for totals ceiling)
+
+def _add_totals_features(df):
+    """Match-shape signals: format, round, competitiveness and both-player sums."""
     if "best_of" in df.columns:
-        df["best_of_5"] = (df["best_of"] == 5).astype(int)
-
-    # Round encoded as ordinal (later rounds = tighter matches = more games)
-    round_map = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7, "RR": 4}
+        df["best_of_5"] = (df["best_of"] == 5).astype(int)  # 5 sets raises the ceiling
     if "round" in df.columns:
-        df["round_ordinal"] = df["round"].map(round_map).fillna(3)
-
-    # Competitiveness: absolute ELO/prob difference (close matches → more games)
+        df["round_ordinal"] = df["round"].map(_ROUND_ORDINAL).fillna(3)
+    # close matches produce more games
     if "elo_win_prob" in df.columns:
         df["abs_elo_prob_diff"] = (df["elo_win_prob"] - 0.5).abs()
     if "diff_implied_prob" in df.columns:
         df["abs_implied_prob_diff"] = df["diff_implied_prob"].abs()
 
-    # Additive features (SUM of both players' stats → totals signal)
-    for w in [10, 20, 50]:
-        # Sum of ace rates → more holds → more tiebreaks
-        w_ace = f"w_ace_rate_{w}"
-        l_ace = f"l_ace_rate_{w}"
-        if w_ace in df.columns and l_ace in df.columns:
-            df[f"sum_ace_rate_{w}"] = df[w_ace].fillna(0) + df[l_ace].fillna(0)
+    for w in _ROLL_WINDOWS:
+        for stat in _TOTALS_SUMS:
+            w_col, l_col = f"w_{stat}_{w}", f"l_{stat}_{w}"
+            if w_col not in df.columns or l_col not in df.columns:
+                continue
+            df[f"sum_{stat}_{w}"] = df[w_col].fillna(0) + df[l_col].fillna(0)
+            if stat == "avg_total_games":
+                df[f"min_{stat}_{w}"] = df[[w_col, l_col]].min(axis=1)
+    return df
 
-        # Sum of break point save pct → both saving well → longer sets
-        w_bp = f"w_bp_save_pct_{w}"
-        l_bp = f"l_bp_save_pct_{w}"
-        if w_bp in df.columns and l_bp in df.columns:
-            df[f"sum_bp_save_pct_{w}"] = df[w_bp].fillna(0) + df[l_bp].fillna(0)
 
-        # Sum/Min of avg total games → how many games each player's matches produce
-        w_tg = f"w_avg_total_games_{w}"
-        l_tg = f"l_avg_total_games_{w}"
-        if w_tg in df.columns and l_tg in df.columns:
-            df[f"sum_avg_total_games_{w}"] = df[w_tg].fillna(0) + df[l_tg].fillna(0)
-            df[f"min_avg_total_games_{w}"] = df[[w_tg, l_tg]].min(axis=1)
-
-        # Sum of hold pct → service dominance from both sides
-        w_hold = f"w_hold_pct_{w}"
-        l_hold = f"l_hold_pct_{w}"
-        if w_hold in df.columns and l_hold in df.columns:
-            df[f"sum_hold_pct_{w}"] = df[w_hold].fillna(0) + df[l_hold].fillna(0)
-        # Sum of tiebreak rates
-        w_tb = f"w_tiebreak_rate_{w}"
-        l_tb = f"l_tiebreak_rate_{w}"
-        if w_tb in df.columns and l_tb in df.columns:
-            df[f"sum_tiebreak_rate_{w}"] = df[w_tb].fillna(0) + df[l_tb].fillna(0)
-
-        # Sum of deciding set pct
-        w_ds = f"w_deciding_set_pct_{w}"
-        l_ds = f"l_deciding_set_pct_{w}"
-        if w_ds in df.columns and l_ds in df.columns:
-            df[f"sum_deciding_set_pct_{w}"] = df[w_ds].fillna(0) + df[l_ds].fillna(0)
-
-    # === SAFE INTERACTION FEATURES (Asymmetric Base) ===
-    # We create them as w_ and l_ individually. The loop below will safely generate the diff_ without leakage.
-
-    # 1. Elo x Form
+def _add_interactions(df):
+    """Asymmetric w_/l_ interactions; the diff_ pass below derives them safely."""
     if "w_elo" in df.columns and "w_form_ewm" in df.columns:
         df["w_elo_x_form"] = df["w_elo"] * df["w_form_ewm"]
         df["l_elo_x_form"] = df["l_elo"] * df["l_form_ewm"]
-
-    # 2. Age x Fatigue
     if "winner_age" in df.columns and "w_decay_minutes_14d" in df.columns:
         df["w_age_x_fatigue"] = df["winner_age"] * df["w_decay_minutes_14d"]
         df["l_age_x_fatigue"] = df["loser_age"] * df["l_decay_minutes_14d"]
+    return df
 
-    # AUTO-GENERATE DIFFS
-    # Compute differential features for all w_/l_ symmetric pairs that don't already have one
+
+def _add_auto_diffs(df):
+    """diff_ for every numeric w_/l_ pair that does not already have one."""
     for c in df.columns.tolist():
-        if c.startswith("w_"):
-            base = c[2:]
-            l_col = f"l_{base}"
-            diff_col = f"diff_{base}"
-            if l_col in df.columns and diff_col not in df.columns:
-                if pd.api.types.is_numeric_dtype(df[c]) and pd.api.types.is_numeric_dtype(df[l_col]):
-                    df[diff_col] = df[c] - df[l_col]
+        if not c.startswith("w_"):
+            continue
+        base = c[2:]
+        l_col, diff_col = f"l_{base}", f"diff_{base}"
+        if l_col not in df.columns or diff_col in df.columns:
+            continue
+        if (pd.api.types.is_numeric_dtype(df[c])
+                and pd.api.types.is_numeric_dtype(df[l_col])):
+            df[diff_col] = df[c] - df[l_col]
+    return df
 
+
+def _add_contextual_features(df):
+    """Add contextual features: surface dummies, tournament level, etc."""
+    df = _add_surface_and_level(df.copy())
+    df = _add_player_attributes(df)
+    df = _add_totals_features(df)
+    df = _add_interactions(df)
+    df = _add_auto_diffs(df)
     print("  ✓ Feature contestuali aggiunte (+ totals combinatorie + diffs automatiche)")
     return df
 

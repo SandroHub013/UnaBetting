@@ -237,6 +237,132 @@ class EloRating:
 
         return result
 
+    #: NaN row for a match whose players cannot be identified
+    _EMPTY_ELO_ROW = {
+        "w_elo": np.nan, "l_elo": np.nan,
+        "w_surface_elo": np.nan, "l_surface_elo": np.nan,
+        "elo_win_prob": np.nan, "elo_surface_win_prob": np.nan,
+        "w_vs_server_elo": np.nan, "l_vs_server_elo": np.nan,
+        "w_vs_returner_elo": np.nan, "l_vs_returner_elo": np.nan,
+    }
+
+    def _is_server(self, stats):
+        return (stats["ace"] / stats["svpt"]) > 0.08 if stats["svpt"] > 200 else False
+
+    def _is_returner(self, stats):
+        return (stats["ret_won"] / stats["ret_pt"]) > 0.38 if stats["ret_pt"] > 200 else False
+
+    def _pure_surface_rating(self, player_id, surface):
+        if surface not in self.surface_ratings:
+            return self.initial_rating
+        return self.surface_ratings.get(surface, {}).get(player_id, self.initial_rating)
+
+    def _pre_match_row(self, winner_id, loser_id, surface, styles):
+        """Every ELO column, read BEFORE the match updates any rating."""
+        w_is_srv, w_is_ret, l_is_srv, l_is_ret = styles
+        w_surface_elo = self.get_combined_rating(winner_id, surface)
+        l_surface_elo = self.get_combined_rating(loser_id, surface)
+        return {
+            "w_elo": self.global_ratings.get(winner_id, self.initial_rating),
+            "l_elo": self.global_ratings.get(loser_id, self.initial_rating),
+            "w_surface_elo": w_surface_elo,
+            "l_surface_elo": l_surface_elo,
+            "elo_win_prob": self.expected_score(w_surface_elo, l_surface_elo),
+            "elo_surface_win_prob": self.expected_score(
+                self._pure_surface_rating(winner_id, surface),
+                self._pure_surface_rating(loser_id, surface)),
+            "w_vs_server_elo": (self.vs_server_ratings.get(winner_id, self.initial_rating)
+                                if l_is_srv else np.nan),
+            "l_vs_server_elo": (self.vs_server_ratings.get(loser_id, self.initial_rating)
+                                if w_is_srv else np.nan),
+            "w_vs_returner_elo": (self.vs_returner_ratings.get(winner_id, self.initial_rating)
+                                  if l_is_ret else np.nan),
+            "l_vs_returner_elo": (self.vs_returner_ratings.get(loser_id, self.initial_rating)
+                                  if w_is_ret else np.nan),
+        }
+
+    @staticmethod
+    def _margin_multiplier(score):
+        """Bigger wins move the style ratings further, capped at 1.5x."""
+        if not score:
+            return 1.0
+        w_g, l_g = parse_score_games(score)
+        if w_g + l_g > 0 and (w_g - l_g) > 0:
+            return 1.0 + 0.5 * ((w_g - l_g) / (w_g + l_g))
+        return 1.0
+
+    def _update_style_pair(self, ratings, winner_id, loser_id, styles, elos, ks):
+        """One style table (vs_server / vs_returner), updated for whoever faced that style."""
+        winner_faced, loser_faced = styles
+        w_surface_elo, l_surface_elo = elos
+        w_k, l_k = ks
+        if winner_faced:
+            base_w = ratings.get(winner_id, self.initial_rating)
+            ratings[winner_id] = base_w + w_k * (1.0 - self.expected_score(base_w, l_surface_elo))
+        if loser_faced:
+            base_l = ratings.get(loser_id, self.initial_rating)
+            ratings[loser_id] = base_l + l_k * (0.0 - self.expected_score(base_l, w_surface_elo))
+
+    def _update_style_ratings(self, winner_id, loser_id, tourney_level, score, styles, elos):
+        w_is_srv, w_is_ret, l_is_srv, l_is_ret = styles
+        mov_mult = self._margin_multiplier(score)
+        ks = (self._get_k_factor(tourney_level, winner_id) * mov_mult,
+              self._get_k_factor(tourney_level, loser_id) * mov_mult)
+        self._update_style_pair(self.vs_server_ratings, winner_id, loser_id,
+                                (l_is_srv, w_is_srv), elos, ks)
+        self._update_style_pair(self.vs_returner_ratings, winner_id, loser_id,
+                                (l_is_ret, w_is_ret), elos, ks)
+
+    def _accumulate_serve_stats(self, row, winner_id, loser_id):
+        """Serve/return tallies that decide each player's style in later matches."""
+        w_svpt, w_ace = row.get("w_svpt"), row.get("w_ace")
+        l_svpt, l_ace = row.get("l_svpt"), row.get("l_ace")
+        if pd.notna(w_svpt) and pd.notna(w_ace):
+            self.player_stats[winner_id]["svpt"] += w_svpt
+            self.player_stats[winner_id]["ace"] += w_ace
+            # loser's return points
+            self.player_stats[loser_id]["ret_pt"] += w_svpt
+            self.player_stats[loser_id]["ret_won"] += (
+                w_svpt - row.get("w_1stWon", 0) - row.get("w_2ndWon", 0))
+        if pd.notna(l_svpt) and pd.notna(l_ace):
+            self.player_stats[loser_id]["svpt"] += l_svpt
+            self.player_stats[loser_id]["ace"] += l_ace
+            # winner's return points
+            self.player_stats[winner_id]["ret_pt"] += l_svpt
+            self.player_stats[winner_id]["ret_won"] += (
+                l_svpt - row.get("l_1stWon", 0) - row.get("l_2ndWon", 0))
+
+    def _process_one_match(self, row):
+        """Pre-match ELO columns for this row, then fold the result into the ratings."""
+        winner_id = row.get("winner_id")
+        loser_id = row.get("loser_id")
+        if pd.isna(winner_id) or pd.isna(loser_id):
+            return dict(self._EMPTY_ELO_ROW)
+
+        surface = row.get("surface", "Hard")
+        tourney_level = row.get("tourney_level", "A")
+        tourney_date = row.get("tourney_date")
+        score = row.get("score")
+
+        # decay BEFORE reading any rating
+        if pd.notna(tourney_date):
+            self.apply_time_decay(winner_id, tourney_date)
+            self.apply_time_decay(loser_id, tourney_date)
+
+        w_stats = self.player_stats[winner_id]
+        l_stats = self.player_stats[loser_id]
+        styles = (self._is_server(w_stats), self._is_returner(w_stats),
+                  self._is_server(l_stats), self._is_returner(l_stats))
+
+        elo_row = self._pre_match_row(winner_id, loser_id, surface, styles)
+
+        self.update(winner_id, loser_id, surface, tourney_level, tourney_date, score=score)
+        self._update_style_ratings(
+            winner_id, loser_id, tourney_level, score, styles,
+            (elo_row["w_surface_elo"], elo_row["l_surface_elo"]))
+        self._accumulate_serve_stats(row, winner_id, loser_id)
+        return elo_row
+
     def process_matches(self, matches_df):
         """
         Process a chronologically sorted DataFrame of matches.
@@ -254,126 +380,7 @@ class EloRating:
         elo_data = []
 
         for row in matches_df.to_dict('records'):
-            winner_id = row.get("winner_id")
-            loser_id = row.get("loser_id")
-            surface = row.get("surface", "Hard")
-            tourney_level = row.get("tourney_level", "A")
-            tourney_date = row.get("tourney_date")
-            score = row.get("score")
-
-            if pd.isna(winner_id) or pd.isna(loser_id):
-                elo_data.append({
-                    "w_elo": np.nan, "l_elo": np.nan,
-                    "w_surface_elo": np.nan, "l_surface_elo": np.nan,
-                    "elo_win_prob": np.nan, "elo_surface_win_prob": np.nan,
-                    "w_vs_server_elo": np.nan, "l_vs_server_elo": np.nan,
-                    "w_vs_returner_elo": np.nan, "l_vs_returner_elo": np.nan
-                })
-                continue
-
-            # Apply Time Decay BEFORE getting ratings
-            if pd.notna(tourney_date):
-                self.apply_time_decay(winner_id, tourney_date)
-                self.apply_time_decay(loser_id, tourney_date)
-
-            # Classify opponents based on historical stats
-            w_stats = self.player_stats[winner_id]
-            l_stats = self.player_stats[loser_id]
-
-            def is_server(stats):
-                return (stats["ace"] / stats["svpt"]) > 0.08 if stats["svpt"] > 200 else False
-
-            def is_returner(stats):
-                return (stats["ret_won"] / stats["ret_pt"]) > 0.38 if stats["ret_pt"] > 200 else False
-
-            w_is_srv = is_server(w_stats)
-            w_is_ret = is_returner(w_stats)
-            l_is_srv = is_server(l_stats)
-            l_is_ret = is_returner(l_stats)
-
-            # Get PRE-MATCH ratings
-            w_elo = self.global_ratings.get(winner_id, self.initial_rating)
-            l_elo = self.global_ratings.get(loser_id, self.initial_rating)
-            w_surface_elo = self.get_combined_rating(winner_id, surface)
-            l_surface_elo = self.get_combined_rating(loser_id, surface)
-            win_prob = self.expected_score(w_surface_elo, l_surface_elo)
-
-            # Pure surface ELO probability
-            w_pure_surface = self.surface_ratings.get(surface, {}).get(winner_id, self.initial_rating) if surface in self.surface_ratings else self.initial_rating
-            l_pure_surface = self.surface_ratings.get(surface, {}).get(loser_id, self.initial_rating) if surface in self.surface_ratings else self.initial_rating
-            surface_win_prob = self.expected_score(w_pure_surface, l_pure_surface)
-
-            # Get PRE-MATCH Style ratings
-            w_vs_srv_elo = self.vs_server_ratings.get(winner_id, self.initial_rating) if l_is_srv else np.nan
-            l_vs_srv_elo = self.vs_server_ratings.get(loser_id, self.initial_rating) if w_is_srv else np.nan
-
-            w_vs_ret_elo = self.vs_returner_ratings.get(winner_id, self.initial_rating) if l_is_ret else np.nan
-            l_vs_ret_elo = self.vs_returner_ratings.get(loser_id, self.initial_rating) if w_is_ret else np.nan
-
-            elo_data.append({
-                "w_elo": w_elo, "l_elo": l_elo,
-                "w_surface_elo": w_surface_elo, "l_surface_elo": l_surface_elo,
-                "elo_win_prob": win_prob, "elo_surface_win_prob": surface_win_prob,
-                "w_vs_server_elo": w_vs_srv_elo, "l_vs_server_elo": l_vs_srv_elo,
-                "w_vs_returner_elo": w_vs_ret_elo, "l_vs_returner_elo": l_vs_ret_elo
-            })
-
-            # UPDATE ratings (global and surface)
-            self.update(winner_id, loser_id, surface, tourney_level, tourney_date, score=score)
-
-            # Update Style ELO
-            mov_mult = 1.0
-            if score:
-                w_g, l_g = parse_score_games(score)
-                if w_g + l_g > 0 and (w_g - l_g) > 0:
-                    mov_mult = 1.0 + 0.5 * ((w_g - l_g) / (w_g + l_g))
-
-            w_k = self._get_k_factor(tourney_level, winner_id) * mov_mult
-            l_k = self._get_k_factor(tourney_level, loser_id) * mov_mult
-
-            # If opponent is a server, update player's vs_server rating against opponent's combined rating
-            if l_is_srv:
-                base_w = self.vs_server_ratings.get(winner_id, self.initial_rating)
-                w_exp = self.expected_score(base_w, l_surface_elo)
-                self.vs_server_ratings[winner_id] = base_w + w_k * (1.0 - w_exp)
-            if w_is_srv:
-                base_l = self.vs_server_ratings.get(loser_id, self.initial_rating)
-                l_exp = self.expected_score(base_l, w_surface_elo)
-                self.vs_server_ratings[loser_id] = base_l + l_k * (0.0 - l_exp)
-
-            # If opponent is a returner
-            if l_is_ret:
-                base_w = self.vs_returner_ratings.get(winner_id, self.initial_rating)
-                w_exp = self.expected_score(base_w, l_surface_elo)
-                self.vs_returner_ratings[winner_id] = base_w + w_k * (1.0 - w_exp)
-            if w_is_ret:
-                base_l = self.vs_returner_ratings.get(loser_id, self.initial_rating)
-                l_exp = self.expected_score(base_l, w_surface_elo)
-                self.vs_returner_ratings[loser_id] = base_l + l_k * (0.0 - l_exp)
-
-            # Update Player Stats for future matches
-            w_svpt = row.get("w_svpt")
-            w_ace = row.get("w_ace")
-            l_svpt = row.get("l_svpt")
-            l_ace = row.get("l_ace")
-            l_1st = row.get("l_1stWon", 0)
-            l_2nd = row.get("l_2ndWon", 0)
-            w_1st = row.get("w_1stWon", 0)
-            w_2nd = row.get("w_2ndWon", 0)
-
-            if pd.notna(w_svpt) and pd.notna(w_ace):
-                self.player_stats[winner_id]["svpt"] += w_svpt
-                self.player_stats[winner_id]["ace"] += w_ace
-                # Loser return points
-                self.player_stats[loser_id]["ret_pt"] += w_svpt
-                self.player_stats[loser_id]["ret_won"] += (w_svpt - w_1st - w_2nd)
-
-            if pd.notna(l_svpt) and pd.notna(l_ace):
-                self.player_stats[loser_id]["svpt"] += l_svpt
-                self.player_stats[loser_id]["ace"] += l_ace
-                # Winner return points
-                self.player_stats[winner_id]["ret_pt"] += l_svpt
-                self.player_stats[winner_id]["ret_won"] += (l_svpt - l_1st - l_2nd)
+            elo_data.append(self._process_one_match(row))
 
         elo_df = pd.DataFrame(elo_data)
         result = pd.concat([matches_df.reset_index(drop=True), elo_df], axis=1)
