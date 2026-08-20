@@ -50,8 +50,9 @@ class AgentLLM:
         self.system_prompt = agent_cfg["system_prompt"]
         self.max_history = agent_cfg.get("max_history", 10)
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.ctx = ssl.create_default_context()
-        self.ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx = ssl.create_default_context()
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        self.ctx = ctx
 
         # Conversation history for multi-turn dialogue
         self.history = []
