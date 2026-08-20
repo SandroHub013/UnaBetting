@@ -49,45 +49,99 @@ IMPORTANTE: il segno dell'adjustment e' relativo a P1.
 """
 
 
+def _news_block(header, items, limit, snippet_chars):
+    """Header plus up to ``limit`` headlines, each with a trimmed snippet."""
+    if not items:
+        return []
+    lines = [header]
+    for n in items[:limit]:
+        lines.append(f"    - {n['title']}")
+        if n.get("snippet"):
+            lines.append(f"      Content: {n['snippet'][:snippet_chars]}")
+    return lines
+
+
+def _match_block(p, news, include_tourney):
+    p1_news = news.get("p1_news", [])
+    p2_news = news.get("p2_news", [])
+    lines = [
+        f"MATCH: {p['match']}",
+        f"  ML Prob: P1={p['prob_1']:.1%}  P2={p['prob_2']:.1%}",
+        f"  Odds: P1={p['odds_1']:.2f}  P2={p['odds_2']:.2f}",
+        f"  Surface: {p.get('surface', '?')}",
+    ]
+    lines += _news_block("  NEWS P1:", p1_news, 3, 250)
+    lines += _news_block("  NEWS P2:", p2_news, 3, 250)
+    if include_tourney:
+        lines += _news_block("  NEWS TORNEO:", news.get("tourney_news", []), 2, 200)
+    if not p1_news and not p2_news:
+        lines.append("  NEWS: nessuna trovata")
+    lines.append("")
+    return lines
+
+
 def _build_match_context(predictions: list, news_data: dict) -> str:
     """Build match-by-match context for the LLM."""
     lines = []
-    for p in predictions:
-        match_str = p["match"]
-        news = news_data.get(match_str, {})
-        p1_news = news.get("p1_news", [])
-        p2_news = news.get("p2_news", [])
-        tourney_news = news.get("tourney_news", [])
-
-        lines.append(f"MATCH: {match_str}")
-        lines.append(f"  ML Prob: P1={p['prob_1']:.1%}  P2={p['prob_2']:.1%}")
-        lines.append(f"  Odds: P1={p['odds_1']:.2f}  P2={p['odds_2']:.2f}")
-        lines.append(f"  Surface: {p.get('surface', '?')}")
-
-        if p1_news:
-            lines.append("  NEWS P1:")
-            for n in p1_news[:3]:
-                lines.append(f"    - {n['title']}")
-                if n.get("snippet"):
-                    lines.append(f"      Content: {n['snippet'][:250]}")
-        if p2_news:
-            lines.append("  NEWS P2:")
-            for n in p2_news[:3]:
-                lines.append(f"    - {n['title']}")
-                if n.get("snippet"):
-                    lines.append(f"      Content: {n['snippet'][:250]}")
-        if tourney_news and predictions.index(p) == 0:
-            lines.append("  NEWS TORNEO:")
-            for n in tourney_news[:2]:
-                lines.append(f"    - {n['title']}")
-                if n.get("snippet"):
-                    lines.append(f"      Content: {n['snippet'][:200]}")
-
-        if not p1_news and not p2_news:
-            lines.append("  NEWS: nessuna trovata")
-        lines.append("")
-
+    for i, p in enumerate(predictions):
+        # tournament news is shared, so it only goes on the first match
+        lines += _match_block(p, news_data.get(p["match"], {}), include_tourney=i == 0)
     return "\n".join(lines)
+
+
+def _parse_adjustments(raw, _re):
+    """Adjustment list out of the model reply, unwrapping a markdown code block."""
+    content = json.loads(raw)["choices"][0]["message"]["content"].strip()
+    if "```" in content:
+        m = _re.search(r"```(?:json)?\s*([\s\S]*?)```", content)
+        if m:
+            content = m.group(1).strip()
+    adjustments = json.loads(content)
+    return adjustments if isinstance(adjustments, list) else []
+
+
+def _post_adjustment_request(model_name, messages, api_key, ctx, _re):
+    """One completion call; the payload is rebuilt because urllib consumes it."""
+    payload = json.dumps({"model": model_name, "messages": messages}).encode("utf-8")
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "X-Title": "Tennis Pro Terminal - News Adjustment",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, context=ctx, timeout=90) as resp:
+        return _parse_adjustments(resp.read().decode("utf-8").strip(), _re)
+
+
+def _try_model(model_name, messages, api_key, ctx, _time, _re):
+    """Adjustments from this model, or None so the caller falls to the next one."""
+    for attempt in range(2):
+        try:
+            return _post_adjustment_request(model_name, messages, api_key, ctx, _re)
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="replace")[:200]
+            except Exception:
+                pass
+            if e.code == 429 and attempt < 1:
+                print(f"  [News Adj] Rate limited (429) on {model_name}. Retry in 5s...")
+                _time.sleep(5)
+                continue
+            print(f"  [News Adj] {model_name} failed: HTTP {e.code} {body[:100]}")
+            return None
+        except Exception as e:
+            if attempt < 1 and "timed out" in str(e).lower():
+                print(f"  [News Adj] Timeout on {model_name}. Retrying...")
+                _time.sleep(3)
+                continue
+            print(f"  [News Adj] {model_name} failed: {e}")
+            return None
+    return None
 
 
 def _call_llm_for_adjustments(context: str) -> list[dict]:
@@ -131,56 +185,9 @@ def _call_llm_for_adjustments(context: str) -> list[dict]:
     import re as _re
 
     for model_name in model_chain:
-        # Build fresh request for each attempt (urllib consumes data on read)
-        payload = json.dumps({"model": model_name, "messages": messages}).encode("utf-8")
-
-        for attempt in range(2):
-            try:
-                req = urllib.request.Request(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    data=payload,
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "X-Title": "Tennis Pro Terminal - News Adjustment",
-                    },
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, context=ctx, timeout=90) as resp:
-                    raw = resp.read().decode("utf-8").strip()
-                    result = json.loads(raw)
-                    content = result["choices"][0]["message"]["content"].strip()
-
-                    # Extract JSON from response (handle markdown code blocks)
-                    if "```" in content:
-                        m = _re.search(r"```(?:json)?\s*([\s\S]*?)```", content)
-                        if m:
-                            content = m.group(1).strip()
-
-                    adjustments = json.loads(content)
-                    if isinstance(adjustments, list):
-                        return adjustments
-                    return []
-            except urllib.error.HTTPError as e:
-                body = ""
-                try:
-                    body = e.read().decode("utf-8", errors="replace")[:200]
-                except Exception:
-                    pass
-                if e.code == 429 and attempt < 1:
-                    wait = 5
-                    print(f"  [News Adj] Rate limited (429) on {model_name}. Retry in {wait}s...")
-                    _time.sleep(wait)
-                    continue
-                print(f"  [News Adj] {model_name} failed: HTTP {e.code} {body[:100]}")
-                break  # Try next model
-            except Exception as e:
-                if attempt < 1 and "timed out" in str(e).lower():
-                    print(f"  [News Adj] Timeout on {model_name}. Retrying...")
-                    _time.sleep(3)
-                    continue
-                print(f"  [News Adj] {model_name} failed: {e}")
-                break  # Try next model
+        adjustments = _try_model(model_name, messages, api_key, ctx, _time, _re)
+        if adjustments is not None:
+            return adjustments
 
     print("  [News Adj] All models failed. Returning no adjustments.")
     return []
