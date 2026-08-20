@@ -19,7 +19,7 @@ async def test_terminal():
                 if ">" in ANSI.sub("", out):
                     break
         except asyncio.TimeoutError:
-            pass
+            pass  # smoke test: whatever arrived before the timeout is enough
         assert out, "no terminal output received"
         await ws.send(json.dumps({"type": "input", "data": "Write-Output ('MC_'+'TERM_OK')\r"}))
         echoed = ""
@@ -29,7 +29,7 @@ async def test_terminal():
                 if "MC_TERM_OK" in ANSI.sub("", echoed):
                     break
         except asyncio.TimeoutError:
-            pass
+            pass  # smoke test: whatever echoed back before the timeout is enough
         await ws.send(json.dumps({"type": "resize", "cols": 100, "rows": 25}))
         # the typed command never contains the literal marker ('MC_'+'TERM_OK'),
         # so seeing MC_TERM_OK in clean output proves the shell EXECUTED it

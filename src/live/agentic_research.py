@@ -231,7 +231,7 @@ class ResearchCache:
             with open(CACHE_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._data, f, ensure_ascii=False, indent=2)
         except Exception:
-            pass
+            pass  # cache is an optimisation; a failed write must not stop research
 
     def get(self, key: str) -> str | None:
         entry = self._data.get(key)
@@ -794,7 +794,7 @@ class AgenticResearcher:
         try:
             body = e.read().decode("utf-8", errors="replace")[:300]
         except Exception:
-            pass
+            pass  # body is for the log line only; the status code is what matters
         transient = e.code == 429 or 500 <= e.code < 600
         if transient and attempt < 2:
             log.warning("llm_http_%s attempt=%d body=%s", e.code, attempt + 1, body[:150])

@@ -6,10 +6,8 @@ Ranks features by importance using Random Forest and saves the top features.
 import pandas as pd
 import numpy as np
 import yaml
-import joblib
 from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
 
 # Re-use prepare_training_data logic
 from src.models.train import prepare_training_data, _enforce_perspective_pairs
@@ -27,7 +25,7 @@ def run_feature_selection(tour="atp", top_k=70):
 
     if not features_path.exists():
         print(f"  ✗ Feature matrix non trovata: {features_path}")
-        return
+        return []
 
     print(f"\n{'=' * 60}")
     print(f"🔍 FEATURE SELECTION - {tour.upper()}")

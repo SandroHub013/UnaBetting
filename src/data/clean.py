@@ -18,7 +18,6 @@ MASTERS_1000 = "Masters 1000"
 FIRST_ROUND = "1st Round"
 SECOND_ROUND = "2nd Round"
 THE_FINAL = "The Final"
-from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
@@ -605,7 +604,6 @@ def merge_matches_with_odds(matches_df, odds_df):
         print(f"  ℹ Exact date match basso ({matched_exact:,}), provo match per cognome+mese...")
         _fill_from_broad_match(merged, matches, odds, bookmaker_cols)
         merged = merged.drop(columns=["broad_key"], errors="ignore")
-        matches = matches.drop(columns=["broad_key"], errors="ignore")
 
     # Final count
     total_matched = merged[bookmaker_cols[0]].notna().sum()
@@ -714,9 +712,9 @@ def build_unified_dataset(tour="atp", min_year=2000, save=True):
 
 if __name__ == "__main__":
     # Build ATP dataset
-    atp_data = build_unified_dataset(tour="atp", min_year=2000)
+    build_unified_dataset(tour="atp", min_year=2000)
 
     # Build WTA dataset
-    wta_data = build_unified_dataset(tour="wta", min_year=2007)
+    build_unified_dataset(tour="wta", min_year=2007)
 
     print("\n✅ Pipeline di pulizia completata!")

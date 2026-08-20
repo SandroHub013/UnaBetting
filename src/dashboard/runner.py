@@ -33,7 +33,7 @@ async def _stream(proc, ws):
     try:
         await ws.send_text(json.dumps({"type": "exit", "code": code}))
     except Exception:
-        pass
+        pass  # client already disconnected; nothing left to tell it
 
 
 def _is_running(proc):

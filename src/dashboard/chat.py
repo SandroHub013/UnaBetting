@@ -149,7 +149,7 @@ async def t_scan_match_live(ws=None):
         try:
             await ws.send_text(json.dumps({"type": "refresh"}))
         except Exception:
-            pass
+            pass  # the socket may already be gone; the scan result still returns
     return {"exit": proc.returncode, "output": tail}
 
 

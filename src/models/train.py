@@ -10,9 +10,8 @@ import joblib
 from pathlib import Path
 from datetime import datetime
 
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     accuracy_score, log_loss, brier_score_loss,

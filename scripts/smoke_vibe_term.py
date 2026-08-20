@@ -29,7 +29,7 @@ async def main():
                 if len(out) > 1500:
                     break
         except asyncio.TimeoutError:
-            pass
+            pass  # smoke test: whatever streamed before the timeout is enough
     clean = ANSI.sub("", out)
     print(f"bytes streamed: {len(out)}")
     print("tail:", repr(clean[-300:]))

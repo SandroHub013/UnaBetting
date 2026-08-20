@@ -3,7 +3,6 @@ Tennis Prediction Model - Data Update Automation Script
 Pulls latest data from all sources, rebuilds the unified dataset, and optionally retrains.
 """
 
-import os
 import sys
 import subprocess
 import requests

@@ -127,6 +127,7 @@ def _try_model(model_name, messages, api_key, ctx, _time, _re):
             try:
                 body = e.read().decode("utf-8", errors="replace")[:200]
             except Exception:
+                # Reading HTTP error response body is best-effort for diagnostics
                 pass
             if e.code == 429 and attempt < 1:
                 print(f"  [News Adj] Rate limited (429) on {model_name}. Retry in 5s...")
@@ -320,7 +321,6 @@ def run_news_adjustment(predictions: list) -> list:
 
 if __name__ == "__main__":
     # Test with existing predictions
-    import json
     from pathlib import Path
 
     pred_path = Path(__file__).parent.parent.parent / "data" / "live" / "predictions.json"
