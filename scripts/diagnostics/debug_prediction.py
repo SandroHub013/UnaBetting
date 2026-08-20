@@ -80,15 +80,15 @@ def debug_full_match():
         if f in input_data:
             print(f"  {f:<22}: {input_data[f]}")
 
-    X_scaled = scaler.transform(X)
-    prob = model.predict_proba(X_scaled)[0, 1]
+    x_scaled = scaler.transform(X)
+    prob = model.predict_proba(x_scaled)[0, 1]
     
     print(f"\nFINAL PREDICTION PROB P1: {prob:.4f}")
     
     # Explain SHAP-style (feature contribution)
     # Since we don't have SHAP installed, we can check the scaled values vs mean
     print("\n--- OUTLIER DETECTION (Z-SCORES) ---")
-    feat_series = pd.Series(X_scaled[0], index=feature_cols)
+    feat_series = pd.Series(x_scaled[0], index=feature_cols)
     outliers = feat_series[feat_series.abs() > 3].sort_values(key=abs, ascending=False)
     for f, z in outliers.items():
         print(f"  {f:<22}: Z={z:.2f} (Value: {input_data.get(f, 'N/A')})")

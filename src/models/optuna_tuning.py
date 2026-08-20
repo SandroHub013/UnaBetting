@@ -9,9 +9,9 @@ def objective(trial):
     config = load_config()
     df = pd.read_csv("data/features/atp_features.csv", low_memory=False)
     
-    (X_train_scaled, P_train, y_train_all, 
-     X_val_scaled, P_val, y_val_all, 
-     X_test_scaled, P_test, y_test_all, 
+    (x_train_scaled, p_train, y_train_all, 
+     x_val_scaled, p_val, y_val_all, 
+     x_test_scaled, p_test, y_test_all, 
      scaler, numeric_cols, medians, player_mapping) = prepare_training_data(df, config, skip_selection=False)
     
     y_train = y_train_all["target"]
@@ -32,9 +32,9 @@ def objective(trial):
     }
     
     model = lgb.LGBMClassifier(**params)
-    model.fit(X_train_scaled, y_train)
+    model.fit(x_train_scaled, y_train)
     
-    preds = model.predict_proba(X_val_scaled)[:, 1]
+    preds = model.predict_proba(x_val_scaled)[:, 1]
     loss = log_loss(y_val, preds)
     return loss
 

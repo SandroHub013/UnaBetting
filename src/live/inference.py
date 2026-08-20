@@ -507,13 +507,13 @@ def run_inference():
                 X.at[0, c] = medians.get(c, 0)
 
         # Scaled input
-        X_scaled = scaler.transform(X)
+        x_scaled = scaler.transform(X)
         
         # SAFETY CAPPING: Prevent extreme outliers (Z-scores) from breaking the trees
-        X_scaled = np.clip(X_scaled, -4, 4)
+        x_scaled = np.clip(x_scaled, -4, 4)
         
         # 1. Prediction H2H
-        prob_1 = float(models['h2h'].predict_proba(X_scaled)[0, 1])
+        prob_1 = float(models['h2h'].predict_proba(x_scaled)[0, 1])
         prob_2 = 1.0 - prob_1
 
         # P0-2 clamp: when one or both sides have low coverage, shrink confidence
@@ -534,10 +534,10 @@ def run_inference():
             confidence_flag = "OOD_LAYOFF"
 
         # 2. Prediction Spread (Expected Game Diff P1 - P2)
-        exp_game_diff = float(models['spread'].predict(X_scaled)[0])
+        exp_game_diff = float(models['spread'].predict(x_scaled)[0])
         
         # 3. Prediction Totals (Expected Total Games)
-        exp_total_games = float(models['totals'].predict(X_scaled)[0])
+        exp_total_games = float(models['totals'].predict(x_scaled)[0])
         
         # Edge calculation for both sides (H2H)
         edge_1 = (o1 * prob_1) - 1

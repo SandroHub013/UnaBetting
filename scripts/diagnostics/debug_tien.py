@@ -71,22 +71,22 @@ def debug_tien_sinner():
                 X.at[0, col] = 0.5 if "prob" in col or "rate" in col else 0
                 
     # Initial Prediction
-    X_pred = X[feature_cols]
-    X_scaled = scaler.transform(X_pred)
-    X_scaled = np.clip(X_scaled, -4, 4)
-    prob_base = model.predict_proba(X_scaled)[0, 1]
+    x_pred = X[feature_cols]
+    x_scaled = scaler.transform(x_pred)
+    x_scaled = np.clip(x_scaled, -4, 4)
+    prob_base = model.predict_proba(x_scaled)[0, 1]
     print(f"\nBASE PREDICTION [Tien vs Sinner] P1 Prob: {prob_base:.4f}")
 
     # TEST: Fix Sinner Inactivity
-    X_fixed = X.copy()
-    X_fixed.at[0, "l_days_since_last"] = 3
-    X_fixed.at[0, "diff_days_since_last"] = (X_fixed.at[0, "w_days_since_last"] or 7) - 3
+    x_fixed = X.copy()
+    x_fixed.at[0, "l_days_since_last"] = 3
+    x_fixed.at[0, "diff_days_since_last"] = (x_fixed.at[0, "w_days_since_last"] or 7) - 3
 
-    X_pred_fixed = X_fixed[feature_cols]
-    X_scaled_fixed = scaler.transform(X_pred_fixed)
-    X_scaled_fixed = np.clip(X_scaled_fixed, -4, 4)
+    x_pred_fixed = x_fixed[feature_cols]
+    x_scaled_fixed = scaler.transform(x_pred_fixed)
+    x_scaled_fixed = np.clip(x_scaled_fixed, -4, 4)
     
-    prob_fixed = model.predict_proba(X_scaled_fixed)[0, 1]
+    prob_fixed = model.predict_proba(x_scaled_fixed)[0, 1]
     print(f"FIXED PREDICTION (After fixing Sinner inactivity) P1 Prob: {prob_fixed:.4f}")
     
     # Feature Importance for XGBoost
@@ -94,10 +94,10 @@ def debug_tien_sinner():
     feats_imp = sorted(zip(feature_cols, importances), key=lambda x: x[1], reverse=True)
     print("\n--- TOP XGBOOST FEATURES ---")
     for f, imp in feats_imp[:20]:
-        val = X_fixed.at[0, f]
+        val = x_fixed.at[0, f]
         try:
             col_idx = feature_cols.index(f)
-            z = X_scaled_fixed[0, col_idx]
+            z = x_scaled_fixed[0, col_idx]
             print(f"  {f:<22}: Importance={imp:.4f} | Val={val} | Z={z:.2f}")
         except (ValueError, IndexError):
             print(f"  {f:<22} NOT FOUND")

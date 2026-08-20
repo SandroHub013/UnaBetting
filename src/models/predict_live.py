@@ -122,17 +122,17 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
         input_data[l_key] = 1 if level_map.get(tourney_level) == l_key else 0
         
     # Create DataFrame and align columns
-    X_live = pd.DataFrame([input_data])
+    x_live = pd.DataFrame([input_data])
     for col in feature_cols:
-        if col not in X_live.columns:
-            X_live[col] = 0 # Default for missing features
+        if col not in x_live.columns:
+            x_live[col] = 0 # Default for missing features
             
-    X_live = X_live[feature_cols]
+    x_live = x_live[feature_cols]
     
     # CRITICAL: Fill NaNs with training medians, not 0
     for col in feature_cols:
-        if col in X_live.columns and pd.isna(X_live.at[0, col]):
-            X_live.at[0, col] = medians.get(col, 0.5 if 'rate' in col or 'pct' in col or 'prob' in col else 0)
+        if col in x_live.columns and pd.isna(x_live.at[0, col]):
+            x_live.at[0, col] = medians.get(col, 0.5 if 'rate' in col or 'pct' in col or 'prob' in col else 0)
     
     models = {}
     
@@ -146,8 +146,8 @@ def predict_match(p1_name, p2_name, tourney_name, surface, tourney_level, odds_p
         models[target] = model_data["model"] if isinstance(model_data, dict) and "model" in model_data else model_data
     
     # Scale and Predict
-    X_scaled = scaler.transform(X_live)
-    prob_p1 = model.predict_proba(X_scaled)[0, 1]
+    x_scaled = scaler.transform(x_live)
+    prob_p1 = model.predict_proba(x_scaled)[0, 1]
     prob_p2 = 1 - prob_p1
     
     print("\n" + "="*40)

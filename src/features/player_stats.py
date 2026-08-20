@@ -38,21 +38,21 @@ class PlayerStatsEngine:
 
         stats = {}
         total_svpt = sum(_num(m.get(f"{prefix}svpt")) for m in matches)
-        total_1stIn = sum(_num(m.get(f"{prefix}1stIn")) for m in matches)
-        total_1stWon = sum(_num(m.get(f"{prefix}1stWon")) for m in matches)
-        total_2ndWon = sum(_num(m.get(f"{prefix}2ndWon")) for m in matches)
+        total_1st_in = sum(_num(m.get(f"{prefix}1stIn")) for m in matches)
+        total_1st_won = sum(_num(m.get(f"{prefix}1stWon")) for m in matches)
+        total_2nd_won = sum(_num(m.get(f"{prefix}2ndWon")) for m in matches)
         total_ace = sum(_num(m.get(f"{prefix}ace")) for m in matches)
         total_df = sum(_num(m.get(f"{prefix}df")) for m in matches)
-        total_bpSaved = sum(_num(m.get(f"{prefix}bpSaved")) for m in matches)
-        total_bpFaced = sum(_num(m.get(f"{prefix}bpFaced")) for m in matches)
+        total_bp_saved = sum(_num(m.get(f"{prefix}bpSaved")) for m in matches)
+        total_bp_faced = sum(_num(m.get(f"{prefix}bpFaced")) for m in matches)
 
-        stats["pct_1st_in"] = total_1stIn / total_svpt if total_svpt > 0 else np.nan
-        stats["pct_1st_won"] = total_1stWon / total_1stIn if total_1stIn > 0 else np.nan
-        svpt_2nd = total_svpt - total_1stIn
-        stats["pct_2nd_won"] = total_2ndWon / svpt_2nd if svpt_2nd > 0 else np.nan
+        stats["pct_1st_in"] = total_1st_in / total_svpt if total_svpt > 0 else np.nan
+        stats["pct_1st_won"] = total_1st_won / total_1st_in if total_1st_in > 0 else np.nan
+        svpt_2nd = total_svpt - total_1st_in
+        stats["pct_2nd_won"] = total_2nd_won / svpt_2nd if svpt_2nd > 0 else np.nan
         stats["ace_rate"] = total_ace / total_svpt if total_svpt > 0 else np.nan
         stats["df_rate"] = total_df / total_svpt if total_svpt > 0 else np.nan
-        stats["bp_save_pct"] = total_bpSaved / total_bpFaced if total_bpFaced > 0 else np.nan
+        stats["bp_save_pct"] = total_bp_saved / total_bp_faced if total_bp_faced > 0 else np.nan
 
         return stats
 
@@ -63,18 +63,18 @@ class PlayerStatsEngine:
 
         stats = {}
         total_opp_svpt = sum(_num(m.get("opp_svpt")) for m in matches)
-        total_opp_1stWon = sum(_num(m.get("opp_1stWon")) for m in matches)
-        total_opp_2ndWon = sum(_num(m.get("opp_2ndWon")) for m in matches)
-        total_opp_bpFaced = sum(_num(m.get("opp_bpFaced")) for m in matches)
-        total_opp_bpSaved = sum(_num(m.get("opp_bpSaved")) for m in matches)
-        total_opp_SvGms = sum(_num(m.get("opp_SvGms")) for m in matches)
+        total_opp_1st_won = sum(_num(m.get("opp_1stWon")) for m in matches)
+        total_opp_2nd_won = sum(_num(m.get("opp_2ndWon")) for m in matches)
+        total_opp_bp_faced = sum(_num(m.get("opp_bpFaced")) for m in matches)
+        total_opp_bp_saved = sum(_num(m.get("opp_bpSaved")) for m in matches)
+        total_opp_sv_gms = sum(_num(m.get("opp_SvGms")) for m in matches)
         
-        total_opp_pts_won = total_opp_1stWon + total_opp_2ndWon
+        total_opp_pts_won = total_opp_1st_won + total_opp_2nd_won
         stats["return_pts_win_pct"] = (total_opp_svpt - total_opp_pts_won) / total_opp_svpt if total_opp_svpt > 0 else np.nan
         
-        bp_converted = total_opp_bpFaced - total_opp_bpSaved
-        stats["bp_convert_pct"] = bp_converted / total_opp_bpFaced if total_opp_bpFaced > 0 else np.nan
-        stats["break_rate"] = bp_converted / total_opp_SvGms if total_opp_SvGms > 0 else np.nan
+        bp_converted = total_opp_bp_faced - total_opp_bp_saved
+        stats["bp_convert_pct"] = bp_converted / total_opp_bp_faced if total_opp_bp_faced > 0 else np.nan
+        stats["break_rate"] = bp_converted / total_opp_sv_gms if total_opp_sv_gms > 0 else np.nan
 
         return stats
 

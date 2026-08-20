@@ -52,30 +52,30 @@ def load_and_scale_data():
     df = pd.read_csv(features_path)
     config = load_config()
     
-    (X_train_scaled, _P_train, y_train, _X_val, _P_val, _y_val, X_test_scaled, _P_test, y_test,
+    (x_train_scaled, _p_train, y_train, _x_val, _p_val, _y_val, x_test_scaled, _p_test, y_test,
      _scaler, _numeric_cols, _medians, _player_mapping) = prepare_training_data(df, config)
     
     # Riempi eventuali NaNs rimasti causati da scaling
-    X_train_scaled = np.nan_to_num(X_train_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
-    X_test_scaled = np.nan_to_num(X_test_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
+    x_train_scaled = np.nan_to_num(x_train_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
+    x_test_scaled = np.nan_to_num(x_test_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
     
-    return X_train_scaled, y_train["target"].values, X_test_scaled, y_test["target"].values
+    return x_train_scaled, y_train["target"].values, x_test_scaled, y_test["target"].values
 
 def train_dl_model():
     print("🧠 Inizializzando Architettura Deep Learning (PyTorch)...")
-    X_train, y_train, X_test, y_test = load_and_scale_data()
+    x_train, y_train, x_test, y_test = load_and_scale_data()
     
-    input_dim = X_train.shape[1]
+    input_dim = x_train.shape[1]
     
     # Conversione in tensori
-    X_train_tensor = torch.FloatTensor(X_train)
+    x_train_tensor = torch.FloatTensor(x_train)
     y_train_tensor = torch.FloatTensor(y_train).view(-1, 1)
     
-    X_test_tensor = torch.FloatTensor(X_test)
+    x_test_tensor = torch.FloatTensor(x_test)
     y_test_tensor = torch.FloatTensor(y_test).view(-1, 1)
     
     # DataLoader
-    train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    train_dataset = TensorDataset(x_train_tensor, y_train_tensor)
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
     
     # Inizializza Modello
@@ -94,23 +94,23 @@ def train_dl_model():
         model.train()
         train_loss = 0.0
         
-        for batch_X, batch_y in train_loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+        for batch_x, batch_y in train_loader:
+            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
             
             optimizer.zero_grad()
-            outputs = model(batch_X)
+            outputs = model(batch_x)
             loss = criterion(outputs, batch_y)
             loss.backward()
             optimizer.step()
             
-            train_loss += loss.item() * batch_X.size(0)
+            train_loss += loss.item() * batch_x.size(0)
             
         train_loss /= len(train_loader.dataset)
         
         # Validation
         model.eval()
         with torch.no_grad():
-            test_outputs = model(X_test_tensor.to(device))
+            test_outputs = model(x_test_tensor.to(device))
             val_loss = criterion(test_outputs, y_test_tensor.to(device)).item()
             
         scheduler.step(val_loss)
@@ -128,7 +128,7 @@ def train_dl_model():
     model.load_state_dict(torch.load(PROJECT_ROOT / "models" / "best_tennis_dnn.pth"))
     model.eval()
     with torch.no_grad():
-        preds_prob = model(X_test_tensor.to(device)).cpu().numpy()
+        preds_prob = model(x_test_tensor.to(device)).cpu().numpy()
         preds_class = (preds_prob > 0.5).astype(int)
         
     acc = accuracy_score(y_test, preds_class)
