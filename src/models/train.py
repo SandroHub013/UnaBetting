@@ -320,7 +320,7 @@ def _randomize_perspective(X, y, seed=42, flip_mask=None):
 
     n = len(X)
     if flip_mask is None:
-        rng = np.random.RandomState(seed)
+        rng = np.random.default_rng(seed)
         flip_mask = rng.random(n) > 0.5
 
     X_flipped = X.copy()

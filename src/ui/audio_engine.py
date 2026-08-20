@@ -10,6 +10,13 @@ import numpy as np
 import pygame
 import pyttsx3
 
+# Emoji blocks, spelled as code points: a character class built from
+# backslash-U escapes is unreadable and static analysers misparse it.
+_EMOJI_RE = re.compile(
+    '[' + ''.join(chr(lo) + '-' + chr(hi) for lo, hi in
+                  ((0x1F300, 0x1F9FF), (0x2600, 0x27BF), (0x1FA00, 0x1FA6F))) + ']'
+)
+
 
 class AudioEngine:
     """
@@ -222,7 +229,7 @@ class AudioEngine:
         text = re.sub(r'[★⭐]+', lambda m: f"{len(m.group())} stelle", text)
         text = re.sub('☆', '', text)
         # Emoji (broad Unicode ranges)
-        text = re.sub(r'[\U0001F300-\U0001F9FF\U00002600-\U000027BF\U0001FA00-\U0001FA6F]', '', text)
+        text = _EMOJI_RE.sub('', text)
         # Markdown formatting
         text = re.sub(r'[*_~`#]', '', text)
         # Box-drawing characters

@@ -1230,6 +1230,36 @@ function fitActiveTerm() {
 window.addEventListener('resize', fitActiveTerm);
 
 /* ================= BROWSER AGENTICO ================= */
+function browserLinksHtml(links) {
+  return (links || []).map(l =>
+    `<a href="#" data-href="${escHtml(l.href)}" class="br-link">${escHtml(l.text)}</a>`).join('');
+}
+
+function bindBrowserLinks(view, go) {
+  view.querySelectorAll('.br-link').forEach(a => {
+    a.onclick = (e) => { e.preventDefault(); go(a.dataset.href); };
+  });
+}
+
+async function browserGo(u, hist) {
+  const view = $('#br-view');
+  view.innerHTML = `<div class="panel-note">${t('loading')} ${escHtml(u)}</div>`;
+  try {
+    const d = await getJSON('/api/browse?url=' + encodeURIComponent(u));
+    $('#br-url').value = d.url;
+    hist.push(d.url);
+    const links = browserLinksHtml(d.links);
+    view.innerHTML = `<h2 class="br-title">${escHtml(d.title)}</h2>
+      <div class="br-src">${escHtml(d.url)}</div>
+      <pre class="br-text">${escHtml(d.text)}</pre>
+      ${links ? '<div class="br-links"><b>' + t('links_l') + '</b>' + links + '</div>' : ''}`;
+    bindBrowserLinks(view, (next) => browserGo(next, hist));
+    view.scrollTop = 0;
+  } catch (err) {
+    view.innerHTML = '<div class="banner">errore: ' + escHtml(err.message) + '</div>';
+  }
+}
+
 function openBrowser(url) {
   openTab('panel:browser', '🌐 Browser', (pane) => {
     pane.innerHTML = `<div class="browser-host">
@@ -1241,26 +1271,7 @@ function openBrowser(url) {
       <div class="browser-view" id="br-view"><div class="panel-note">${t('loading')}</div></div>
     </div>`;
     const hist = [];
-    const go = async (u) => {
-      const view = $('#br-view');
-      view.innerHTML = `<div class="panel-note">${t('loading')} ${escHtml(u)}</div>`;
-      try {
-        const d = await getJSON('/api/browse?url=' + encodeURIComponent(u));
-        $('#br-url').value = d.url;
-        hist.push(d.url);
-        const links = (d.links || []).map(l =>
-          `<a href="#" data-href="${escHtml(l.href)}" class="br-link">${escHtml(l.text)}</a>`).join('');
-        view.innerHTML = `<h2 class="br-title">${escHtml(d.title)}</h2>
-          <div class="br-src">${escHtml(d.url)}</div>
-          <pre class="br-text">${escHtml(d.text)}</pre>
-          ${links ? '<div class="br-links"><b>' + t('links_l') + '</b>' + links + '</div>' : ''}`;
-        view.querySelectorAll('.br-link').forEach(a =>
-          a.onclick = (e) => { e.preventDefault(); go(a.dataset.href); });
-        view.scrollTop = 0;
-      } catch (err) {
-        view.innerHTML = '<div class="banner">errore: ' + escHtml(err.message) + '</div>';
-      }
-    };
+    const go = (u) => browserGo(u, hist);
     $('#browser-bar').onsubmit = (e) => { e.preventDefault(); go($('#br-url').value.trim()); };
     $('#br-back').onclick = () => { hist.pop(); const p = hist.pop(); if (p) go(p); };
     if (url) go(url);

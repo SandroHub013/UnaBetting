@@ -64,7 +64,6 @@ print(f"[DATA] Matches with {odds_col} odds: {len(df)}")
 # ============================================================
 from src.models.train import _randomize_perspective
 
-np.random.seed(42)
 X_to_randomize = df[numeric_features + odds_cols].copy()
 y_raw = df["target"].copy()
 X_r, y_r = _randomize_perspective(X_to_randomize, y_raw)
@@ -105,7 +104,7 @@ def flat_stake_analysis(subset, stake=10.0, label=""):
     won = subset["won"].values
     
     # 1. Slippage (0% to 2% worse odds randomly)
-    rng = np.random.RandomState(42)
+    rng = np.random.default_rng(42)
     slippage = rng.uniform(0, 0.02, size=n)
     odds = subset["random_odds"].values * (1 - slippage)
     
@@ -218,8 +217,7 @@ value_mask = value_mask & (df["kelly_bet_frac"] > 0)
 value_bets = df[value_mask].copy()
 
 # Add realistic slippage and commission for all simulated bets
-np.random.seed(42)
-slippage = np.random.uniform(0, 0.02, size=len(value_bets))
+slippage = np.random.default_rng(42).uniform(0, 0.02, size=len(value_bets))
 value_bets["actual_odds"] = value_bets["random_odds"] * (1 - slippage)
 commission_rate = 0.05
 

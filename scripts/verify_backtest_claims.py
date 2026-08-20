@@ -45,7 +45,7 @@ print(f"\n[1] winner-POV accuracy (p1>0.5 share): {acc_winner_pov:.4f}")
 print(f"    mean p_w_model: {p_w.mean():.4f}")
 
 # --- honest: randomize perspective like training does ---
-rng = np.random.RandomState(123)
+rng = np.random.default_rng(123)
 flip = rng.random(len(X)) > 0.5
 Xr = X.copy()
 for wc in [c for c in features if c.startswith("w_")]:

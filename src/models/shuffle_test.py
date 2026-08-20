@@ -27,7 +27,7 @@ def run_shuffle_test():
     
     # SHUFFLE the target column to break any real relationship
     print("⚠️  SHUFFLING TARGET (Randomizing matches with 50/50 probability)...")
-    df['target'] = np.random.choice([0, 1], size=len(df))
+    df['target'] = np.random.default_rng(42).choice([0, 1], size=len(df))
     
     # Prepare data
     (X_train, _P_train, y_train, _X_val, _P_val, _y_val, X_test, _P_test, y_test,
