@@ -15,6 +15,54 @@ load_dotenv()
 from src.live.web_research import WebResearch
 
 
+def _venue_line(p, f):
+    surface = p.get("surface", f.get("surface", "?"))
+    tourney = f.get("tourney_name", "")
+    if not (surface or tourney):
+        return ""
+    suffix = f" ({tourney})" if tourney else ""
+    return f"  Superficie: {surface}{suffix}\n"
+
+
+def _market_line(label, model_value, market_value, edge, fmt):
+    tag = f" -> VALORE {edge}" if edge else ""
+    return (f"  {label}: ML {fmt.format(model_value)} "
+            f"vs Linea {fmt.format(market_value)}{tag}\n")
+
+
+def _news_line(p):
+    adj = p.get("news_adjustment")
+    if not (adj and adj.get("applied")):
+        return ""
+    raw_p1 = p.get("raw_prob_1", p["prob_1"])
+    return (f"  NEWS: {adj['reason']} (adj: {adj['effective']:+.3f}, "
+            f"conf: {adj['confidence']:.0%})\n"
+            f"  Prob pre-news: {raw_p1:.1%} -> post-news: {p['prob_1']:.1%}\n")
+
+
+def _prediction_block(p):
+    """One match, as the analysis prompt sees it."""
+    f = p.get('forensics', {})
+    conf_tag = " [LOW CONFIDENCE]" if p.get('low_confidence', False) else ""
+    return (
+        f"MATCH: {p['match']}{conf_tag}\n"
+        f"  H2H: P1 {p['prob_1']:.1%} @{p['odds_1']:.2f} | "
+        f"P2 {p['prob_2']:.1%} @{p['odds_2']:.2f}\n"
+        f"  Edge: {p['edge']:+.1%} (lato P{p.get('value_side', '?')})\n"
+        + _venue_line(p, f)
+        + (f"  ELO: P1 {f.get('p1_elo', 'N/A')} (sup: {f.get('p1_surface_elo', 'N/A')}) | "
+           f"P2 {f.get('p2_elo', 'N/A')} (sup: {f.get('p2_surface_elo', 'N/A')})\n")
+        + f"  Forma: P1 {f.get('p1_form', 'N/A')} | P2 {f.get('p2_form', 'N/A')}\n"
+        + f"  H2H: {f.get('p1_h2h', 0)} - {f.get('p2_h2h', 0)}\n"
+        + _market_line("Spread", f.get('exp_game_diff', 0), f.get('market_spread', 0),
+                       f.get('spread_edge', ''), "{:+.1f}")
+        + _market_line("Totals", f.get('exp_total_games', 0), f.get('market_total', 0),
+                       f.get('totals_edge', ''), "{:.1f}")
+        + _news_line(p)
+        + "\n"
+    )
+
+
 class AgentLLM:
     """
     Sandro - AI Betting Analyst powered by OpenRouter.
@@ -99,58 +147,8 @@ class AgentLLM:
         if not predictions:
             return "Nessun match disponibile al momento.\n"
 
-        context = f"DATI PREDIZIONI ML ({len(predictions)} match):\n"
-        context += "=" * 50 + "\n\n"
-
-        for p in predictions:
-            f = p.get('forensics', {})
-            low_conf = p.get('low_confidence', False)
-
-            conf_tag = " [LOW CONFIDENCE]" if low_conf else ""
-            context += f"MATCH: {p['match']}{conf_tag}\n"
-            context += f"  H2H: P1 {p['prob_1']:.1%} @{p['odds_1']:.2f} | P2 {p['prob_2']:.1%} @{p['odds_2']:.2f}\n"
-            context += f"  Edge: {p['edge']:+.1%} (lato P{p.get('value_side', '?')})\n"
-
-            # Surface & tournament
-            surface = p.get("surface", f.get("surface", "?"))
-            tourney = f.get("tourney_name", "")
-            if surface or tourney:
-                context += f"  Superficie: {surface}"
-                if tourney:
-                    context += f" ({tourney})"
-                context += "\n"
-
-            # ELO
-            context += f"  ELO: P1 {f.get('p1_elo', 'N/A')} (sup: {f.get('p1_surface_elo', 'N/A')}) | P2 {f.get('p2_elo', 'N/A')} (sup: {f.get('p2_surface_elo', 'N/A')})\n"
-
-            # Form & H2H
-            context += f"  Forma: P1 {f.get('p1_form', 'N/A')} | P2 {f.get('p2_form', 'N/A')}\n"
-            context += f"  H2H: {f.get('p1_h2h', 0)} - {f.get('p2_h2h', 0)}\n"
-
-            # Spread
-            exp_diff = f.get('exp_game_diff', 0)
-            mkt_spread = f.get('market_spread', 0)
-            spread_edge = f.get('spread_edge', '')
-            spread_tag = f" -> VALORE {spread_edge}" if spread_edge else ""
-            context += f"  Spread: ML {exp_diff:+.1f} vs Linea {mkt_spread:+.1f}{spread_tag}\n"
-
-            # Totals
-            exp_total = f.get('exp_total_games', 0)
-            mkt_total = f.get('market_total', 0)
-            totals_edge = f.get('totals_edge', '')
-            totals_tag = f" -> VALORE {totals_edge}" if totals_edge else ""
-            context += f"  Totals: ML {exp_total:.1f} vs Linea {mkt_total:.1f}{totals_tag}\n"
-
-            # News adjustment info
-            adj = p.get("news_adjustment")
-            if adj and adj.get("applied"):
-                raw_p1 = p.get("raw_prob_1", p["prob_1"])
-                context += f"  NEWS: {adj['reason']} (adj: {adj['effective']:+.3f}, conf: {adj['confidence']:.0%})\n"
-                context += f"  Prob pre-news: {raw_p1:.1%} -> post-news: {p['prob_1']:.1%}\n"
-
-            context += "\n"
-
-        return context
+        header = f"DATI PREDIZIONI ML ({len(predictions)} match):\n" + "=" * 50 + "\n\n"
+        return header + "".join(_prediction_block(p) for p in predictions)
 
     def _build_search_context(self, query: str) -> str:
         """Web search context for search queries.
@@ -196,6 +194,49 @@ class AgentLLM:
     # Main API
     # ------------------------------------------------------------------
 
+    def _user_message(self, query_type, query, predictions):
+        """The prompt body for this query type: web results, full data, or nothing."""
+        if query_type == "search":
+            search_ctx = self._build_search_context(query)
+            pred_summary = (f"\n({len(predictions)} match in portafoglio)"
+                            if predictions else "")
+            return f"RISULTATI WEB SEARCH:\n{search_ctx}{pred_summary}\n\nDOMANDA: {query}"
+        if query_type == "analysis":
+            return f"{self._format_predictions_context(predictions)}\nDOMANDA UTENTE: {query}"
+        return query  # chat and anything unrecognised stay conversational
+
+    def _request_with_retry(self, messages, attempts=3):
+        """Assistant reply, retrying rate limits and timeouts; None once spent."""
+        import time as _time
+
+        req = urllib.request.Request(
+            self.base_url,
+            data=json.dumps({"model": self.model, "messages": messages}).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "X-Title": "Tennis Pro Terminal",
+            },
+            method="POST",
+        )
+        for attempt in range(attempts):
+            last = attempt == attempts - 1
+            try:
+                with urllib.request.urlopen(req, context=self.ctx, timeout=60) as response:
+                    raw = response.read().decode("utf-8").strip()
+                    return json.loads(raw)["choices"][0]["message"]["content"]
+            except urllib.error.HTTPError as e:
+                if e.code == 429 and not last:
+                    _time.sleep((attempt + 1) * 5)
+                    continue
+                raise
+            except Exception as e:
+                if not last and "timed out" in str(e).lower():
+                    _time.sleep(3)
+                    continue
+                raise
+        return None
+
     def ask(self, query: str, predictions_path: str = "data/live/predictions.json") -> str:
         """Smart-routed query: classifies, injects appropriate context, calls LLM."""
         if not self.api_key or self.api_key.startswith("${") or self.api_key == "YOUR_OPENROUTER_API_KEY_HERE":
@@ -213,69 +254,16 @@ class AgentLLM:
                 except ValueError:
                     predictions = []
 
-            # Build user message based on query type
-            if query_type == "chat":
-                # No data context — just conversational
-                user_message = query
-            elif query_type == "search":
-                # Web search context + predictions summary
-                search_ctx = self._build_search_context(query)
-                pred_summary = f"\n({len(predictions)} match in portafoglio)" if predictions else ""
-                user_message = f"RISULTATI WEB SEARCH:\n{search_ctx}{pred_summary}\n\nDOMANDA: {query}"
-            elif query_type == "analysis":
-                # Full predictions context
-                context = self._format_predictions_context(predictions)
-                user_message = f"{context}\nDOMANDA UTENTE: {query}"
-            else:
-                user_message = query
-
-            # Build messages: system + history + current
-            messages = [{"role": "system", "content": self.system_prompt}]
-            for msg in self.history[-self.max_history:]:
-                messages.append(msg)
-            messages.append({"role": "user", "content": user_message})
-
-            data = {
-                "model": self.model,
-                "messages": messages,
-            }
-
-            req = urllib.request.Request(
-                self.base_url,
-                data=json.dumps(data).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "X-Title": "Tennis Pro Terminal",
-                },
-                method="POST",
-            )
-
-            # Retry with backoff for rate limits
-            import time as _time
-            for attempt in range(3):
-                try:
-                    with urllib.request.urlopen(req, context=self.ctx, timeout=60) as response:
-                        raw = response.read().decode("utf-8").strip()
-                        result = json.loads(raw)
-                        assistant_reply = result["choices"][0]["message"]["content"]
-
-                        self.history.append({"role": "user", "content": query})
-                        self.history.append({"role": "assistant", "content": assistant_reply})
-                        return assistant_reply
-                except urllib.error.HTTPError as e:
-                    if e.code == 429 and attempt < 2:
-                        wait = (attempt + 1) * 5
-                        _time.sleep(wait)
-                        continue
-                    raise
-                except Exception as e:
-                    if attempt < 2 and "timed out" in str(e).lower():
-                        _time.sleep(3)
-                        continue
-                    raise
-
-            return "LLM non disponibile dopo 3 tentativi. Riprova tra poco."
+            user_message = self._user_message(query_type, query, predictions)
+            messages = ([{"role": "system", "content": self.system_prompt}]
+                        + list(self.history[-self.max_history:])
+                        + [{"role": "user", "content": user_message}])
+            reply = self._request_with_retry(messages)
+            if reply is None:
+                return "LLM non disponibile dopo 3 tentativi. Riprova tra poco."
+            self.history.append({"role": "user", "content": query})
+            self.history.append({"role": "assistant", "content": reply})
+            return reply
 
         except Exception as e:
             return f"Errore comunicazione AI: {str(e)}"
