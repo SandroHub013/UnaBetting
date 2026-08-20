@@ -362,7 +362,7 @@ def clv():
         mean = round(sum(vals) / len(vals), 4) if vals else None
         clean = []
         for r in rows:
-            clean.append({k: (None if (isinstance(v, float) and v != v) else v)
+            clean.append({k: (None if (isinstance(v, float) and math.isnan(v)) else v)
                           for k, v in r.items()})
         return {"rows": clean, "mean_clv": mean,
                 "note": "CLV affidabile solo con settimane di snapshot accumulati"}
