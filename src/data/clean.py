@@ -46,7 +46,7 @@ def load_sackmann_matches(tour="atp", min_year=2000, max_year=2026):
         DataFrame with all matches
     """
     config = load_config()
-    
+
     if tour == "atp":
         repo_dir = PROJECT_ROOT / config["paths"]["raw_data"] / "TML-Database"
         pattern = "*.csv"
@@ -118,13 +118,13 @@ def load_sackmann_rankings(tour="atp"):
 def load_sackmann_players(tour="atp"):
     """Load the player master file."""
     config = load_config()
-    
+
     if tour == "atp":
         filepath = PROJECT_ROOT / config["paths"]["raw_data"] / "TML-Database" / "ATP_Database.csv"
     else:
         repo_dir = PROJECT_ROOT / config["paths"]["raw_data"] / "sackmann" / f"tennis_{tour}"
         filepath = repo_dir / f"{tour}_players.csv"
-        
+
     if not filepath.exists():
         print(f"  ✗ File giocatori non trovato: {filepath}")
         return pd.DataFrame()
@@ -536,7 +536,7 @@ def merge_matches_with_odds(matches_df, odds_df):
     # (since tourney_date is start of tournament, actual match could be days later)
     if matched_exact < len(matches) * 0.3:
         print(f"  ℹ Exact date match basso ({matched_exact:,}), provo match per cognome+mese...")
-        
+
         # Create a broader key: year-month + last names
         odds["broad_key"] = (
             odds["odds_date"].dt.strftime("%Y-%m").fillna("") + "|" +
@@ -633,7 +633,7 @@ def build_unified_dataset(tour="atp", min_year=2000, save=True):
     # 6. Deduplicate (CRITICAL to avoid leakage from repeated matches)
     initial_len = len(unified)
     unified = unified.drop_duplicates(
-        subset=["tourney_date", "winner_name", "loser_name", "score"], 
+        subset=["tourney_date", "winner_name", "loser_name", "score"],
         keep="first"
     )
     if len(unified) < initial_len:

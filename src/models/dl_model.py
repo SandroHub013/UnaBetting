@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 class TennisNet(nn.Module):
     """
     Deep Neural Network for predicting tennis matches using 150+ features.
-    Architecture: Multi-Layer Perceptron (MLP) with Batch Normalization and Dropout 
+    Architecture: Multi-Layer Perceptron (MLP) with Batch Normalization and Dropout
     to prevent overfitting on the complex historical stats.
     """
     def __init__(self, input_dim):
@@ -25,21 +25,21 @@ class TennisNet(nn.Module):
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.4),
-            
+
             nn.Linear(256, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.3),
-            
+
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Dropout(0.2),
-            
+
             nn.Linear(64, 1),
             nn.Sigmoid()
         )
-        
+
     def forward(self, x):
         return self.network(x)
 
@@ -48,93 +48,93 @@ def load_and_scale_data():
     features_path = PROJECT_ROOT / "data" / "features" / "atp_features.csv"
     if not features_path.exists():
         raise FileNotFoundError(f"Feature matrix not found: {features_path}")
-        
+
     df = pd.read_csv(features_path)
     config = load_config()
-    
+
     (x_train_scaled, _p_train, y_train, _x_val, _p_val, _y_val, x_test_scaled, _p_test, y_test,
      _scaler, _numeric_cols, _medians, _player_mapping) = prepare_training_data(df, config)
-    
+
     # Riempi eventuali NaNs rimasti causati da scaling
     x_train_scaled = np.nan_to_num(x_train_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
     x_test_scaled = np.nan_to_num(x_test_scaled.values, nan=0.0, posinf=0.0, neginf=0.0)
-    
+
     return x_train_scaled, y_train["target"].values, x_test_scaled, y_test["target"].values
 
 def train_dl_model():
     print("🧠 Inizializzando Architettura Deep Learning (PyTorch)...")
     x_train, y_train, x_test, y_test = load_and_scale_data()
-    
+
     input_dim = x_train.shape[1]
-    
+
     # Conversione in tensori
     x_train_tensor = torch.FloatTensor(x_train)
     y_train_tensor = torch.FloatTensor(y_train).view(-1, 1)
-    
+
     x_test_tensor = torch.FloatTensor(x_test)
     y_test_tensor = torch.FloatTensor(y_test).view(-1, 1)
-    
+
     # DataLoader
     train_dataset = TensorDataset(x_train_tensor, y_train_tensor)
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
-    
+
     # Inizializza Modello
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device} | Features: {input_dim}")
-    
+
     model = TennisNet(input_dim).to(device)
     criterion = nn.BCELoss()
     optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5)
-    
+
     epochs = 40
     best_loss = float('inf')
-    
+
     for epoch in range(epochs):
         model.train()
         train_loss = 0.0
-        
+
         for batch_x, batch_y in train_loader:
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-            
+
             optimizer.zero_grad()
             outputs = model(batch_x)
             loss = criterion(outputs, batch_y)
             loss.backward()
             optimizer.step()
-            
+
             train_loss += loss.item() * batch_x.size(0)
-            
+
         train_loss /= len(train_loader.dataset)
-        
+
         # Validation
         model.eval()
         with torch.no_grad():
             test_outputs = model(x_test_tensor.to(device))
             val_loss = criterion(test_outputs, y_test_tensor.to(device)).item()
-            
+
         scheduler.step(val_loss)
-        
+
         if val_loss < best_loss:
             best_loss = val_loss
             torch.save(model.state_dict(), PROJECT_ROOT / "models" / "best_tennis_dnn.pth")
-            
+
         if (epoch + 1) % 5 == 0 or epoch == 0:
             print(f"Epoch [{epoch+1}/{epochs}] | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
-            
+
     print("\n✅ Training DNN Terminata!")
-    
+
     # Load Best Model for Evaluation
     model.load_state_dict(torch.load(PROJECT_ROOT / "models" / "best_tennis_dnn.pth"))
     model.eval()
     with torch.no_grad():
         preds_prob = model(x_test_tensor.to(device)).cpu().numpy()
         preds_class = (preds_prob > 0.5).astype(int)
-        
+
     acc = accuracy_score(y_test, preds_class)
     ll = log_loss(y_test, preds_prob)
     auc = roc_auc_score(y_test, preds_prob)
-    
+
     print("\n📊 Deep Learning Performance:")
     print(f"Accuracy: {acc:.4f} | Log Loss: {ll:.4f} | ROC AUC: {auc:.4f}")
 

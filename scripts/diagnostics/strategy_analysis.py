@@ -102,12 +102,12 @@ def flat_stake_analysis(subset, stake=10.0, label=""):
                 "yield_pct": 0}
 
     won = subset["won"].values
-    
+
     # 1. Slippage (0% to 2% worse odds randomly)
     rng = np.random.default_rng(42)
     slippage = rng.uniform(0, 0.02, size=n)
     odds = subset["random_odds"].values * (1 - slippage)
-    
+
     probs = subset["model_prob"].values
     edges = subset["edge"].values
 

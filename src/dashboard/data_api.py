@@ -1065,16 +1065,16 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
             raise ValueError("bundle has no manifest.json — refusing to extract") from None
         except json.JSONDecodeError as e:
             raise ValueError(f"manifest.json is not valid JSON: {e}") from None
-            
+
         sig_b64 = manifest.pop("signature", None)
         if not sig_b64:
             raise ValueError("unsigned bundle — refusing to extract")
-            
+
         try:
             pubkey = serialization.load_pem_public_key(UPDATER_PUBKEY)
             if not isinstance(pubkey, ed25519.Ed25519PublicKey):
                 raise ValueError("invalid baked public key type")
-                
+
             # Reconstruct the exact canonical JSON that was signed
             payload = json.dumps(manifest, separators=(',', ':'), sort_keys=True).encode("utf-8")
             pubkey.verify(base64.b64decode(sig_b64), payload)
@@ -1082,7 +1082,7 @@ def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
             raise ValueError("bundle signature verification failed — refusing to extract")
         except Exception as e:
             raise ValueError(f"error verifying signature: {e}")
-            
+
         try:
             expected = {f["path"]: (f["sha256"], int(f["bytes"]))
                         for f in manifest.get("files", [])}

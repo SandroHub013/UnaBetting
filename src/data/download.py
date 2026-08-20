@@ -99,7 +99,7 @@ def download_tml_database(config):
 
     raw_dir = PROJECT_ROOT / config["paths"]["raw_data"]
     url = "https://github.com/Tennismylife/TML-Database.git"
-    
+
     success = clone_or_pull_repo(url, raw_dir)
     return success
 
@@ -143,10 +143,10 @@ def download_tennis_data_co_uk(config):
                 if resp.status_code == 200 and len(resp.content) > 1000:
                     content_type = resp.headers.get('Content-Type', '')
                     if 'html' in content_type: continue # Skip if redirected to a page
-                    
+
                     ext = url.split(".")[-1]
                     if ext == "php": ext = "csv" # fallback
-                    
+
                     filepath = output_dir / f"atp_{year}.{ext}"
                     with open(filepath, "wb") as f:
                         f.write(resp.content)
@@ -181,7 +181,7 @@ def download_tennis_data_co_uk(config):
                 if resp.status_code == 200 and len(resp.content) > 1000:
                     content_type = resp.headers.get('Content-Type', '')
                     if 'html' in content_type: continue
-                    
+
                     ext = url.split(".")[-1]
                     filepath = output_dir / f"wta_{year}.{ext}"
                     with open(filepath, "wb") as f:
@@ -232,7 +232,7 @@ def download_all():
     for name, success in sackmann_results.items():
         status = "✓" if success else "✗"
         print(f"  {status} {name}")
-        
+
     tml_status = "✓" if tml_success else "✗"
     print("\nTML-Database (ATP):")
     print(f"  {tml_status} TML-Database")

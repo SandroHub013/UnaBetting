@@ -28,15 +28,15 @@ probs = model.predict_proba(X_test)[:, 1]
 certain_mask = (probs > 0.999) | (probs < 0.001)
 if certain_mask.any():
     print(f"Found {certain_mask.sum()} matches with >99.9% certainty!")
-    
+
     # Get indices of the most certain matches
     idx = np.nonzero(certain_mask)[0][:5]
-    
+
     for i in idx:
         p = probs[i]
         actual = y_test.iloc[i]
         print(f"\n--- CERTAIN MATCH (Prob: {p:.6f}, Actual: {actual}) ---")
-        
+
         # Get feature values for this match
         row = X_test.iloc[i]
         top_feats = row.abs().sort_values(ascending=False).head(20)

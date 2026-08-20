@@ -18,13 +18,13 @@ def run_cross_validation():
     print("\n" + "="*60)
     print("🕒 TIME-SERIES CROSS VALIDATION (Walk-Forward)")
     print("="*60)
-    
+
     config = load_config()
     tour = "atp"
     features_path = PROJECT_ROOT / config["paths"]["features"] / f"{tour}_features.csv"
     df = pd.read_csv(features_path, low_memory=False)
     df["tourney_date"] = pd.to_datetime(df["tourney_date"])
-    
+
     # Define folds: (Train End Year, Test Year) - Walk-Forward 5 folds
     folds = [
         (2019, 2020),
@@ -33,12 +33,12 @@ def run_cross_validation():
         (2022, 2023),
         (2023, 2024),
     ]
-    
+
     cv_results = []
-    
+
     for train_end, test_year in folds:
         print(f"\n📂 FOLD: Train until {train_end}, Test in {test_year}")
-        
+
         # Temporary override for prepare_training_data.
         # CRITICAL: clear validation_years so the internal split is
         #   train = year < test_year   (no fixed 2023 cut),
@@ -75,9 +75,9 @@ def run_cross_validation():
         res = _evaluate_model(model, x_test, y_te, f"Fold {test_year}")
         res['year'] = test_year
         cv_results.append(res)
-        
+
     cv_df = pd.DataFrame(cv_results)
-    
+
     print("\n" + "="*60)
     print("📊 FINAL CV SUMMARY")
     print("="*60)

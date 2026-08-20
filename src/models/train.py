@@ -30,7 +30,7 @@ except ImportError:
     Dataset = object  # TennisDataset is only instantiated when HAS_TORCH
 
 class PreFittedEnsemble:
-    """Wrapper per evitare il re-training di tutti gli stimatori nell'Ensemble. 
+    """Wrapper per evitare il re-training di tutti gli stimatori nell'Ensemble.
     Usa modelli già fittati (e calibrati) e calcola la media ponderata delle loro probabilità."""
     def __init__(self, models, is_regression=False, weights=None):
         self.models = models
@@ -39,14 +39,14 @@ class PreFittedEnsemble:
             self.weights = np.ones(len(models)) / len(models)
         else:
             self.weights = np.array(weights)
-        
+
     def predict(self, X):
         if self.is_regression:
             preds = np.column_stack([m.predict(X) for m in self.models])
             return np.average(preds, axis=1, weights=getattr(self, "weights", None))
         else:
             return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
-            
+
     def predict_proba(self, X):
         probs = np.array([m.predict_proba(X) for m in self.models])
         return np.average(probs, axis=0, weights=getattr(self, "weights", None))
@@ -126,7 +126,7 @@ def prepare_training_data(features_df, config, skip_selection=False, tour="atp")
         selection_path = PROJECT_ROOT / "config" / f"selected_features_{tour}.txt"
         if not selection_path.exists():
             selection_path = PROJECT_ROOT / "config" / "selected_features_atp.txt"
-        
+
         if selection_path.exists():
             with open(selection_path, "r") as f:
                 selected = [line.strip() for line in f if line.strip()]
@@ -213,18 +213,18 @@ def prepare_training_data(features_df, config, skip_selection=False, tour="atp")
     # Extract IDs based on the randomized target
     p1_raw = np.where(df["target"] == 1, df["winner_id"], df["loser_id"])
     p2_raw = np.where(df["target"] == 1, df["loser_id"], df["winner_id"])
-    
+
     # Fit mapping on train set only to avoid leakage
     train_players = np.unique(np.concatenate([p1_raw[train_mask], p2_raw[train_mask]]))
     # 0 is UNK
     player_mapping = {pid: i + 1 for i, pid in enumerate(train_players)}
-    
+
     def map_players(p_raw):
         return np.array([player_mapping.get(p, 0) for p in p_raw])
-        
+
     df["p1_id"] = map_players(p1_raw)
     df["p2_id"] = map_players(p2_raw)
-    
+
     p_train = df.loc[train_mask, ["p1_id", "p2_id"]].copy()
     p_val = df.loc[val_mask, ["p1_id", "p2_id"]].copy()
     p_test = df.loc[test_mask, ["p1_id", "p2_id"]].copy()
@@ -347,7 +347,7 @@ def _randomize_perspective(X, y, seed=42, flip_mask=None):
                 x_flipped.loc[flip_mask, col] = 1.0 / X.loc[flip_mask, col]
             else:
                 x_flipped.loc[flip_mask, col] = -X.loc[flip_mask, col]
-                
+
     # Swap betting odds (e.g., B365W <-> B365L, MaxW <-> MaxL)
     all_cols = list(X.columns)
     for cw in all_cols:
@@ -373,7 +373,7 @@ def _randomize_perspective(X, y, seed=42, flip_mask=None):
     # Flip game_diff (Winner Games - Loser Games becomes Loser - Winner)
     if hasattr(y, 'columns') and "game_diff" in y.columns:
         y_flipped.loc[flip_mask, "game_diff"] = -y.loc[flip_mask, "game_diff"]
-        
+
     # total_games is invariant (P1 games + P2 games)
 
     return x_flipped, y_flipped
@@ -502,7 +502,7 @@ def _train_segment(target_col, segment, config, is_regression, x_train, y_train,
             estimators = [models[f"{target_col}_{segment}_lr"], models[f"{target_col}_{segment}_rf"]]
             if HAS_XGB: estimators.append(models[f"{target_col}_{segment}_xgboost"])
             if HAS_LGB: estimators.append(models[f"{target_col}_{segment}_lightgbm"])
-            
+
             weights = None
             if has_val:
                 lls = []
@@ -513,7 +513,7 @@ def _train_segment(target_col, segment, config, is_regression, x_train, y_train,
                 neg_lls = -np.array(lls)
                 exp_neg_lls = np.exp(neg_lls - np.max(neg_lls))
                 weights = exp_neg_lls / exp_neg_lls.sum()
-                
+
             ensemble = PreFittedEnsemble(estimators, is_regression=False, weights=weights)
 
         models[f"{target_col}_{segment}_ensemble"] = ensemble
@@ -526,25 +526,25 @@ def _train_segment(target_col, segment, config, is_regression, x_train, y_train,
         print(f"\n  [>] PyTorch Embedding Net for {target_col} ({segment})...")
         train_dataset = TennisDataset(p_train['p1_id'], p_train['p2_id'], x_train, y_train)
         val_dataset = TennisDataset(p_val['p1_id'], p_val['p2_id'], x_val, y_val)
-        
+
         train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
         val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=0)
-        
+
         num_players = len(player_mapping) + 1
         emb_dim = 32
         num_features = x_train.shape[1]
-        
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         nn_model = TennisTransformerNet(num_players, emb_dim, num_features).to(device)
-        
+
         nn_model = train_tennis_model(nn_model, train_loader, val_loader, epochs=10, lr=0.001)
         models[f"{target_col}_{segment}_pytorch"] = nn_model
-        
+
         if len(x_test) > 0:
             nn_model.eval()
             test_dataset = TennisDataset(p_test['p1_id'], p_test['p2_id'], x_test, y_test)
             test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=0)
-            
+
             y_prob_pt = []
             with torch.no_grad():
                 for batch in test_loader:
@@ -553,32 +553,32 @@ def _train_segment(target_col, segment, config, is_regression, x_train, y_train,
                     num_feats = batch['numerical_features'].to(device)
                     outputs = nn_model(p1_ids, p2_ids, num_feats)
                     y_prob_pt.extend(outputs.cpu().numpy().flatten())
-            
+
             y_prob_pt = np.array(y_prob_pt)
             y_pred_pt = (y_prob_pt >= 0.5).astype(int)
             y_true_pt = y_test.values
-            
+
             acc_pt = accuracy_score(y_true_pt, y_pred_pt)
             ll_pt = log_loss(y_true_pt, y_prob_pt)
             brier_pt = brier_score_loss(y_true_pt, y_prob_pt)
             roc_pt = roc_auc_score(y_true_pt, y_prob_pt)
             ece_pt = _expected_calibration_error(y_true_pt, y_prob_pt)
-            
+
             print(f"    [PT] Accuracy: {acc_pt:.4f} | Log Loss: {ll_pt:.4f} | ROC AUC: {roc_pt:.4f} | ECE: {ece_pt:.4f}")
             results[f"{target_col}_{segment}_pytorch"] = {"accuracy": acc_pt, "log_loss": ll_pt, "brier": brier_pt, "roc_auc": roc_pt, "ece": ece_pt}
-            
+
             if HAS_XGB:
                 xgb_model = models[f"{target_col}_{segment}_xgboost"]
                 y_prob_xgb = xgb_model.predict_proba(x_test)[:, 1]
                 y_prob_deep = (y_prob_pt + y_prob_xgb) / 2.0
                 y_pred_deep = (y_prob_deep >= 0.5).astype(int)
-                
+
                 acc_deep = accuracy_score(y_true_pt, y_pred_deep)
                 ll_deep = log_loss(y_true_pt, y_prob_deep)
                 brier_deep = brier_score_loss(y_true_pt, y_prob_deep)
                 roc_deep = roc_auc_score(y_true_pt, y_prob_deep)
                 ece_deep = _expected_calibration_error(y_true_pt, y_prob_deep)
-                
+
                 print(f"    [DEEP] Accuracy: {acc_deep:.4f} | Log Loss: {ll_deep:.4f} | ROC AUC: {roc_deep:.4f} | ECE: {ece_deep:.4f}")
                 results[f"{target_col}_{segment}_deep_ensemble"] = {"accuracy": acc_deep, "log_loss": ll_deep, "brier": brier_deep, "roc_auc": roc_deep, "ece": ece_deep}
 
@@ -598,7 +598,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
         config["model"]["test_start_year"] = test_year
     if val_years is not None:
         config["model"]["validation_years"] = val_years
-        
+
     print(f"\n{'=' * 60}")
     print(f"  MODEL TRAINING - {tour.upper()}")
     print(f"{'=' * 60}")
@@ -609,7 +609,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
         print(f"  [X] Features non trovate: {features_path}")
         print("  --> Esegui prima: python -m src.features.build_features")
         return None, None
-        
+
     df = pd.read_csv(features_path, low_memory=False)
 
     # Prepare and Randomize data (now returns train + val + test)
@@ -629,7 +629,7 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
 
     all_models = {}
     all_results = {}
-    
+
     # Store predictions to compute combined metrics
     y_test_pred_combined = np.zeros(len(x_test))
     if not is_regression:
@@ -639,10 +639,10 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
         m_tr = masks_train[segment]
         m_v = masks_val[segment]
         m_te = masks_test[segment]
-        
+
         if m_tr.sum() == 0:
             continue
-            
+
         seg_models, seg_results = _train_segment(
             target_col, segment, config, is_regression,
             x_train[m_tr], y_train[m_tr], p_train[m_tr],
@@ -650,10 +650,10 @@ def train_models(tour="atp", target_col="target", save_dir=None, test_year=None,
             x_test[m_te], y_test[m_te], p_test[m_te],
             player_mapping
         )
-        
+
         all_models.update(seg_models)
         all_results.update(seg_results)
-        
+
         # We assume 'ensemble' is the best for the combined routing
         if m_te.sum() > 0:
             best_model_key = f"{target_col}_{segment}_ensemble"
@@ -789,9 +789,9 @@ if __name__ == "__main__":
     for tour in ["atp", "wta"]:
         for target in ["target", "game_diff", "total_games"]:
             train_models(tour=tour, target_col=target)
-    
+
     print("\n  [OK] Multi-Market Training completato!")
-    
+
     # Generate live engines required for release bundle and inference
     from src.live.warm_up import warm_up
     warm_up()

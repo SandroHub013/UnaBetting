@@ -68,10 +68,10 @@ class PlayerStatsEngine:
         total_opp_bp_faced = sum(_num(m.get("opp_bpFaced")) for m in matches)
         total_opp_bp_saved = sum(_num(m.get("opp_bpSaved")) for m in matches)
         total_opp_sv_gms = sum(_num(m.get("opp_SvGms")) for m in matches)
-        
+
         total_opp_pts_won = total_opp_1st_won + total_opp_2nd_won
         stats["return_pts_win_pct"] = (total_opp_svpt - total_opp_pts_won) / total_opp_svpt if total_opp_svpt > 0 else np.nan
-        
+
         bp_converted = total_opp_bp_faced - total_opp_bp_saved
         stats["bp_convert_pct"] = bp_converted / total_opp_bp_faced if total_opp_bp_faced > 0 else np.nan
         stats["break_rate"] = bp_converted / total_opp_sv_gms if total_opp_sv_gms > 0 else np.nan
@@ -99,16 +99,16 @@ class PlayerStatsEngine:
         sets_list = [m.get("n_sets") for m in matches if m.get("n_sets") and m["n_sets"] > 0]
         margin_list = [abs(m.get("game_diff", 0) or 0) for m in matches if m.get("total_games") and m["total_games"] > 0]
         minutes_list = [m.get("minutes") for m in matches if m.get("minutes") and m["minutes"] > 0]
-        
+
         tb_won = sum(m.get("tb_won", 0) or 0 for m in matches)
         tb_lost = sum(m.get("tb_lost", 0) or 0 for m in matches)
         tb_sets = tb_won + tb_lost
-        
+
         total_sets = sum(m.get("n_sets", 0) or 0 for m in matches)
-        
+
         deciding_sets = sum(1 for m in matches if m.get("went_to_deciding_set"))
         deciding_sets_won = sum(1 for m in matches if m.get("deciding_set_won"))
-        
+
         matches_vs_lefty = sum(1 for m in matches if m.get("opp_is_lefty"))
         wins_vs_lefty = sum(1 for m in matches if m.get("opp_is_lefty") and m.get("won"))
 
@@ -127,10 +127,10 @@ class PlayerStatsEngine:
 
         stats["tiebreak_rate"] = tb_sets / total_sets if total_sets > 0 else np.nan
         stats["tiebreak_win_pct"] = tb_won / tb_sets if tb_sets > 0 else np.nan
-        
+
         stats["deciding_set_pct"] = deciding_sets / len(matches) if matches else np.nan
         stats["deciding_set_win_pct"] = deciding_sets_won / deciding_sets if deciding_sets > 0 else np.nan
-        
+
         stats["vs_lefty_win_pct"] = wins_vs_lefty / matches_vs_lefty if matches_vs_lefty > 0 else np.nan
 
         # Hold percentage: service games won / total service games
@@ -211,15 +211,15 @@ class PlayerStatsEngine:
         # Technical stats (serve and hold_pct) ONLY for the last 50 matches
         recent_50 = matches[-50:] if len(matches) >= 50 else matches
         features["n_matches_50"] = len(recent_50)
-        
+
         serve_stats_50 = self._serve_stats(recent_50)
         for k, v in serve_stats_50.items():
             features[f"{k}_50"] = v
-            
+
         return_stats_50 = self._return_stats(recent_50)
         for k, v in return_stats_50.items():
             features[f"{k}_50"] = v
-            
+
         totals_stats_50 = self._totals_stats(recent_50)
         features["hold_pct_50"] = totals_stats_50.get("hold_pct", np.nan)
 
@@ -300,10 +300,10 @@ class PlayerStatsEngine:
         tb_won_match_winner = len(re.findall(r'7-6', score))
         tb_lost_match_winner = len(re.findall(r'6-7', score))
         tiebreak_sets = tb_won_match_winner + tb_lost_match_winner
-        
+
         tb_won = tb_won_match_winner if is_winner else tb_lost_match_winner
         tb_lost = tb_lost_match_winner if is_winner else tb_won_match_winner
-        
+
         # Went to deciding set? (3rd set in best-of-3, 5th in best-of-5)
         deciding_set = (n_sets == best_of) if n_sets > 0 and best_of > 0 else False
 
@@ -356,7 +356,7 @@ class PlayerStatsEngine:
         # Update H2H
         h2h_key = (player_id, opponent_id)
         opp_key = (opponent_id, player_id)
-        
+
         if h2h_key not in self.h2h_records: self.h2h_records[h2h_key] = {"wins": 0, "losses": 0}
         if opp_key not in self.h2h_records: self.h2h_records[opp_key] = {"wins": 0, "losses": 0}
 

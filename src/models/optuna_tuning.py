@@ -8,15 +8,15 @@ from src.models.train import prepare_training_data, load_config
 def objective(trial):
     config = load_config()
     df = pd.read_csv("data/features/atp_features.csv", low_memory=False)
-    
-    (x_train_scaled, p_train, y_train_all, 
-     x_val_scaled, p_val, y_val_all, 
-     x_test_scaled, p_test, y_test_all, 
+
+    (x_train_scaled, p_train, y_train_all,
+     x_val_scaled, p_val, y_val_all,
+     x_test_scaled, p_test, y_test_all,
      scaler, numeric_cols, medians, player_mapping) = prepare_training_data(df, config, skip_selection=False)
-    
+
     y_train = y_train_all["target"]
     y_val = y_val_all["target"]
-    
+
     params = {
         "objective": "binary",
         "metric": "binary_logloss",
@@ -30,10 +30,10 @@ def objective(trial):
         "random_state": 42,
         "verbose": -1
     }
-    
+
     model = lgb.LGBMClassifier(**params)
     model.fit(x_train_scaled, y_train)
-    
+
     preds = model.predict_proba(x_val_scaled)[:, 1]
     loss = log_loss(y_val, preds)
     return loss
@@ -41,7 +41,7 @@ def objective(trial):
 if __name__ == "__main__":
     study = optuna.create_study(direction="minimize")
     study.optimize(objective, n_trials=50)
-    
+
     print("Migliori parametri:", study.best_params)
     with open("models/best_params.json", "w") as f:
         json.dump(study.best_params, f, indent=4)

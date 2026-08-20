@@ -19,9 +19,9 @@ def load_resources(tour="atp"):
     config_path = PROJECT_ROOT / "config" / "config.yaml"
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-        
+
     cache_path = PROJECT_ROOT / "models" / f"{tour}_live_engines.pkl"
-    
+
     # Legacy-pickle shim: ensembles saved before 2026-06-10 were pickled while
     # train.py ran as __main__, so they reference "__main__.PreFittedEnsemble".
     # Make that name resolvable from ANY entrypoint (TUI, dashboard, -c, -m).
@@ -137,30 +137,30 @@ def detect_surface_and_level(match_str, sport_key="", sport_title=""):
 def fuzzy_find_player_id(name, name_to_id, threshold=0.85):
     """Find player ID using fuzzy matching when exact match fails."""
     name_lower = name.lower().strip()
-    
+
     # 1. Exact match
     if name_lower in name_to_id:
         return name_to_id[name_lower]
-    
+
     # 2. Last-name match
     name_parts = name_lower.split()
     last_name = name_parts[-1] if name_parts else name_lower
-    
+
     candidates = []
     for db_name, pid in name_to_id.items():
         db_parts = db_name.split()
         db_last = db_parts[-1] if db_parts else db_name
-        
+
         if db_last == last_name:
             # Last name exact match — check first name similarity
             ratio = SequenceMatcher(None, name_lower, db_name).ratio()
             candidates.append((ratio, db_name, pid))
-    
+
     if candidates:
         candidates.sort(reverse=True)
         if candidates[0][0] >= threshold:
             return candidates[0][2]
-    
+
     # 3. Full fuzzy match (slower, only if last name didn't work)
     best_ratio = 0
     best_id = None
@@ -169,7 +169,7 @@ def fuzzy_find_player_id(name, name_to_id, threshold=0.85):
         if ratio > best_ratio:
             best_ratio = ratio
             best_id = pid
-    
+
     return best_id if best_ratio >= threshold else None
 
 
@@ -276,12 +276,12 @@ def build_scan_summary(predictions, generated_at=None, top_n=5):
 
 def run_inference():
     print("[ML] Running inference on live markets...")
-    
+
     odds_path = PROJECT_ROOT / "data" / "live" / "current_odds.csv"
     if not odds_path.exists():
         print("[ML] ERROR: No market data found.")
         return
-        
+
     df_odds = pd.read_csv(odds_path)
     if df_odds.empty:
         print("[ML] No matches to analyze.")
@@ -290,7 +290,7 @@ def run_inference():
     # Load unified data for name mapping + rankings
     unified_path = PROJECT_ROOT / "data" / "processed" / "atp_unified.csv"
     df_hist = pd.read_csv(unified_path, usecols=['winner_id', 'winner_name', 'loser_id', 'loser_name', 'winner_rank', 'loser_rank', 'tourney_date'])
-    
+
     # Detect most recent match date to handle staleness
     df_hist['tourney_date'] = pd.to_datetime(df_hist['tourney_date'], errors='coerce')
     last_db_date = df_hist['tourney_date'].max()
@@ -331,27 +331,27 @@ def run_inference():
                 }
 
     _config, elo_engine, stats_engine, models, scaler, feature_cols, medians = load_resources()
-    
+
     predictions = []
-    
+
     for _, row in df_odds.iterrows():
         match_str = row['match']
         o1 = float(row['odds_1'])
         o2 = float(row['odds_2'])
-        
+
         players = _players_from_odds_row(row)
         if not players:
             continue
         p1_name, p2_name = players
-            
+
         p1_id = fuzzy_find_player_id(p1_name, name_to_id)
         p2_id = fuzzy_find_player_id(p2_name, name_to_id)
-        
+
         # Dynamic surface/level detection from sport_key/sport_title + match string
         sport_key = str(row.get('sport_key', ''))
         sport_title = str(row.get('sport_title', ''))
         surface, tourney_level, tourney_name = detect_surface_and_level(match_str, sport_key, sport_title)
-        
+
         # Adjust match_date to avoid artificial rust if DB is old
         # If DB is more than 30 days old, we pretend today is DB date + 3 days
         real_now = pd.Timestamp.now()
@@ -359,7 +359,7 @@ def run_inference():
             match_date = last_db_date + pd.Timedelta(days=3)
         else:
             match_date = real_now
-        
+
         p1_feats = stats_engine.get_player_features(p1_id, surface, p2_id, match_date) if p1_id else {}
         p2_feats = stats_engine.get_player_features(p2_id, surface, p1_id, match_date) if p2_id else {}
         low_confidence = not p1_id or not p2_id or not p1_feats or not p2_feats
@@ -376,7 +376,7 @@ def run_inference():
             return nonzero / max(len(vals), 1)
         coverage_p1 = _coverage(p1_feats) if p1_id else 0.0
         coverage_p2 = _coverage(p2_feats) if p2_id else 0.0
-        
+
         # Build vector
         input_data = {}
         for k, v in p1_feats.items(): input_data[f"w_{k}"] = v
@@ -384,32 +384,32 @@ def run_inference():
         for k in p1_feats:
             if k in p2_feats:
                 input_data[f"diff_{k}"] = (p1_feats[k] or 0) - (p2_feats[k] or 0)
-        
+
         # ELO
         w_elo = elo_engine.initial_rating
         l_elo = elo_engine.initial_rating
         w_s_elo = elo_engine.initial_rating
         l_s_elo = elo_engine.initial_rating
-        
+
         if p1_id:
             w_elo = elo_engine.global_ratings.get(p1_id, elo_engine.initial_rating)
             w_s_elo = elo_engine.get_combined_rating(p1_id, surface)
         if p2_id:
             l_elo = elo_engine.global_ratings.get(p2_id, elo_engine.initial_rating)
             l_s_elo = elo_engine.get_combined_rating(p2_id, surface)
-            
+
         input_data["w_elo"] = w_elo
         input_data["l_elo"] = l_elo
         input_data["w_surface_elo"] = w_s_elo
         input_data["l_surface_elo"] = l_s_elo
         input_data["elo_win_prob"] = elo_engine.expected_score(w_s_elo, l_s_elo)
-        
+
         # Market
         margin = (1.0/o1) + (1.0/o2)
         input_data["w_implied_prob"] = (1.0/o1) / margin
         input_data["l_implied_prob"] = (1.0/o2) / margin
         input_data["diff_implied_prob"] = input_data["w_implied_prob"] - input_data["l_implied_prob"]
-        
+
         # Dynamic context based on detected tournament
         input_data["cpi"] = map_cpi(tourney_name, surface)
         level_key = f'level_{tourney_level}'
@@ -455,7 +455,7 @@ def run_inference():
 
         # MLP / Ensembling columns alignment
         X = pd.DataFrame([input_data])
-        
+
         # SMARTER FILLING: Use EXACT training medians for alignment
         for col in feature_cols:
             if col not in X.columns or pd.isna(X.at[0, col]):
@@ -469,7 +469,7 @@ def run_inference():
                     X.at[0, col] = 7
                 else:
                     X.at[0, col] = 0
-                    
+
         # STALENESS NEUTRALIZATION:
         # Cap raw w_/l_ days_since_last at 90 days (preserves genuine inactivity signal
         # while preventing extreme outliers the model hasn't seen in training).
@@ -489,7 +489,7 @@ def run_inference():
             X.at[0, l_dsl_col] = min(raw_l_dsl, CAP_DAYS)
         if d_dsl_col in X.columns and w_dsl_col in X.columns and l_dsl_col in X.columns:
             X.at[0, d_dsl_col] = float(X.at[0, w_dsl_col]) - float(X.at[0, l_dsl_col])
-                    
+
         # Use training medians for any remaining NaNs (not 0, which distorts win_rates)
         for col in feature_cols:
             if col in X.columns and pd.isna(X.at[0, col]):
@@ -508,10 +508,10 @@ def run_inference():
 
         # Scaled input
         x_scaled = scaler.transform(X)
-        
+
         # SAFETY CAPPING: Prevent extreme outliers (Z-scores) from breaking the trees
         x_scaled = np.clip(x_scaled, -4, 4)
-        
+
         # 1. Prediction H2H
         prob_1 = float(models['h2h'].predict_proba(x_scaled)[0, 1])
         prob_2 = 1.0 - prob_1
@@ -535,14 +535,14 @@ def run_inference():
 
         # 2. Prediction Spread (Expected Game Diff P1 - P2)
         exp_game_diff = float(models['spread'].predict(x_scaled)[0])
-        
+
         # 3. Prediction Totals (Expected Total Games)
         exp_total_games = float(models['totals'].predict(x_scaled)[0])
-        
+
         # Edge calculation for both sides (H2H)
         edge_1 = (o1 * prob_1) - 1
         edge_2 = (o2 * prob_2) - 1
-        
+
         # Determine which side has the actual value
         if edge_1 > edge_2:
             best_edge = edge_1
@@ -550,7 +550,7 @@ def run_inference():
         else:
             best_edge = edge_2
             value_side = 2
-        
+
         # Forensic details for TUI
         spread_line = row.get('spread_line', 0)
         spread_o1 = row.get('spread_odds_1', 1.9)
@@ -604,7 +604,7 @@ def run_inference():
             "p1_h2h": p1_feats.get('h2h_wins', 0) if p1_id else 0,
             "p2_h2h": p1_feats.get('h2h_losses', 0) if p1_id else 0,
         }
-        
+
         predictions.append({
             "match": match_str,
             "commence_time": str(row.get('commence_time', '')),

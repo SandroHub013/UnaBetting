@@ -5,7 +5,7 @@ def run_feature_audit(tour="atp"):
     print(f"\n--- FEATURE QUALITY AUDIT: {tour.upper()} ---")
     path = f"G:/tennis betting/data/features/{tour}_features.csv"
     df = pd.read_csv(path, low_memory=False)
-    
+
     # 1. Perspective Randomization Check
     # If target is randomized, the mean of 'diff_' features should be near 0
     diff_cols = [c for c in df.columns if c.startswith('diff_')]
