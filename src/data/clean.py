@@ -33,6 +33,23 @@ def load_config():
 # SACKMANN DATA LOADING
 # ============================================================
 
+def _year_of(filename, tour):
+    """atp_matches_2023.csv -> 2023, 2024.csv -> 2024, anything else -> None."""
+    val = filename.replace(".csv", "")
+    if val.startswith(f"{tour}_matches_"):
+        val = val.split("_")[-1]
+    try:
+        return int(val)
+    except ValueError:
+        return None
+
+
+def _is_secondary_circuit(filename):
+    """Qualifying, challenger and futures files are not main-draw matches."""
+    lowered = filename.lower()
+    return any(word in lowered for word in ("qual", "futures", "challenger"))
+
+
 def load_sackmann_matches(tour="atp", min_year=2000, max_year=2026):
     """
     Load all match files from JeffSackmann repos.
@@ -58,30 +75,19 @@ def load_sackmann_matches(tour="atp", min_year=2000, max_year=2026):
 
     for filepath in sorted(glob.glob(str(repo_dir / pattern))):
         filename = os.path.basename(filepath)
-
-        # Extract year from filename (e.g., atp_matches_2023.csv -> 2023, or 2024.csv -> 2024)
-        try:
-            val = filename.replace(".csv", "")
-            if val.startswith(f"{tour}_matches_"):
-                val = val.split("_")[-1]
-            year = int(val)
-        except ValueError:
+        year = _year_of(filename, tour)
+        if year is None or year < min_year or year > max_year:
             continue
-
-        if year < min_year or year > max_year:
+        if _is_secondary_circuit(filename):
             continue
-
-        # Skip qualifying/challenger/futures files
-        if "qual" in filename.lower() or "futures" in filename.lower() or "challenger" in filename.lower():
-            continue
-
         try:
             df = pd.read_csv(filepath, encoding="utf-8", low_memory=False)
-            df["source_file"] = filename
-            df["year"] = year
-            all_matches.append(df)
         except Exception as e:
             print(f"  ⚠ Errore caricamento {filename}: {e}")
+            continue
+        df["source_file"] = filename
+        df["year"] = year
+        all_matches.append(df)
 
     if not all_matches:
         print(f"  ✗ Nessun file trovato per {tour} in {repo_dir}")
@@ -162,6 +168,77 @@ def _build_name_to_id_map(matches_df):
     return name_to_id, lastname_index
 
 
+def _synthetic_player(td_name):
+    """Stable placeholder identity for a name TML does not know."""
+    synthetic_name = td_name.strip().lower()
+    return synthetic_name, "TD_" + hashlib.md5(synthetic_name.encode()).hexdigest()[:8]
+
+
+def _split_td_name(parts):
+    """"Tiafoe F." -> (["tiafoe"], "f"); "Carballes Baena R." -> (two parts, "r")."""
+    if parts[-1].endswith(".") and len(parts[-1]) <= 4:
+        return [p.lower() for p in parts[:-1]], parts[-1].rstrip(".").lower()
+    return [p.lower() for p in parts], ""
+
+
+def _initial_matches(tml_name, initial):
+    """No initial to check, or the TML first name starts with it."""
+    if not initial:
+        return True
+    tml_parts = tml_name.split()
+    return len(tml_parts) >= 2 and tml_parts[0].startswith(initial[0])
+
+
+def _match_by_lastname_index(name_parts, initial, _name_to_id, lastname_index):
+    """Single-word surname: exact index hit, disambiguated by the initial."""
+    if len(name_parts) != 1:
+        return None
+    candidates = lastname_index.get(name_parts[0])
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return next(iter(candidates.items()))
+    if not initial:
+        return None
+    return next(((fn, pid) for fn, pid in candidates.items()
+                 if _initial_matches(fn, initial)), None)
+
+
+def _match_all_parts(name_parts, initial, name_to_id, _lastname_index):
+    """Multi-word name: a TML name containing every part."""
+    for tml_name, pid in name_to_id.items():
+        if not all(part in tml_name for part in name_parts):
+            continue
+        if _initial_matches(tml_name, initial):
+            return tml_name, pid
+    return None
+
+
+def _match_normalized(name_parts, initial, name_to_id, _lastname_index):
+    """Apostrophes and hyphens: "O Connell" -> "o'connell"."""
+    joined = " ".join(name_parts)
+    for tml_name, pid in name_to_id.items():
+        normalized_tml = tml_name.replace("'", " ").replace("-", " ")
+        if joined in normalized_tml and _initial_matches_loose(tml_name, initial):
+            return tml_name, pid
+    return None
+
+
+def _match_partial_lastname(name_parts, initial, name_to_id, _lastname_index):
+    """"Mpetshi G." -> "giovanni mpetshi perricard"."""
+    if len(name_parts) != 1:
+        return None
+    for tml_name, pid in name_to_id.items():
+        if name_parts[0] in tml_name.split() and _initial_matches_loose(tml_name, initial):
+            return tml_name, pid
+    return None
+
+
+def _initial_matches_loose(tml_name, initial):
+    """Like _initial_matches but happy with a single-word TML name."""
+    return not initial or tml_name.split()[0].startswith(initial[0])
+
+
 def _resolve_td_name(td_name, name_to_id, lastname_index):
     """
     Resolve a tennis-data.co.uk player name to (tml_full_name, player_id).
@@ -169,61 +246,81 @@ def _resolve_td_name(td_name, name_to_id, lastname_index):
     """
     parts = td_name.strip().split()
     if not parts:
-        return td_name.strip().lower(), "TD_" + hashlib.md5(td_name.encode()).hexdigest()[:8]
+        return _synthetic_player(td_name)
 
-    # Parse: "Tiafoe F." -> lastname="tiafoe", initial="f"
-    # "Carballes Baena R." -> name_parts=["carballes","baena"], initial="r"
-    if parts[-1].endswith(".") and len(parts[-1]) <= 4:
-        initial = parts[-1].rstrip(".").lower()
-        name_parts = [p.lower() for p in parts[:-1]]
+    name_parts, initial = _split_td_name(parts)
+    for strategy in (_match_by_lastname_index, _match_all_parts,
+                     _match_normalized, _match_partial_lastname):
+        hit = strategy(name_parts, initial, name_to_id, lastname_index)
+        if hit:
+            return hit
+    return _synthetic_player(td_name)
+
+
+#: Series -> tourney_level
+_SERIES_MAP = {GRAND_SLAM: "G", MASTERS_1000: "M", "ATP500": "500", "ATP250": "250"}
+
+#: Round mapping, draw-size aware
+_ROUND_MAP_GS = {
+    FIRST_ROUND: "R128", SECOND_ROUND: "R64", "3rd Round": "R32",
+    "4th Round": "R16", "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
+}
+_ROUND_MAP_M = {
+    FIRST_ROUND: "R64", SECOND_ROUND: "R32", "3rd Round": "R16",
+    "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
+}
+_ROUND_MAP_OTHER = {
+    FIRST_ROUND: "R32", SECOND_ROUND: "R16",
+    "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
+}
+
+
+def _round_for(series, td_round):
+    if series == GRAND_SLAM:
+        table = _ROUND_MAP_GS
+    elif series == MASTERS_1000:
+        table = _ROUND_MAP_M
     else:
-        initial = ""
-        name_parts = [p.lower() for p in parts]
+        table = _ROUND_MAP_OTHER
+    return table.get(td_round, td_round)
 
-    # Strategy 1: Single-word lastname exact match + initial
-    if len(name_parts) == 1:
-        lastname = name_parts[0]
-        if lastname in lastname_index:
-            candidates = lastname_index[lastname]
-            if len(candidates) == 1:
-                fn, pid = next(iter(candidates.items()))
-                return fn, pid
-            # Disambiguate by initial
-            if initial:
-                for fn, pid in candidates.items():
-                    fn_parts = fn.split()
-                    if len(fn_parts) >= 2 and fn_parts[0].startswith(initial[0]):
-                        return fn, pid
 
-    # Strategy 2: Multi-word name - search TML names containing all parts
-    for tml_name, pid in name_to_id.items():
-        if all(part in tml_name for part in name_parts):
-            if initial:
-                tml_parts = tml_name.split()
-                if len(tml_parts) >= 2 and tml_parts[0].startswith(initial[0]):
-                    return tml_name, pid
-            else:
-                return tml_name, pid
+def _score_string(r):
+    """Rebuild "6-4 7-5" from the W1/L1 ... W5/L5 columns."""
+    parts = []
+    for s in range(1, 6):
+        w_games, l_games = r.get(f"W{s}"), r.get(f"L{s}")
+        if pd.notna(w_games) and pd.notna(l_games):
+            parts.append(f"{int(w_games)}-{int(l_games)}")
+    return " ".join(parts) if parts else np.nan
 
-    # Strategy 3: Handle apostrophes/special chars ("O Connell" -> "o'connell")
-    joined = " ".join(name_parts)
-    for tml_name, pid in name_to_id.items():
-        normalized_tml = tml_name.replace("'", " ").replace("-", " ")
-        if joined in normalized_tml:
-            if not initial or tml_name.split()[0].startswith(initial[0]):
-                return tml_name, pid
 
-    # Strategy 4: Partial last name match ("Mpetshi G." -> "giovanni mpetshi perricard")
-    if len(name_parts) == 1:
-        for tml_name, pid in name_to_id.items():
-            if name_parts[0] in tml_name.split():
-                if not initial or tml_name.split()[0].startswith(initial[0]):
-                    return tml_name, pid
-
-    # Fallback: synthetic ID
-    synthetic_name = td_name.strip().lower()
-    synthetic_id = "TD_" + hashlib.md5(synthetic_name.encode()).hexdigest()[:8]
-    return synthetic_name, synthetic_id
+def _td_row(r, name_to_id, lastname_index):
+    """One tennis-data.co.uk row in TML/Sackmann column format."""
+    series = r.get("Series", "ATP250")
+    w_name, w_id = _resolve_td_name(str(r["Winner"]), name_to_id, lastname_index)
+    l_name, l_id = _resolve_td_name(str(r["Loser"]), name_to_id, lastname_index)
+    return {
+        "tourney_name": r.get("Tournament", ""),
+        "surface": r.get("Surface", "Hard"),
+        "tourney_level": _SERIES_MAP.get(series, "250"),
+        "tourney_date": pd.to_datetime(r["Date"], errors="coerce"),
+        "winner_id": w_id,
+        "winner_name": w_name,
+        "winner_rank": r.get("WRank"),
+        "winner_rank_points": r.get("WPts"),
+        "loser_id": l_id,
+        "loser_name": l_name,
+        "loser_rank": r.get("LRank"),
+        "loser_rank_points": r.get("LPts"),
+        "score": _score_string(r),
+        "best_of": r.get("Best of", 3),
+        "round": _round_for(series, r.get("Round", FIRST_ROUND)),
+        "indoor": 1 if r.get("Court") == "Indoor" else 0,
+        "match_num": np.nan,  # Will be NaN like 489 existing rows
+        # Serve stats left as NaN - handled by median imputation downstream
+        # Odds columns carried through from odds merge later
+    }
 
 
 def _convert_odds_to_match_format(gap_df, matches_df):
@@ -242,73 +339,7 @@ def _convert_odds_to_match_format(gap_df, matches_df):
     if gap.empty:
         return pd.DataFrame()
 
-    # Series -> tourney_level
-    series_map = {GRAND_SLAM: "G", MASTERS_1000: "M", "ATP500": "500", "ATP250": "250"}
-
-    # Round mapping (draw-size-aware)
-    round_map_gs = {
-        FIRST_ROUND: "R128", SECOND_ROUND: "R64", "3rd Round": "R32",
-        "4th Round": "R16", "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
-    }
-    round_map_m = {
-        FIRST_ROUND: "R64", SECOND_ROUND: "R32", "3rd Round": "R16",
-        "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
-    }
-    round_map_other = {
-        FIRST_ROUND: "R32", SECOND_ROUND: "R16",
-        "Quarterfinals": "QF", "Semifinals": "SF", THE_FINAL: "F",
-    }
-
-    rows = []
-    for _, r in gap.iterrows():
-        series = r.get("Series", "ATP250")
-
-        # Resolve player names
-        w_name, w_id = _resolve_td_name(str(r["Winner"]), name_to_id, lastname_index)
-        l_name, l_id = _resolve_td_name(str(r["Loser"]), name_to_id, lastname_index)
-
-        # Build score string from W1/L1 ... W5/L5
-        score_parts = []
-        for s in range(1, 6):
-            w_games = r.get(f"W{s}")
-            l_games = r.get(f"L{s}")
-            if pd.notna(w_games) and pd.notna(l_games):
-                score_parts.append(f"{int(w_games)}-{int(l_games)}")
-        score = " ".join(score_parts) if score_parts else np.nan
-
-        # Round mapping
-        td_round = r.get("Round", FIRST_ROUND)
-        if series == GRAND_SLAM:
-            rnd = round_map_gs.get(td_round, td_round)
-        elif series == MASTERS_1000:
-            rnd = round_map_m.get(td_round, td_round)
-        else:
-            rnd = round_map_other.get(td_round, td_round)
-
-        match_date = pd.to_datetime(r["Date"], errors="coerce")
-
-        row = {
-            "tourney_name": r.get("Tournament", ""),
-            "surface": r.get("Surface", "Hard"),
-            "tourney_level": series_map.get(series, "250"),
-            "tourney_date": match_date,
-            "winner_id": w_id,
-            "winner_name": w_name,
-            "winner_rank": r.get("WRank"),
-            "winner_rank_points": r.get("WPts"),
-            "loser_id": l_id,
-            "loser_name": l_name,
-            "loser_rank": r.get("LRank"),
-            "loser_rank_points": r.get("LPts"),
-            "score": score,
-            "best_of": r.get("Best of", 3),
-            "round": rnd,
-            "indoor": 1 if r.get("Court") == "Indoor" else 0,
-            "match_num": np.nan,  # Will be NaN like 489 existing rows
-            # Serve stats left as NaN - handled by median imputation downstream
-            # Odds columns carried through from odds merge later
-        }
-        rows.append(row)
+    rows = [_td_row(r, name_to_id, lastname_index) for _, r in gap.iterrows()]
 
     result = pd.DataFrame(rows)
     n_synthetic = result["winner_id"].str.startswith("TD_").sum() + result["loser_id"].str.startswith("TD_").sum()
@@ -319,6 +350,21 @@ def _convert_odds_to_match_format(gap_df, matches_df):
 # ============================================================
 # TENNIS-DATA.CO.UK ODDS LOADING
 # ============================================================
+
+def _read_odds_year(odds_dir, prefix, year):
+    """First readable file for that year, whatever extension it was saved with."""
+    for ext in ["xlsx", "xls", "csv"]:
+        filepath = odds_dir / f"{prefix}_{year}.{ext}"
+        if not filepath.exists():
+            continue
+        try:
+            if ext in ("xlsx", "xls"):
+                return pd.read_excel(filepath)
+            return pd.read_csv(filepath, encoding="utf-8")
+        except Exception as e:
+            print(f"  ⚠ Errore {filepath.name}: {e}")
+    return None
+
 
 def load_odds_data(tour="atp", min_year=2000, max_year=2026):
     """
@@ -334,20 +380,10 @@ def load_odds_data(tour="atp", min_year=2000, max_year=2026):
     all_odds = []
 
     for year in range(min_year, max_year + 1):
-        # Try different file extensions
-        for ext in ["xlsx", "xls", "csv"]:
-            filepath = odds_dir / f"{prefix}_{year}.{ext}"
-            if filepath.exists():
-                try:
-                    if ext in ("xlsx", "xls"):
-                        df = pd.read_excel(filepath)
-                    else:
-                        df = pd.read_csv(filepath, encoding="utf-8")
-                    df["odds_year"] = year
-                    all_odds.append(df)
-                    break
-                except Exception as e:
-                    print(f"  ⚠ Errore {filepath.name}: {e}")
+        df = _read_odds_year(odds_dir, prefix, year)
+        if df is not None:
+            df["odds_year"] = year
+            all_odds.append(df)
 
     if not all_odds:
         print(f"  ⚠ Nessun file quote trovato per {prefix}")
@@ -466,6 +502,80 @@ def _extract_last_name(name):
         return parts[-1]
 
 
+#: bookmaker column name fragments in the tennis-data.co.uk export
+_BOOKMAKER_TOKENS = ("B365", "PS", "EX", "LB", "SJ", "MAX", "AVG")
+
+
+def _prepare_odds(odds):
+    """Add the join keys and find the bookmaker columns; None when unusable."""
+    date_col = next((c for c in odds.columns if c.strip().lower() == "date"), None)
+    winner_col = next((c for c in odds.columns if c.strip().lower() == "winner"), None)
+    loser_col = next((c for c in odds.columns if c.strip().lower() == "loser"), None)
+    if not all([date_col, winner_col, loser_col]):
+        print(f"  ⚠ Colonne mancanti nelle quote. Trovate: {odds.columns.tolist()[:10]}...")
+        return None
+
+    odds["odds_date"] = pd.to_datetime(odds[date_col], errors="coerce", dayfirst=True)
+    odds["odds_w_last"] = odds[winner_col].apply(_extract_last_name)
+    odds["odds_l_last"] = odds[loser_col].apply(_extract_last_name)
+
+    bookmaker_cols = [c for c in odds.columns
+                      if any(bk in c.upper() for bk in _BOOKMAKER_TOKENS)]
+    if not bookmaker_cols:
+        print("  ⚠ Colonne quote non trovate")
+        return None
+
+    odds["merge_key"] = (
+        odds["odds_date"].dt.strftime("%Y-%m-%d").fillna("") + "|" +
+        odds["odds_w_last"] + "|" +
+        odds["odds_l_last"]
+    )
+    odds_dedup = odds.drop_duplicates(subset=["merge_key"], keep="first")
+    return bookmaker_cols, odds_dedup[["merge_key"] + bookmaker_cols].copy()
+
+
+def _prepare_matches(matches_df):
+    """Last names plus the exact-date join key."""
+    matches = matches_df.copy()
+    matches["match_w_last"] = matches["winner_name"].apply(_extract_last_name)
+    matches["match_l_last"] = matches["loser_name"].apply(_extract_last_name)
+    matches["match_date_str"] = matches["tourney_date"].dt.strftime("%Y-%m-%d").fillna("")
+    matches["merge_key"] = (
+        matches["match_date_str"] + "|" +
+        matches["match_w_last"] + "|" +
+        matches["match_l_last"]
+    )
+    return matches
+
+
+def _fill_from_broad_match(merged, matches, odds, bookmaker_cols):
+    """Second pass on year+month, filling only the rows the exact join missed."""
+    odds["broad_key"] = (
+        odds["odds_date"].dt.strftime("%Y-%m").fillna("") + "|" +
+        odds["odds_w_last"] + "|" +
+        odds["odds_l_last"]
+    )
+    odds_broad = odds.drop_duplicates(subset=["broad_key"], keep="first")
+    odds_broad_sub = odds_broad[["broad_key"] + bookmaker_cols].copy()
+
+    matches["broad_key"] = (
+        matches["tourney_date"].dt.strftime("%Y-%m").fillna("") + "|" +
+        matches["match_w_last"] + "|" +
+        matches["match_l_last"]
+    )
+
+    unmatched_mask = merged[bookmaker_cols[0]].isna()
+    if not unmatched_mask.any():
+        return
+    broad_merge = matches.loc[unmatched_mask].merge(
+        odds_broad_sub, on="broad_key", how="left", suffixes=("", "_broad")
+    )
+    for col in bookmaker_cols:
+        broad_col = col + "_broad" if col + "_broad" in broad_merge.columns else col
+        if broad_col in broad_merge.columns:
+            merged.loc[unmatched_mask, col] = broad_merge[broad_col].values
+
+
 def merge_matches_with_odds(matches_df, odds_df):
     """
     Merge Sackmann match data with tennis-data.co.uk odds.
@@ -478,94 +588,23 @@ def merge_matches_with_odds(matches_df, odds_df):
         return matches_df
 
     odds = odds_df.copy()
-
-    # --- Prepare odds data ---
-    # Identify columns (tennis-data.co.uk format)
-    date_col = next((c for c in odds.columns if c.strip().lower() == "date"), None)
-    winner_col = next((c for c in odds.columns if c.strip().lower() == "winner"), None)
-    loser_col = next((c for c in odds.columns if c.strip().lower() == "loser"), None)
-
-    if not all([date_col, winner_col, loser_col]):
-        print(f"  ⚠ Colonne mancanti nelle quote. Trovate: {odds.columns.tolist()[:10]}...")
+    prepared = _prepare_odds(odds)
+    if prepared is None:
         return matches_df
+    bookmaker_cols, odds_subset = prepared
 
-    odds["odds_date"] = pd.to_datetime(odds[date_col], errors="coerce", dayfirst=True)
-    odds["odds_w_last"] = odds[winner_col].apply(_extract_last_name)
-    odds["odds_l_last"] = odds[loser_col].apply(_extract_last_name)
-
-    # Bookmaker columns
-    bookmaker_cols = [c for c in odds.columns if any(
-        bk in c.upper() for bk in ["B365", "PS", "EX", "LB", "SJ", "MAX", "AVG"]
-    )]
-    if not bookmaker_cols:
-        print("  ⚠ Colonne quote non trovate")
-        return matches_df
-
-    # Create match key for odds: date + winner_last + loser_last
-    odds["merge_key"] = (
-        odds["odds_date"].dt.strftime("%Y-%m-%d").fillna("") + "|" +
-        odds["odds_w_last"] + "|" +
-        odds["odds_l_last"]
-    )
-
-    # Keep only unique merge keys (drop duplicates, keep first)
-    odds_dedup = odds.drop_duplicates(subset=["merge_key"], keep="first")
-    odds_subset = odds_dedup[["merge_key"] + bookmaker_cols].copy()
-
-    # --- Prepare match data ---
-    matches = matches_df.copy()
-    matches["match_w_last"] = matches["winner_name"].apply(_extract_last_name)
-    matches["match_l_last"] = matches["loser_name"].apply(_extract_last_name)
-
-    # Sackmann tourney_date is tournament start date, not match date.
-    # tennis-data Date is the actual match date.
-    # Strategy: try matching on a date window around the tournament.
-    # First attempt: exact date match
-    matches["match_date_str"] = matches["tourney_date"].dt.strftime("%Y-%m-%d").fillna("")
-    matches["merge_key"] = (
-        matches["match_date_str"] + "|" +
-        matches["match_w_last"] + "|" +
-        matches["match_l_last"]
-    )
+    matches = _prepare_matches(matches_df)
 
     # Merge attempt 1: exact date
     merged = matches.merge(odds_subset, on="merge_key", how="left")
     matched_exact = merged[bookmaker_cols[0]].notna().sum()
 
-    # For unmatched rows, try matching by last names only within same year+month
-    # (since tourney_date is start of tournament, actual match could be days later)
+    # tourney_date is the tournament start, so an actual match can be days later:
+    # fall back to last names within the same year+month.
     if matched_exact < len(matches) * 0.3:
         print(f"  ℹ Exact date match basso ({matched_exact:,}), provo match per cognome+mese...")
-
-        # Create a broader key: year-month + last names
-        odds["broad_key"] = (
-            odds["odds_date"].dt.strftime("%Y-%m").fillna("") + "|" +
-            odds["odds_w_last"] + "|" +
-            odds["odds_l_last"]
-        )
-        odds_broad = odds.drop_duplicates(subset=["broad_key"], keep="first")
-        odds_broad_sub = odds_broad[["broad_key"] + bookmaker_cols].copy()
-
-        matches["broad_key"] = (
-            matches["tourney_date"].dt.strftime("%Y-%m").fillna("") + "|" +
-            matches["match_w_last"] + "|" +
-            matches["match_l_last"]
-        )
-
-        # Only fill unmatched rows
-        unmatched_mask = merged[bookmaker_cols[0]].isna()
-        if unmatched_mask.any():
-            broad_merge = matches.loc[unmatched_mask].merge(
-                odds_broad_sub, on="broad_key", how="left", suffixes=("", "_broad")
-            )
-            for col in bookmaker_cols:
-                broad_col = col + "_broad" if col + "_broad" in broad_merge.columns else col
-                if broad_col in broad_merge.columns:
-                    merged.loc[unmatched_mask, col] = broad_merge[broad_col].values
-
-        # Clean up
-        if "broad_key" in merged.columns:
-            merged = merged.drop(columns=["broad_key"], errors="ignore")
+        _fill_from_broad_match(merged, matches, odds, bookmaker_cols)
+        merged = merged.drop(columns=["broad_key"], errors="ignore")
         matches = matches.drop(columns=["broad_key"], errors="ignore")
 
     # Final count
@@ -582,6 +621,45 @@ def merge_matches_with_odds(matches_df, odds_df):
 # ============================================================
 # MAIN PIPELINE
 # ============================================================
+
+def _extend_past_sackmann_cutoff(matches, odds):
+    """Sackmann lags behind; append tennis-data.co.uk matches newer than its last date."""
+    if odds.empty or matches.empty:
+        return matches, odds
+    date_col = next((c for c in odds.columns if c.strip().lower() == "date"), None)
+    if not date_col:
+        return matches, odds
+
+    odds["_parsed_date"] = pd.to_datetime(odds[date_col], errors="coerce", dayfirst=True)
+    sackmann_max_date = matches["tourney_date"].max()
+    gap_odds = odds[odds["_parsed_date"] > sackmann_max_date]
+
+    if len(gap_odds) > 0:
+        print(f"\n  🔔 Sackmann termina il {sackmann_max_date.strftime('%Y-%m-%d')}, "
+              f"tennis-data ha {len(gap_odds)} match successivi")
+        print("  → Integrazione dati recenti da tennis-data.co.uk...")
+        gap_matches = _convert_odds_to_match_format(gap_odds, matches)
+        if not gap_matches.empty:
+            gap_matches = clean_sackmann_matches(gap_matches)  # same pipeline
+            matches = pd.concat([matches, gap_matches], ignore_index=True)
+            matches = matches.sort_values("tourney_date").reset_index(drop=True)
+            print(f"  ✓ Dataset esteso a {len(matches):,} partite totali")
+
+    return matches, odds.drop(columns=["_parsed_date"], errors="ignore")
+
+
+def _save_unified(unified, tour):
+    config = load_config()
+    output_path = PROJECT_ROOT / config["paths"]["processed_data"] / f"{tour}_unified.csv"
+    unified.to_csv(output_path, index=False)
+    print(f"\n  💾 Salvato: {output_path}")
+    print(f"  📊 {len(unified):,} partite totali")
+    if "surface" not in unified.columns:
+        return
+    print("\n  Distribuzione superfici:")
+    for surface, count in unified["surface"].value_counts().items():
+        print(f"    {surface}: {count:,} ({count / len(unified) * 100:.1f}%)")
+
 
 def build_unified_dataset(tour="atp", min_year=2000, save=True):
     """
@@ -605,26 +683,7 @@ def build_unified_dataset(tour="atp", min_year=2000, save=True):
     matches = clean_sackmann_matches(matches)
 
     # 4. Integrate recent data from tennis-data.co.uk after Sackmann cutoff
-    if not odds.empty and not matches.empty:
-        date_col = next((c for c in odds.columns if c.strip().lower() == "date"), None)
-        if date_col:
-            odds["_parsed_date"] = pd.to_datetime(odds[date_col], errors="coerce", dayfirst=True)
-            sackmann_max_date = matches["tourney_date"].max()
-            gap_odds = odds[odds["_parsed_date"] > sackmann_max_date]
-
-            if len(gap_odds) > 0:
-                print(f"\n  🔔 Sackmann termina il {sackmann_max_date.strftime('%Y-%m-%d')}, "
-                      f"tennis-data ha {len(gap_odds)} match successivi")
-                print("  → Integrazione dati recenti da tennis-data.co.uk...")
-                gap_matches = _convert_odds_to_match_format(gap_odds, matches)
-                if not gap_matches.empty:
-                    # Clean the gap matches with the same pipeline
-                    gap_matches = clean_sackmann_matches(gap_matches)
-                    matches = pd.concat([matches, gap_matches], ignore_index=True)
-                    matches = matches.sort_values("tourney_date").reset_index(drop=True)
-                    print(f"  ✓ Dataset esteso a {len(matches):,} partite totali")
-
-            odds = odds.drop(columns=["_parsed_date"], errors="ignore")
+    matches, odds = _extend_past_sackmann_cutoff(matches, odds)
 
     # 5. Merge
     print("\n4. Merge dati + quote...")
@@ -648,18 +707,7 @@ def build_unified_dataset(tour="atp", min_year=2000, save=True):
 
     # 8. Save
     if save:
-        config = load_config()
-        output_path = PROJECT_ROOT / config["paths"]["processed_data"] / f"{tour}_unified.csv"
-        unified.to_csv(output_path, index=False)
-        print(f"\n  💾 Salvato: {output_path}")
-        print(f"  📊 {len(unified):,} partite totali")
-
-        # Print surface distribution
-        if "surface" in unified.columns:
-            print("\n  Distribuzione superfici:")
-            for surface, count in unified["surface"].value_counts().items():
-                pct = count / len(unified) * 100
-                print(f"    {surface}: {count:,} ({pct:.1f}%)")
+        _save_unified(unified, tour)
 
     return unified
 
