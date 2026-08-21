@@ -1,7 +1,7 @@
 # Tennis Match Prediction Model - Dependencies
 
 # Data handling
-pandas>=2.0.0
+pandas>=3.0.5
 numpy>=1.24.0
 openpyxl>=3.1.0    # .xlsx odds files
 xlrd>=2.0.2        # legacy .xls odds files from tennis-data.co.uk (some years)
