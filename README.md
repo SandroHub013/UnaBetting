@@ -79,6 +79,11 @@ flowchart TD
 
 ## Self-evolving loops
 
+Scheduled agents that maintain the model, run its experiments and review its pull
+requests — each one a versioned prompt in `scripts/loops/`. **[docs/LOOPS.md](docs/LOOPS.md)**
+covers the tiers, the separation between the agents that write code and the one
+that merges it, the merge gate that uses no model at all, and the stopping rules.
+
 ```mermaid
 flowchart LR
   DEV[Dev agents<br/>open issues / PRs] --> PR{PR-review loop<br/>every 30 min}
