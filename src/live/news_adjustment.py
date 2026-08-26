@@ -117,31 +117,44 @@ def _post_adjustment_request(model_name, messages, api_key, ctx, _re):
         return _parse_adjustments(resp.read().decode("utf-8").strip(), _re)
 
 
+def _retry_after_http_error(e, model_name, attempt, _time):
+    """True when this HTTP failure is worth one retry (sleeping first); the
+    reason is printed either way."""
+    body = ""
+    try:
+        body = e.read().decode("utf-8", errors="replace")[:200]
+    except Exception:
+        # Reading HTTP error response body is best-effort for diagnostics
+        pass
+    if e.code == 429 and attempt < 1:
+        print(f"  [News Adj] Rate limited (429) on {model_name}. Retry in 5s...")
+        _time.sleep(5)
+        return True
+    print(f"  [News Adj] {model_name} failed: HTTP {e.code} {body[:100]}")
+    return False
+
+
+def _retry_after_error(e, model_name, attempt, _time):
+    """Same for anything that is not an HTTPError: only timeouts get a retry."""
+    if attempt < 1 and "timed out" in str(e).lower():
+        print(f"  [News Adj] Timeout on {model_name}. Retrying...")
+        _time.sleep(3)
+        return True
+    print(f"  [News Adj] {model_name} failed: {e}")
+    return False
+
+
 def _try_model(model_name, messages, api_key, ctx, _time, _re):
     """Adjustments from this model, or None so the caller falls to the next one."""
     for attempt in range(2):
         try:
             return _post_adjustment_request(model_name, messages, api_key, ctx, _re)
         except urllib.error.HTTPError as e:
-            body = ""
-            try:
-                body = e.read().decode("utf-8", errors="replace")[:200]
-            except Exception:
-                # Reading HTTP error response body is best-effort for diagnostics
-                pass
-            if e.code == 429 and attempt < 1:
-                print(f"  [News Adj] Rate limited (429) on {model_name}. Retry in 5s...")
-                _time.sleep(5)
-                continue
-            print(f"  [News Adj] {model_name} failed: HTTP {e.code} {body[:100]}")
-            return None
+            if not _retry_after_http_error(e, model_name, attempt, _time):
+                return None
         except Exception as e:
-            if attempt < 1 and "timed out" in str(e).lower():
-                print(f"  [News Adj] Timeout on {model_name}. Retrying...")
-                _time.sleep(3)
-                continue
-            print(f"  [News Adj] {model_name} failed: {e}")
-            return None
+            if not _retry_after_error(e, model_name, attempt, _time):
+                return None
     return None
 
 

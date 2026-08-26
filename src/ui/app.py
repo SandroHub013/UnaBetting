@@ -42,6 +42,8 @@ THINKING_INDICATOR = "#thinking-indicator"
 GLOBAL_TICKER = "#global-ticker"
 DASH_EMPTY = "  [dim]No data yet[/]\n"
 CELL_EMPTY = "[dim]--[/]"
+#: rich style for the "something is wrong / this is big" case
+STYLE_ALERT = "bold red"
 
 
 def _time_key(p):
@@ -71,7 +73,7 @@ def _news_markup(adj):
     n_src = len(sources) if isinstance(sources, list) else 0
     if adj and adj.get("applied"):
         eff = adj.get("effective", 0)
-        colour = "bold red" if abs(eff) >= 0.05 else "bold yellow"
+        colour = STYLE_ALERT if abs(eff) >= 0.05 else "bold yellow"
         return f"[{colour}]{eff*100:+.0f}pp ({n_src}src)[/]"
     if adj and sources:
         return f"[dim]0pp ({n_src}src)[/]"
@@ -224,7 +226,7 @@ def _news_section(adj, sep2, raw_p1, raw_p2, p):
     if isinstance(sources, list) and sources:
         src_items = ", ".join(str(s) for s in sources[:5])
         src_list = f"\n  [dim]Sources[/]         {src_items}"
-    adj_color = "bold red" if abs(eff) >= 0.05 else "bold yellow"
+    adj_color = STYLE_ALERT if abs(eff) >= 0.05 else "bold yellow"
     return f"""\n{sep2}
 [bold]  NEWS ADJUSTMENT (Agentic Research)[/]
 {sep2}
@@ -537,7 +539,7 @@ class BloombergTUI(App):
         log = self.query_one("#agent-log", RichLog)
         colors = {
             "system": "#FFD700", "agent": "#00FF00",
-            "error": "bold red", "user": "bold white",
+            "error": STYLE_ALERT, "user": "bold white",
         }
         c = colors.get(style, "dim")
         prefix = {

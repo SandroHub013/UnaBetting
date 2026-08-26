@@ -220,9 +220,9 @@ const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.targ
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 setTimeout(()=>document.querySelectorAll('.reveal:not(.in)').forEach(el=>el.classList.add('in')),2800);
 const cio=new IntersectionObserver(es=>es.forEach(e=>{
-  if(!e.isIntersecting)return;const el=e.target;cio.unobserve(el);
+  if(!e.isIntersecting){return;}const el=e.target;cio.unobserve(el);
   const to=parseFloat(el.dataset.count),suf=el.dataset.suffix||'',dec=(to%1!==0)?1:0;let t0=null;
-  const step=ts=>{if(!t0)t0=ts;const p=Math.min((ts-t0)/1400,1);const v=(1-Math.pow(1-p,3))*to;
+  const step=ts=>{if(!t0){t0=ts;}const p=Math.min((ts-t0)/1400,1);const v=(1-Math.pow(1-p,3))*to;
     el.textContent=v.toFixed(dec)+suf;if(p<1)requestAnimationFrame(step);};requestAnimationFrame(step);
 }),{threshold:.6});
 document.querySelectorAll('[data-count]').forEach(el=>cio.observe(el));
