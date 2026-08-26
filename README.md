@@ -36,6 +36,12 @@ and a local-LLM memory core.
 
 ## Architecture
 
+The diagrams below are the shape. **[ARCHITECTURE.md](ARCHITECTURE.md)** is why it
+is that shape — the layer dependency rule, the file-based seam between pipeline
+stages, the two runtime roots, the trust boundaries, and the structural gaps that
+are known and unfixed. The decisions themselves are in
+**[docs/adr/](docs/adr/)**, one file each, with what they cost.
+
 ```mermaid
 flowchart LR
   subgraph Data
