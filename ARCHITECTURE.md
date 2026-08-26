@@ -231,6 +231,7 @@ Kept here rather than in issues, because they are properties of the shape:
 |---|---|
 | Why a boundary is where it is, one decision per file | [`docs/adr/`](docs/adr/) |
 | What the app actually exposes over HTTP and WebSocket | [`docs/API.md`](docs/API.md) |
+| How the scheduled agents work, and what they may not do | [`docs/LOOPS.md`](docs/LOOPS.md) |
 | What the numbers currently are, honestly | `README.md`, `models/atp_metrics.json` |
 | What was tried, and what it did | `EXPERIMENTS.md`, `reports/metrics_history.csv` |
 | Where the data comes from and what its licence demands | `DATA_SOURCES.md` |
