@@ -196,6 +196,30 @@ def _pick_bookmaker(bookmakers):
     return bookmakers[0] if bookmakers else None
 
 
+def _h2h_prices(market, p1_name, p2_name):
+    """Head-to-head prices for the two named players; 0.0 for a side nobody quoted."""
+    prices = {"o1": 0.0, "o2": 0.0}
+    for o in market['outcomes']:
+        if o['name'] == p1_name:
+            prices['o1'] = o['price']
+        elif o['name'] == p2_name:
+            prices['o2'] = o['price']
+    return prices
+
+
+def _two_sided_prices(market, first_name, second_name, fold_case=False):
+    """(line, first price, second price) for a two-outcome market, or None when
+    either side is missing. Spreads match player names as given; totals match
+    'over'/'under' case-insensitively."""
+    by_name = {}
+    for o in market['outcomes']:
+        by_name[o['name'].lower() if fold_case else o['name']] = o
+    first, second = by_name.get(first_name), by_name.get(second_name)
+    if not (first and second):
+        return None
+    return first['point'], first['price'], second['price']
+
+
 def _extract_markets(bk, p1_name, p2_name):
     """h2h / spreads / totals prices from one bookmaker block."""
     h2h = {"o1": 0.0, "o2": 0.0}
@@ -203,21 +227,15 @@ def _extract_markets(bk, p1_name, p2_name):
     total = {"line": 0.0, "over": 0.0, "under": 0.0}
     for m in bk.get('markets', []):
         if m['key'] == 'h2h':
-            for o in m['outcomes']:
-                if o['name'] == p1_name:
-                    h2h['o1'] = o['price']
-                elif o['name'] == p2_name:
-                    h2h['o2'] = o['price']
+            h2h = _h2h_prices(m, p1_name, p2_name)
         elif m['key'] == 'spreads':
-            p1_o = next((o for o in m['outcomes'] if o['name'] == p1_name), None)
-            p2_o = next((o for o in m['outcomes'] if o['name'] == p2_name), None)
-            if p1_o and p2_o:
-                spread.update(line=p1_o['point'], o1=p1_o['price'], o2=p2_o['price'])
+            prices = _two_sided_prices(m, p1_name, p2_name)
+            if prices:
+                spread.update(line=prices[0], o1=prices[1], o2=prices[2])
         elif m['key'] == 'totals':
-            over_o = next((o for o in m['outcomes'] if o['name'].lower() == 'over'), None)
-            under_o = next((o for o in m['outcomes'] if o['name'].lower() == 'under'), None)
-            if over_o and under_o:
-                total.update(line=over_o['point'], over=over_o['price'], under=under_o['price'])
+            prices = _two_sided_prices(m, 'over', 'under', fold_case=True)
+            if prices:
+                total.update(line=prices[0], over=prices[1], under=prices[2])
     return h2h, spread, total
 
 
@@ -263,6 +281,29 @@ def _event_summary(event, sport, sport_label):
     }
 
 
+def _sport_matches(sport, api_key, scope, markets):
+    """Scan rows for one tennis endpoint. A malformed event is skipped with a
+    note, never fatal: one bad payload must not cost the whole scan."""
+    url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
+           f"?apiKey={api_key}&{scope}&markets={markets}")
+    events = _get_sport_events(url, sport)
+    if not events:
+        return []
+
+    sport_label = sport.replace('tennis_', '').replace('_', ' ').title()
+    print(f"  [+] {sport}: {len(events)} events")
+    rows = []
+    for event in events:
+        try:
+            row = _event_summary(event, sport, sport_label)
+        except Exception as e:
+            print(f"Skipping malformed event in {sport}: {e}")
+            continue
+        if row:
+            rows.append(row)
+    return rows
+
+
 def fetch_all_tennis_odds():
     """
     Fetches real pre-match and live odds from The Odds API for all tennis events.
@@ -277,29 +318,11 @@ def fetch_all_tennis_odds():
     regions = config["data"]["odds_api"]["regions"]
     markets = config["data"]["odds_api"]["markets"]
     bookmakers = config["data"]["odds_api"].get("bookmakers", "") or None
+    scope = f"bookmakers={bookmakers}" if bookmakers else f"regions={regions}"
 
-    sport_keys = fetch_active_tennis_sports(api_key)
     all_matches = []
-
-    for sport in sport_keys:
-        scope = f"bookmakers={bookmakers}" if bookmakers else f"regions={regions}"
-        url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
-               f"?apiKey={api_key}&{scope}&markets={markets}")
-        events = _get_sport_events(url, sport)
-        if not events:
-            continue
-
-        sport_label = sport.replace('tennis_', '').replace('_', ' ').title()
-        print(f"  [+] {sport}: {len(events)} events")
-        for event in events:
-            try:
-                row = _event_summary(event, sport, sport_label)
-            except Exception as e:
-                print(f"Skipping malformed event in {sport}: {e}")
-                continue
-            if row:
-                all_matches.append(row)
-
+    for sport in fetch_active_tennis_sports(api_key):
+        all_matches.extend(_sport_matches(sport, api_key, scope, markets))
     return all_matches
 
 def save_to_csv(matches):

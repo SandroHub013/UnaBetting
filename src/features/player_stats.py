@@ -147,6 +147,29 @@ class PlayerStatsEngine:
         stats.update(self._hold_pct(matches))
         return stats
 
+    @staticmethod
+    def _recent_workload(matches, current_date):
+        """Minutes played in the last 14 days, raw and decayed.
+
+        Walks backwards and stops at the first match older than the window,
+        which is why `matches` must stay in chronological order.
+        """
+        minutes_14d = 0
+        decay_minutes_14d = 0.0
+        for m in reversed(matches):
+            m_date = m.get("date")
+            if not m_date or pd.isna(m_date):
+                continue
+            delta = (current_date - m_date).days
+            if delta > 14:
+                break
+            mn = m.get("minutes")
+            if mn and not pd.isna(mn):
+                minutes_14d += mn
+                # Decay: half-life of 4 days. Match 1 day ago = 84% weight. Match 7 days ago = 30% weight.
+                decay_minutes_14d += mn * (0.5 ** (delta / 4.0))
+        return minutes_14d, decay_minutes_14d
+
     def _fatigue_features(self, matches, current_date):
         """Calculate fatigue-related features (cumulative load, not just recency)."""
         empty = {"days_since_last": np.nan, "minutes_last_14d": 0}
@@ -161,20 +184,7 @@ class PlayerStatsEngine:
             days_since = np.nan
 
         # Workload accumulated in recent windows (compounding fatigue with decay).
-        minutes_14d = 0
-        decay_minutes_14d = 0.0
-        for m in reversed(matches):
-            m_date = m.get("date")
-            if m_date and not pd.isna(m_date):
-                delta = (current_date - m_date).days
-                if delta <= 14:
-                    mn = m.get("minutes")
-                    if mn and not pd.isna(mn):
-                        minutes_14d += mn
-                        # Decay: half-life of 4 days. Match 1 day ago = 84% weight. Match 7 days ago = 30% weight.
-                        decay_minutes_14d += mn * (0.5 ** (delta / 4.0))
-                if delta > 14:
-                    break
+        minutes_14d, decay_minutes_14d = self._recent_workload(matches, current_date)
 
         return {
             "days_since_last": days_since,

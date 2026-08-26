@@ -204,6 +204,18 @@ def _tool_arguments(tool_call):
         return {}
 
 
+def _record_thought(message, messages):
+    """Record a turn where the model reasoned instead of calling a tool.
+
+    The empty string is appended too: the assistant turn has to be in the
+    transcript either way or the next request loses the thread.
+    """
+    content = message.get("content", "")
+    if content:
+        print(f"  [Agent] Thought: {content[:120]}...")
+    messages.append({"role": "assistant", "content": content})
+
+
 class ResearchCache:
     """JSON-based persistent cache for research results.
     Survives across scans — avoids redundant API calls within TTL.
@@ -684,41 +696,51 @@ class AgenticResearcher:
             tool_calls = message.get("tool_calls", [])
 
             if not tool_calls:
-                content = message.get("content", "")
-                if content:
-                    print(f"  [Agent] Thought: {content[:120]}...")
-                messages.append({"role": "assistant", "content": content})
+                _record_thought(message, messages)
                 if iteration > 0:
                     break
                 continue
 
             messages.append(message)
-
-            for tc in tool_calls:
-                func_name = tc.get("function", {}).get("name", "")
-                func_args = _tool_arguments(tc)
-                tc_id = tc.get("id", f"call_{iteration}_{tool_call_count}")
-
-                tool_call_count += 1
-                args_preview = json.dumps(func_args, ensure_ascii=False)[:80]
-                print(f"  [Agent] [{tool_call_count}] {func_name}({args_preview})")
-
-                if func_name == "done":
-                    adjustments = func_args.get("adjustments", [])
-                    print(f"  [Agent] Research complete. {len(adjustments)} adjustments.")
-                    messages.append({
-                        "role": "tool", "tool_call_id": tc_id,
-                        "content": json.dumps({"status": "ok"}),
-                    })
-                    return adjustments
-
-                messages.append({
-                    "role": "tool", "tool_call_id": tc_id,
-                    "content": self._run_tool(func_name, func_args)[:3000],
-                })
+            adjustments, tool_call_count = self._run_tool_calls(
+                tool_calls, messages, iteration, tool_call_count
+            )
+            if adjustments is not None:
+                return adjustments
 
         print("  [Agent] Max iterations. Forcing completion...")
         return self._force_completion(messages)
+
+    def _run_tool_calls(self, tool_calls, messages, iteration, tool_call_count):
+        """Run one round of tool calls, appending each result to `messages`.
+
+        Returns (adjustments, tool_call_count). `adjustments` is the final list
+        when the model called `done`, and None when the loop should go round
+        again.
+        """
+        for tc in tool_calls:
+            func_name = tc.get("function", {}).get("name", "")
+            func_args = _tool_arguments(tc)
+            tc_id = tc.get("id", f"call_{iteration}_{tool_call_count}")
+
+            tool_call_count += 1
+            args_preview = json.dumps(func_args, ensure_ascii=False)[:80]
+            print(f"  [Agent] [{tool_call_count}] {func_name}({args_preview})")
+
+            if func_name == "done":
+                adjustments = func_args.get("adjustments", [])
+                print(f"  [Agent] Research complete. {len(adjustments)} adjustments.")
+                messages.append({
+                    "role": "tool", "tool_call_id": tc_id,
+                    "content": json.dumps({"status": "ok"}),
+                })
+                return adjustments, tool_call_count
+
+            messages.append({
+                "role": "tool", "tool_call_id": tc_id,
+                "content": self._run_tool(func_name, func_args)[:3000],
+            })
+        return None, tool_call_count
 
     def _build_initial_context(self, predictions: list) -> str:
         lines = [
