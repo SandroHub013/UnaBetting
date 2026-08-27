@@ -18,24 +18,33 @@ dashboard binds `127.0.0.1:8765` and there is no hosted service. The
 interesting surface is what a local process, a malicious download or a
 tampered release bundle can do to a user who runs it.
 
-## Known gap — model bundles carry integrity, not authenticity
+## Release bundles are signed, and why that is the load-bearing check
 
-The in-app updater (`/api/update/apply`) extracts release bundles through
-`_extract_runtime_bundle`, which requires every member to resolve inside
-`DATA_ROOT` and to match the manifest's size and SHA-256 before anything
-is written. Tests in `tests/test_updater.py` pin this.
+A release bundle contains pickled models, and `joblib.load` executes code
+when it deserialises them. So a bundle the updater accepts is, in
+practice, code the user runs. The in-app updater (`/api/update/apply`)
+extracts through `_extract_runtime_bundle`, which decides acceptance in
+this order and writes nothing until every step passes:
 
-That manifest ships **inside the same zip**. It proves the bundle was not
-corrupted in transit; it does not prove who built it. Trust currently
-rests entirely on HTTPS to this project's own GitHub Releases.
+1. `manifest.json` must carry a valid **Ed25519 signature** over its own
+   canonical JSON, verified against the public key baked into
+   `data_api._UPDATER_PUBKEY`. An unsigned bundle is refused outright.
+2. Every member must resolve inside `DATA_ROOT`.
+3. Every member must match the manifest's size and SHA-256, and the
+   manifest may not list files the zip does not contain.
+4. Protected user paths — the portfolio database above all — are skipped
+   rather than overwritten.
 
-This matters because the bundle contains pickled models that `joblib.load`
-deserialises, and unpickling executes code by construction. Anyone who
-can serve a bundle the client accepts gets code execution.
+Validation is all-or-nothing: a bundle that fails on its last member
+writes nothing at all. Tests in `tests/test_updater.py` pin every step,
+and [`docs/EXAMPLES.md`](docs/EXAMPLES.md) shows each refusal running.
 
-**Planned fix:** sign the manifest and verify it against a key baked into
-the read-only `BUNDLE_DIR`. Until then, do not point the updater at any
-source other than this project's releases.
+**The limitation that remains:** the verification key is a constant in the
+source, so rotating or revoking it requires shipping a new release, and
+installations already in the field keep trusting the old key until their
+users update. If you have reason to believe the release key is
+compromised, report it through the process below rather than opening a
+public issue.
 
 ## What is already enforced
 

@@ -42,6 +42,15 @@ stages, the two runtime roots, the trust boundaries, and the structural gaps tha
 are known and unfixed. The decisions themselves are in
 **[docs/adr/](docs/adr/)**, one file each, with what they cost.
 
+If you would rather run something than read: **[docs/EXAMPLES.md](docs/EXAMPLES.md)**
+is five worked examples with their real captured output — pricing a value bet,
+reading an ELO, watching the updater refuse four bad bundles, knocking on the
+local API from the wrong origin, and proving the evaluation is leak-free. And
+because this repository joins about a dozen fields that each have their own idea
+of what a number means, **[docs/DOMAINS.md](docs/DOMAINS.md)** maps the seams
+between them — where machine learning has to agree with market microstructure,
+where an LLM's prose becomes a probability, where a PTY has to become a WebSocket.
+
 ```mermaid
 flowchart LR
   subgraph Data

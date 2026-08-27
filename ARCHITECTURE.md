@@ -170,15 +170,34 @@ What each boundary actually enforces:
 - **CSP** is set on every response by one middleware, with `object-src 'none'`
   and `base-uri 'none'`.
 
-**The one gap, stated plainly:** the updater verifies every bundle member's size
-and SHA-256 against a manifest that ships *inside the same zip*. That is
-integrity, not authenticity — it proves the download was not corrupted, not who
-built it. The bundle contains pickled models, and `joblib.load` executes code by
-construction, so anyone who can serve a bundle the client accepts gets code
-execution. Trust currently rests entirely on HTTPS to this project's own GitHub
-Releases. The fix is to sign the manifest against a key baked into the read-only
-`BUNDLE_DIR`; until then the updater must not be pointed anywhere else.
-`tests/test_updater.py` pins what *is* enforced.
+**Why the updater is the sharpest boundary here:** a release bundle contains
+pickled models, and `joblib.load` executes code by construction. Anyone who can
+get a bundle accepted gets code execution. So acceptance is decided in this
+order, and nothing is written until all of it passes:
+
+1. `manifest.json` carries an **Ed25519 signature** over its own canonical JSON,
+   verified against a public key baked into `data_api._UPDATER_PUBKEY`. An
+   unsigned bundle is refused outright. This is the step that makes the rest
+   meaningful: rewriting a file *and* its hash no longer produces something the
+   client accepts, because the manifest would no longer verify.
+2. Every member must resolve inside `DATA_ROOT` — the zip-slip guard runs before
+   the manifest checks so an unsafe path fails identically on every OS.
+3. Every member must be listed in the manifest with a matching size and SHA-256,
+   and the manifest may not list files the zip does not contain.
+4. Protected user paths are skipped, not overwritten.
+
+Validation is **all-or-nothing**: a bundle that fails at member forty writes
+nothing from members one to thirty-nine. `tests/test_updater.py` pins every one
+of these, and [`docs/EXAMPLES.md`](docs/EXAMPLES.md) runs them against a live
+extractor.
+
+**What is still open:** the verification key is a constant in the source, so
+rotating or revoking it means shipping a new application. Installations already
+in the field keep trusting the old key until their users update — which is the
+one thing an update mechanism cannot fix about itself. The signing key itself is
+read from `UPDATER_PRIVATE_KEY` or `keys/updater_private.pem` by
+`scripts/build_release_bundle.py`, and its custody is a human process, not a
+property of this repository.
 
 ## 6. Cross-platform, without pretending the platforms are the same
 
@@ -215,7 +234,7 @@ Kept here rather than in issues, because they are properties of the shape:
 
 1. **Artifacts are not versioned against the code that produced them** (§3). A
    stale feature file trains silently.
-2. **The updater's manifest gives integrity, not authenticity** (§5).
+2. **The updater's verification key cannot be rotated without a new release** (§5).
 3. **`data/raw/TML-Database/` is required by ATP cleaning and nothing clones it.**
    A fresh clone gets through `download` and stops at `clean`.
 4. **`src/dashboard/data_api.py` is 1 348 lines** and holds twenty-six endpoints
@@ -229,6 +248,8 @@ Kept here rather than in issues, because they are properties of the shape:
 
 | Question | File |
 |---|---|
+| Show me, with runnable code and real output | [`docs/EXAMPLES.md`](docs/EXAMPLES.md) |
+| Which fields this project joins, and where they meet | [`docs/DOMAINS.md`](docs/DOMAINS.md) |
 | Why a boundary is where it is, one decision per file | [`docs/adr/`](docs/adr/) |
 | What the app actually exposes over HTTP and WebSocket | [`docs/API.md`](docs/API.md) |
 | How the scheduled agents work, and what they may not do | [`docs/LOOPS.md`](docs/LOOPS.md) |
