@@ -1145,11 +1145,11 @@ def _collect_writes(zf, root, expected):
 def _extract_runtime_bundle(zip_path, data_root, baseline_config=None):
     """Extract a runtime bundle into data_root. Returns the number of files written.
 
-    INTEGRITY, NOT AUTHENTICITY: manifest.json lives inside the same zip it attests,
-    so the sha256 checks only catch accidental corruption / truncation, NOT a
-    tampered or malicious bundle (an attacker who alters files just rewrites the
-    hashes). The bundle is trusted because it is fetched over HTTPS from the
-    project's own GitHub Releases — see the signing follow-up in CLAUDE.md.
+    AUTHENTICITY THEN INTEGRITY: manifest.json is signed with the project's Ed25519
+    release key and verified against the public key baked into this module before any
+    member is read, so rewriting a file and its hash no longer produces a bundle this
+    accepts — an attacker would need the private key. The sha256 entries then catch
+    corruption and truncation of an otherwise genuine bundle.
 
     Every member is validated BEFORE anything is written (a rejected bundle writes
     nothing): it must resolve inside data_root (zip-slip / absolute-path guard), be

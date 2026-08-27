@@ -108,14 +108,14 @@ Everything this returns is untrusted input — it is a remote page.
 | `GET` | `/api/update/check` | A packaged build compares its `VERSION` against the latest GitHub Release; a source checkout falls back to a git fast-forward check |
 | `POST` | `/api/update/apply` | Packaged: downloads the release bundle and extracts it into `DATA_ROOT`, preserving the portfolio database, settings and config overrides. Source checkout: `git pull --ff-only` |
 
-Extraction goes through `_extract_runtime_bundle`: every member must resolve
-inside `DATA_ROOT` and match the manifest's size and SHA-256, and the whole bundle
-is validated before a single byte is written. `tests/test_updater.py` pins this.
-
-**The manifest ships inside the same zip, so it proves integrity and not
-authenticity.** The bundle carries pickled models that `joblib.load`
-deserialises, and unpickling executes code. Do not point the updater at any
-source other than this project's own GitHub Releases — see `SECURITY.md`.
+Extraction goes through `_extract_runtime_bundle`: the manifest's **Ed25519
+signature** is verified against the baked-in public key before any member is read,
+every member must resolve inside `DATA_ROOT` and match the manifest's size and
+SHA-256, and the whole bundle is validated before a single byte is written.
+`tests/test_updater.py` pins this; [`EXAMPLES.md`](EXAMPLES.md) shows the refusals
+running. The bundle carries pickled models that `joblib.load` deserialises, and
+unpickling executes code — which is why the signature check comes first. See
+[`../SECURITY.md`](../SECURITY.md).
 
 ---
 

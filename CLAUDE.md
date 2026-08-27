@@ -83,8 +83,9 @@ pip install -r requirements.txt
   `_extract_runtime_bundle`: members must resolve inside `DATA_ROOT`, be listed in
   the bundle's manifest with a matching size+sha256, and the whole bundle is
   validated before any write — don't bypass it (tests in `tests/test_updater.py`).
-  The manifest gives **integrity, not authenticity** (it ships inside the same zip),
-  so trust rests on HTTPS from the project's own GitHub Releases. **Follow-up before
-  wide distribution:** sign the manifest and verify against a key baked into the
-  read-only `BUNDLE_DIR` — the bundle ships pickled models that `joblib.load` runs.
+  The manifest is **signed (Ed25519)** and verified against `_UPDATER_PUBKEY` before
+  any member is read; an unsigned bundle is refused. The bundle ships pickled models
+  that `joblib.load` runs, so that check is what stands between a download and code
+  execution — never relax it. **Remaining limitation:** the public key is a source
+  constant, so rotating it requires shipping a new release.
 - Public pushes are additive only — never force-push.
