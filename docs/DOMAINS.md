@@ -40,6 +40,73 @@ flowchart TD
 
 ---
 
+## 0. One click, five domains
+
+Every diagram in this repository so far describes structure. This one describes
+*time* — what actually happens when a user presses **Scan**, which is the single
+action that crosses the most boundaries in the shortest span.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant UI as Browser UI
+  participant WS as /ws/run
+  participant SEC as security.authorize_websocket
+  participant OS as OS process
+  participant API as the-odds-api
+  participant ML as models
+  participant FS as DATA_ROOT
+
+  UI->>WS: {"cmd": "scan"}
+  WS->>SEC: origin + DASHBOARD_TOKEN
+  alt refused
+    SEC-->>UI: close 4403 / 4401
+  else accepted
+    WS->>WS: COMMAND_WHITELIST["scan"] → argv
+    WS->>OS: create_subprocess_exec(*argv), no shell
+    WS-->>UI: {"type": "start"}
+    OS->>API: fetch_all_tennis_odds()
+    API-->>OS: prices, 6 named books
+    OS->>FS: data/live/current_odds.csv
+    OS->>ML: run_inference()
+    ML-->>OS: calibrated probabilities
+    OS->>FS: data/live/predictions.json
+    loop each stdout line
+      OS-->>WS: bytes
+      WS-->>UI: {"type": "line"}
+    end
+    OS-->>WS: exit code
+    WS-->>UI: {"type": "exit", "code": n}
+  end
+```
+
+Six things in that picture are decisions rather than plumbing, and each belongs
+to a different field:
+
+- **The whitelist step is a lookup, not a parse.** The client sent the string
+  `"scan"`; the server finds the argument vector itself. No command line ever
+  crosses the boundary, so there is nothing to escape
+  ([ADR-0004](adr/0004-the-runner-takes-a-name.md)).
+- **The spawn uses `create_subprocess_exec`, never a shell**, with the working
+  directory and a UTF-8 environment fixed by the server rather than inherited.
+- **The odds fetch spends real money.** `scan` is the one whitelisted command
+  that consumes paid API credits — which is why it is a deliberate button rather
+  than a poll, and why `nightly_maintenance` and `weekly_evolution` are both
+  forbidden from calling it ([`LOOPS.md`](LOOPS.md)).
+- **The two writes to `DATA_ROOT` are the file seam.** Inference does not receive
+  a data frame from the scraper; it reads the CSV the scraper wrote
+  ([ADR-0001](adr/0001-files-as-the-pipeline-seam.md)).
+- **The output loop is a byte stream inside a message protocol.** A subprocess
+  emits bytes whenever it likes; a WebSocket carries discrete frames. The pump
+  reads one line at a time and wraps each as JSON, decoding with
+  `errors="replace"` so one malformed byte cannot kill the run.
+- **Only one command may run at a time.** A second request while one is live is
+  refused rather than queued, and a `{"type": "stop"}` frame kills the process.
+  The state enforcing that lives in the socket handler, so it dies with the
+  connection.
+
+The rest of this page is those boundaries one at a time.
+
 ## 1. Machine learning ↔ market microstructure
 
 **The seam:** a model probability and a bookmaker price cannot be compared until
