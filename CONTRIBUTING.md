@@ -34,6 +34,21 @@ None of these are off-limits to newcomers — a typo fix and a new feature are b
 Pick an item from `EXPERIMENTS.md` **(ML only)**, an open issue, or propose your own via
 an issue. **One concern per PR**, branched from `main`.
 
+## What to read before your first PR
+
+You do not need all of it. Read the one that matches the pathway you picked.
+
+| If you are touching | Read |
+|---|---|
+| Anything structural | [`ARCHITECTURE.md`](ARCHITECTURE.md) — the layer rule, the file-based seam between pipeline stages, the two runtime roots |
+| A decision that already has a reason | [`docs/adr/`](docs/adr/) — seven decisions, one file each, with what each one cost |
+| Code that joins two fields | [`docs/DOMAINS.md`](docs/DOMAINS.md) — every seam in the project and what breaks when a handoff is dishonest |
+| Anything, if you learn by running | [`docs/EXAMPLES.md`](docs/EXAMPLES.md) — five runnable examples with their real captured output |
+| The app's HTTP or WebSocket surface | [`docs/API.md`](docs/API.md) |
+| A loop | [`docs/LOOPS.md`](docs/LOOPS.md) — tiers, guardrails, stopping rules |
+| A trust boundary | [`SECURITY.md`](SECURITY.md) — origin policy, the whitelisted runner, the signed-update chain |
+| Data ingestion | [`DATA_SOURCES.md`](DATA_SOURCES.md) — every source, its licence, and the obligations that travel with it |
+
 ## The golden rule: no leaks (ML changes only)
 
 This applies **only if your change touches features, training, or evaluation.** App,
