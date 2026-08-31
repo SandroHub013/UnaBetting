@@ -44,6 +44,22 @@ output has to become another's input.
 | **CLV infra** | Scheduled multi-book odds snapshots, sharp no-vig consensus (Pinnacle/Betfair), Closing Line Value per signal — the metric of truth |
 | **Self-evolving loops** | Scheduled headless agents: nightly maintenance, weekly experiments, daily results check (Sofascore), code review, and a PR-review loop that reviews & merges contributions |
 
+## Documentation
+
+| Document | What it answers |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The layer rule, the file-based seam, the two runtime roots, the trust boundaries, the known structural gaps |
+| [docs/adr/](docs/adr/) | Seven decisions, one file each, with what each one cost |
+| [docs/DOMAINS.md](docs/DOMAINS.md) | Every seam between the sixteen fields, and what breaks when a handoff is dishonest |
+| [docs/EXAMPLES.md](docs/EXAMPLES.md) | Five runnable examples with real captured output |
+| [docs/API.md](docs/API.md) | The local HTTP + WebSocket surface the app speaks to itself |
+| [docs/LOOPS.md](docs/LOOPS.md) | The scheduled agents, their tiers, their guardrails and their stopping rules |
+| [SECURITY.md](SECURITY.md) | Threat model, the origin policy, the signed-update chain, reporting |
+| [DATA_SOURCES.md](DATA_SOURCES.md) | Every source, its licence, and the obligations that travel with it |
+| [EXPERIMENTS.md](EXPERIMENTS.md) | The ML backlog and journal — including the experiments that failed |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Pathways, priorities, the leak rules, and what a good PR looks like |
+| [docs/obsidian/](docs/obsidian/) | The vault the in-app LLM searches, and the source of the 3D graph |
+
 ## Where the domains meet
 
 Sixteen fields, and none of them is decoration: each is here because a decision
@@ -301,22 +317,6 @@ scripts/         pipeline helpers + loops/ (scheduled agent prompts) + diagnosti
 docs/            architecture, ADRs, domain map, examples, API, obsidian/ vault, web/
 tests/           leak regressions, updater, terminal, dashboard API, live inference
 ```
-
-## Documentation
-
-| Document | What it answers |
-|---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The layer rule, the file-based seam, the two runtime roots, the trust boundaries, the known structural gaps |
-| [docs/adr/](docs/adr/) | Seven decisions, one file each, with what each one cost |
-| [docs/DOMAINS.md](docs/DOMAINS.md) | Every seam between the sixteen fields, and what breaks when a handoff is dishonest |
-| [docs/EXAMPLES.md](docs/EXAMPLES.md) | Five runnable examples with real captured output |
-| [docs/API.md](docs/API.md) | The local HTTP + WebSocket surface the app speaks to itself |
-| [docs/LOOPS.md](docs/LOOPS.md) | The scheduled agents, their tiers, their guardrails and their stopping rules |
-| [SECURITY.md](SECURITY.md) | Threat model, the origin policy, the signed-update chain, reporting |
-| [DATA_SOURCES.md](DATA_SOURCES.md) | Every source, its licence, and the obligations that travel with it |
-| [EXPERIMENTS.md](EXPERIMENTS.md) | The ML backlog and journal — including the experiments that failed |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Pathways, priorities, the leak rules, and what a good PR looks like |
-| [docs/obsidian/](docs/obsidian/) | The vault the in-app LLM searches, and the source of the 3D graph |
 
 ## Contributing
 
