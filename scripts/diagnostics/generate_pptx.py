@@ -1,4 +1,15 @@
-"""Generate academic PowerPoint presentation for tennis betting project."""
+"""Generate academic PowerPoint presentation for tennis betting project.
+
+ARCHIVED — DO NOT RE-RUN AND SHIP THE OUTPUT.
+
+The results tables below are literals, not measurements, and they carry the same
+pre-leak-fix figures as generate_charts.py: 78.8% H2H accuracy, +56.2% ROI, a 95.9%
+win rate. Three data leaks produced those numbers and all three are fixed; the honest
+out-of-sample numbers are 67.4% accuracy and a backtest ROI of -29%. `OUTDIR` also
+points at an absolute path outside this project.
+
+Kept as the record of what a leak looked like. See reports/README.md.
+"""
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor

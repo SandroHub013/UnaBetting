@@ -885,6 +885,23 @@
 </head>
 <body>
 
+<!-- ARCHIVED 2026-09-01 — pre-leak-fix figures. Context: reports/README.md -->
+<div style="position:sticky;top:64px;margin-top:64px;z-index:1001;background:#7f1d1d;color:#fff;padding:18px 22px;font:15px/1.65 system-ui,-apple-system,'Segoe UI',sans-serif;border-bottom:3px solid #ef4444">
+  <strong style="display:block;font-size:17px;margin-bottom:8px">&#9888; Archived &mdash; the numbers on this page are the leak, not the result.</strong>
+  Every figure here &mdash; <strong>78.8% accuracy</strong>, <strong>+56.2% ROI</strong>, and the charts
+  that show them &mdash; was produced <em>before</em> three data leaks were found and fixed, and the chart
+  values were hard-coded in <code style="background:rgba(0,0,0,.32);padding:1px 6px;border-radius:3px">scripts/diagnostics/generate_charts.py</code>
+  rather than read from any run. The heading &ldquo;No Temporal Leakage&rdquo; below is <em>wrong</em>: leakage is
+  exactly what these results contain.
+  <br><br>
+  The honest out-of-sample numbers are <strong>67.4% accuracy</strong> and a backtest ROI of
+  <strong>&minus;29%</strong> &mdash; the model <strong>does not beat the market</strong>. This page is kept
+  because the leak chronology is part of this project's record, not because it is right.
+  See <a href="README.md" style="color:#fecaca">reports/README.md</a> for the three leaks and what each
+  one inflated, and the <a href="../README.md" style="color:#fecaca">project README</a> for the current
+  numbers.
+</div>
+
 <!-- Three.js Canvas -->
 <canvas id="three-canvas"></canvas>
 

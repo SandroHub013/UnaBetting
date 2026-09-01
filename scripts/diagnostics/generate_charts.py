@@ -1,4 +1,17 @@
-"""Generate academic charts for tennis betting presentation."""
+"""Generate academic charts for tennis betting presentation.
+
+ARCHIVED — DO NOT RE-RUN AND SHIP THE OUTPUT.
+
+Every number below is a literal, not a measurement: `accuracy`, `roi`, `win_rate` and
+the per-year accuracies were typed in, and they are the pre-leak-fix figures (78.8%
+accuracy, +56.2% ROI) that three fixed data leaks produced. The honest out-of-sample
+numbers are 67.4% accuracy and a backtest ROI of -29%. `OUTDIR` also points at an
+absolute path outside this project, so the script cannot write in place.
+
+Kept as the record of what a leak looked like. Before it can be trusted again it has
+to read models/atp_metrics.json, reports/last_backtest.json and
+reports/metrics_history.csv instead of these constants. See reports/README.md.
+"""
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

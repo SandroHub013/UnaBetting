@@ -65,6 +65,7 @@ output has to become another's input.
 | [SECURITY.md](SECURITY.md) | Threat model, the origin policy, the signed-update chain, reporting |
 | [DATA_SOURCES.md](DATA_SOURCES.md) | Every source, its licence, and the obligations that travel with it |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | The ML backlog and journal — including the experiments that failed |
+| [reports/README.md](reports/README.md) | Which figures in `reports/` are current and which are archived pre-leak-fix artifacts — and why the wrong ones are kept |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Pathways, priorities, the leak rules, and what a good PR looks like |
 | [docs/obsidian/](docs/obsidian/) | The vault the in-app LLM searches, and the source of the 3D graph |
 
