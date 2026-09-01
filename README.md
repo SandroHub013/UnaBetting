@@ -237,6 +237,13 @@ flowchart LR
 
 ## Quick start
 
+**Prerequisites** — Python 3.11+ and `git` on the PATH: the ATP datasets are *cloned*
+from their upstream repositories, not downloaded as files. Optional:
+[Ollama](https://ollama.com) if you want the in-app chat, and a CPU-only torch wheel
+if you would rather not pull several GB of CUDA —
+`pip install torch --index-url https://download.pytorch.org/whl/cpu` **before** the
+requirements file.
+
 ```bash
 git clone https://github.com/SandroHub013/UnaBetting.git
 cd UnaBetting
@@ -265,6 +272,42 @@ Browser requests to the dashboard APIs and WebSockets are restricted to the loca
 origin. Set `DASHBOARD_TOKEN` before launch to additionally require the same session token
 on pipeline, terminal, and chat WebSocket connections; the bundled frontend forwards it
 automatically.
+
+**Run the tests** — `python -m pytest tests/ -q`. The tests marked `@slow` skip
+without the real features dataset; everything else runs from a clean checkout, which
+is the same thing CI does on every pull request.
+
+### Configuration
+
+Nothing here is required to *read* the project. These are the five variables that
+change how it behaves:
+
+| Variable | What it controls | Default |
+|---|---|---|
+| `ODDS_API_KEY` | the-odds-api credential. `scan` is the only command in the project that spends paid credits. | unset — live odds disabled |
+| `OPENROUTER_API_KEY` | Read from the environment only if the in-app chat is pointed at a remote provider. Never written to `chat_settings.json`. | unset |
+| `CHAT_MODEL` | The Ollama model behind UnaBettingOS. | `qwen3.5:9b` |
+| `DASHBOARD_TOKEN` | If set, the pipeline, terminal and chat WebSockets additionally require this session token. | unset |
+| `UNABETTING_DATA_DIR` | Overrides the writable data root for portable installs and testing. | the repo in a checkout, a per-OS app-data directory when frozen |
+
+The modelling window lives in `config/config.yaml` — `train_start_year: 2005`,
+`validation_years: [2024]`, `test_start_year: 2025` — alongside
+`odds_api.bookmakers`, which names the six books explicitly instead of requesting
+whole regions: fewer credits, and no prices from venues the project cannot use.
+
+### If something does not work
+
+- **The app serves `http://127.0.0.1:8765`, not 8000.** `PORT` in
+  `src/dashboard/config.py` is the authority.
+- **No native window outside Windows.** `pywebview` is an optional import; use
+  `python -m src.dashboard --browser` or `--server-only`.
+- **No datasets and no trained artifacts ship with the repo.** `models/*.pkl`, the
+  scaler, the medians and `atp_metrics.json` are gitignored — `train` produces them,
+  and `backtest` names what is missing if you skip a step.
+- **`build_features` takes roughly twenty minutes** on a first run. It is not stuck.
+- **The optional dependencies really are optional.** `webview`, `winpty`, `pty`,
+  `pygame` and `pyttsx3` are each guarded: the app falls back to a browser window and
+  the TUI runs silently rather than failing.
 
 ## Worked examples
 
