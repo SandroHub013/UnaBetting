@@ -164,6 +164,34 @@ flowchart LR
   MD --> APP[UnaBetting desktop app]
 ```
 
+### The split that makes a number honest
+
+`TR` in the diagram above is one box, and it is the box the whole project is built to
+protect. The split is **temporal and never random** — `train_start_year: 2005`,
+`validation_years: [2024]`, `test_start_year: 2025` in `config/config.yaml` — because
+a random split lets a model learn from matches that had not happened yet:
+
+```mermaid
+gantt
+  title Time is the only split allowed
+  dateFormat  YYYY-MM-DD
+  axisFormat  %Y
+  section Fit
+  train 2005 to 2023        :done,   t1, 2005-01-01, 2024-01-01
+  section Tune
+  validation 2024           :active, t2, 2024-01-01, 2025-01-01
+  section Judge
+  test 2025 onward and frozen :crit,  t3, 2025-01-01, 2027-01-01
+```
+
+Three rules travel with that picture and are enforced in code, not by convention:
+raw rows are winner-perspective (`w_*` / `l_*`), so evaluation happens on
+**randomised perspective** or the accuracy is inflated by construction; imputation
+uses **train-window medians only**; and every `w_X` needs its `l_X` twin, which
+`_enforce_perspective_pairs` guarantees. The test window is deliberately frozen so
+that two experiments a month apart are comparable
+([ADR-0002](docs/adr/0002-leak-freedom-is-structural.md)).
+
 ## Data flow inside the app
 
 ```mermaid
@@ -230,13 +258,20 @@ origin. Set `DASHBOARD_TOKEN` before launch to additionally require the same ses
 on pipeline, terminal, and chat WebSocket connections; the bundled frontend forwards it
 automatically.
 
-## A worked example: four prices, one signal
+## Worked examples
 
-No dataset, no trained model, no API key, no running server — this runs from a fresh
-clone once `pip install -r requirements.txt` is done, and **the output block below is
-captured, not illustrative**. Two of these four bookmakers move the market and two
-follow it; the question a signal answers is not "who wins" but "is anyone offering
-more than the price implied by the books that know".
+Three of them, and **every output block below is captured, not illustrative**. None
+needs a dataset, a trained model, an API key or a running server: they exercise the
+pure functions and the security boundaries, which is exactly the part a reader can
+verify from a fresh clone with nothing but `pip install -r requirements.txt`.
+Two more — reading an ELO, and proving an evaluation is leak-free — are in
+[docs/EXAMPLES.md](docs/EXAMPLES.md).
+
+### 1. Four prices, one signal
+
+Two of these four bookmakers move the market and two follow it; the question a signal
+answers is not "who wins" but "is anyone offering more than the price implied by the
+books that know".
 
 ```python
 import pandas as pd
@@ -285,10 +320,84 @@ comparison, not a prediction** — Alcaraz's fair price is 2.17, William Hill sh
 signal log. Note what is *absent*: the model. A signal is a market observation, and
 it is deliberately computable without a prediction.
 
-Four more of these — reading an ELO, watching the updater refuse four malformed
-bundles, knocking on the local API from the wrong origin, and proving an evaluation
-is leak-free — are in **[docs/EXAMPLES.md](docs/EXAMPLES.md)**, each with its real
-captured output.
+### 2. Five bundles, one accepted
+
+The in-app updater downloads a zip and unpacks it into the writable data root. That
+zip contains **pickled models**, and `joblib.load` executes code when it deserialises
+them — so a bundle the client accepts is, in practice, code the user runs. The order
+of the checks is therefore the whole security story:
+
+```mermaid
+stateDiagram-v2
+  [*] --> manifest: open the zip
+  manifest --> signature: read manifest.json
+  signature --> refused: unsigned, or signed by another key
+  signature --> paths: Ed25519 verified against the baked-in key
+  paths --> refused: a member resolves outside DATA_ROOT
+  paths --> members: zip-slip / absolute-path guard cleared
+  members --> refused: size or sha256 mismatch, or a listed file is absent
+  members --> installable: protected user paths skipped, not overwritten
+  installable --> refused: nothing left to install
+  installable --> written: every member validated first
+  written --> [*]
+  refused --> [*]
+```
+
+Five bundles offered to `_extract_runtime_bundle`, with a throwaway signing key
+standing in for the release key — the harness is
+[docs/EXAMPLES.md §3](docs/EXAMPLES.md#3-refuse-a-bad-update):
+
+```text
+a genuine signed bundle            -> accepted, 2 file(s) written
+one byte changed after signing     -> REJECTED: size mismatch: models/atp_metrics.json
+same files, no signature           -> REJECTED: unsigned bundle — refusing to extract
+a member escaping DATA_ROOT        -> REJECTED: unsafe path in bundle: ../evil.txt
+a signed bundle over the bet db    -> REJECTED: bundle contains no installable files
+   the db on disk is still: the user's wagering history
+```
+
+The last row is the one that is not obvious: **a correctly signed bundle still cannot
+touch the user's data.** The bet database is on the protected list, so it is *skipped*
+rather than overwritten — and once it is skipped the bundle has nothing left to
+install, which is why the refusal reads the way it does. A signing key is not a
+licence to overwrite a wagering history. The write itself is all-or-nothing: a bundle
+that fails on its last member has written nothing from the earlier ones
+(`tests/test_updater.py`).
+
+### 3. Five origins, one allowed
+
+The dashboard binds `127.0.0.1`, which is not isolation: every other page open in the
+same browser can send it requests. This runs the real FastAPI app through a test
+client — no server, no port ([docs/EXAMPLES.md §4](docs/EXAMPLES.md#4-knock-on-the-local-app-from-the-wrong-page)):
+
+```text
+no Origin at all (the CLI, curl, this script):
+   GET /api/overview                -> 200
+
+the app's own page:
+   Origin: http://127.0.0.1:8765    -> 200
+
+some other page in the same browser:
+   Origin: https://evil.example             -> 403
+   Origin: http://127.0.0.1:9999            -> 403
+   Origin: http://user:pw@127.0.0.1:8765    -> 403
+   Origin: http://127.0.0.1:8765/path       -> 403
+   Sec-Fetch-Site: cross-site                      -> 403
+
+what the pipeline runner will accept as a command:
+   names: backtest, clean, download, features, inference, scan, signals, train
+   'rm -rf /' -> None
+
+asking a file endpoint to leave the project:
+   GET /api/file ../../etc/hosts    -> 403
+```
+
+**A missing `Origin` is allowed on purpose.** That is `curl`, the test client and the
+CLI — none of which a malicious web page can drive. Requiring the header would break
+every non-browser caller while stopping nothing, because the attacker in this model
+*is* a browser, and browsers always send one. And the runner's answer to `rm -rf /` is
+`None` rather than a refusal, because it never parses a command line at all: it looks
+up one of eight names.
 
 ## Model features (excerpt)
 
