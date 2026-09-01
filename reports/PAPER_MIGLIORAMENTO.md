@@ -1,3 +1,12 @@
+> ## ⚠️ ARCHIVED — pre-leak-fix. Do not cite the numbers in this document.
+>
+> Written 2026-04-05, before three data leaks were found and fixed. It reports
+> **78.8% accuracy** and **+56.2% ROI**; both are the leak, not a result. The honest
+> out-of-sample numbers are **67.4% accuracy** and a backtest ROI of **−29%** — the
+> model does not beat the market. Kept as part of the project's record of its own
+> leak hunt; see [`README.md`](README.md) in this folder for the three leaks and what
+> each one inflated.
+
 # SANDROMANTE TENNIS PREDICTION SYSTEM
 ## Analisi Critica e Proposte di Miglioramento State-of-the-Art
 
