@@ -34,6 +34,14 @@ output has to become another's input.
 > If you bet: only with licensed operators (in Italy: an ADM concession), only money
 > you can afford to lose, 18+. Gambling can be addictive.
 
+**Contents** — [What's inside](#whats-inside) · [Documentation](#documentation) ·
+[Where the domains meet](#where-the-domains-meet) · [Architecture](#architecture) ·
+[Data flow inside the app](#data-flow-inside-the-app) ·
+[Self-evolving loops](#self-evolving-loops) · [Quick start](#quick-start) ·
+[Worked examples](#worked-examples) · [Model features](#model-features-excerpt) ·
+[Project layout](#project-layout) · [Contributing](#contributing) ·
+[Data licenses](#data-licenses--attribution) · [License](#license)
+
 ## What's inside
 
 | Component | Description |
