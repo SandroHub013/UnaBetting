@@ -20,7 +20,7 @@ seaborn>=0.12.0
 plotly>=5.15.0
 
 # Jupyter notebooks
-jupyter>=1.0.0
+jupyter>=1.1.1
 notebook>=7.0.0
 
 # Web scraping & API
