@@ -33,7 +33,7 @@ selenium>=4.47.0
 # the-odds-api (via requests)
 
 # Environment
-python-dotenv>=1.0.0
+python-dotenv>=1.2.4
 
 # Utilities
 pyyaml>=6.0
